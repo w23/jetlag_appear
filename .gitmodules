@@ -1,0 +1,3 @@
+[submodule "atto"]
+	path = atto
+	url = https://github.com/w23/atto.git
