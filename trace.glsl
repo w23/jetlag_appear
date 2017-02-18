@@ -169,6 +169,7 @@ vec3 directlight(vec3 p, vec3 v) {
 }
 
 void main() {
+	t = uf_time * .1;
 	vec2 uv = vv2_pos * vec2(1., uv2_resolution.y / uv2_resolution.x);
 
 	//gl_FragColor = vec4(noise(gl_FragCoord.x*.1)); return;
@@ -202,7 +203,8 @@ void main() {
 		for (int i = 0; i < steps; ++i) {
 			float seed = float(i) + t;
 			//vec3 sd = normalize(mix(reflect(d,n), normalize(2. * (vec3(hash(seed+p.x), hash(seed+p.y), hash(seed+p.z)) - .5)), .5));
-			vec3 sd = reflect(d, n);
+			//vec3 sd = reflect(d, n);
+			vec3 sd = normalize(mix(reflect(d,n), n + normalize(2. * (vec3(hash(seed+p.x), hash(seed+p.y), hash(seed+p.z)) - .5)), 1.-m.specular));
 			vec3 os = p + n * E * 2.;
 			float Lm = 2.;
 			vec3 l = trace(os, sd, 0., Lm);

@@ -1,0 +1,1 @@
+clang++ --std=c++11 -Iatto atto/src/app_x11.c atto/src/app_linux.c tool.cc -o tool -lGL -lm -lX11 -o tool && ./tool trace.glsl
