@@ -48,7 +48,7 @@ float bounds(vec3 p) {
 }
 
 float object(vec3 p) {
-	p -= vec3(0., 2., 0.);
+	p -= vec3(0., 3., 0.);
 
 	//p.x += sin(p.y*2. + t);
 
@@ -146,7 +146,8 @@ vec3 brdf(vec3 N, vec3 L, vec3 V, material_t m) {
 	float D = r2 / (PI * pow(NH * NH * (r2 - 1.) + 1., 2.));
 	float G = 1. / (LH * LH);
 
-	return PI * mix(vec3(1./PI), F * D * G / 4., m.specular) * m.color * NL;
+	vec3 Fd = F0 + (vec3(1.) - F0) * pow(1. - NL, 5.);
+	return PI * mix((1. - Fd)/PI, F * D * G / 4., m.specular) * m.color * NL;
 }
 
 vec3 enlight(vec3 pos, vec3 normal, vec3 view, vec3 diffuse, vec3 lightpos, vec3 lightcolor) {
@@ -169,7 +170,7 @@ vec3 directlight(vec3 p, vec3 v) {
 }
 
 void main() {
-	t = uf_time * .1;
+	//t = uf_time * .1;
 	vec2 uv = vv2_pos * vec2(1., uv2_resolution.y / uv2_resolution.x);
 
 	//gl_FragColor = vec4(noise(gl_FragCoord.x*.1)); return;
@@ -177,14 +178,14 @@ void main() {
 
 	vec3 color = vec3(0.);
 
-	vec3 at = vec3(2.2,1.5,0.);
-	vec3 eye = 4. * vec3(.7, .5, .7) + .1 * vec3(noise(t), noise(t*.4), noise(t*.7));
+	vec3 at = vec3(2.2,3.,0.);
+	vec3 eye = vec3(3.7, 4.5, 4.7) + .1 * vec3(noise(t), noise(t*.4), noise(t*.7));
 	vec3 up = vec3(0., 1., 0.);
 	vec3 dir = normalize(at - eye);
 	vec3 side = cross(up, dir); up = cross(dir, side);
 	mat3 lat = mat3(side, up, -dir);
 	
-	vec3 o = vec3(uv, 4.);
+	vec3 o = vec3(uv, 0.);
 	vec3 d = normalize(vec3(uv, -1.));
 
 	o = lat * o + eye;
@@ -206,7 +207,7 @@ void main() {
 			//vec3 sd = reflect(d, n);
 			vec3 sd = normalize(mix(reflect(d,n), n + normalize(2. * (vec3(hash(seed+p.x), hash(seed+p.y), hash(seed+p.z)) - .5)), 1.-m.specular));
 			vec3 os = p + n * E * 2.;
-			float Lm = 2.;
+			float Lm = 4.;
 			vec3 l = trace(os, sd, 0., Lm);
 			if (l.x > 0. && l.x < Lm) {
 				//vec3 ps = refine(os + sd * l.x, os + sd * l.y);
