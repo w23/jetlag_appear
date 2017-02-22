@@ -55,7 +55,7 @@ float object(vec3 p) {
 #if 1
 	p.xy = abs(p.yx); p *= rotX(t);
 	p.xz = abs(p.zx); p *= rotX(t*.7);
-	// INTERESTING p.zy = abs(p.yx); p *= rotY(t*1.1);
+	// INTERESTING */ p.zy = abs(p.yx); p *= rotY(t*1.1);
 	p.zy = abs(p.yz); p *= rotY(t*1.1);
 #endif
 
@@ -82,6 +82,14 @@ struct material_t {
 
 material_t material(vec3 p) {
 	material_t m;
+#if 0
+	m.emissive = vec3(0.);
+	m.color = vec3(1.);
+	m.roughness = 1.;
+	m.specular = 0.;
+	m.fresnel = 0.;
+	m.metalness = 0.;
+#else
 	if (object(p) < bounds(p)) {
 		m.emissive = vec3(2.) * smoothstep(.99,.999,sin(t*4.+(rotX(t)*p).y*7.));
 		m.color = vec3(.56,.57,.58);
@@ -98,6 +106,7 @@ material_t material(vec3 p) {
 		m.fresnel = .02;
 		m.metalness = mix(.01, .9, type);
 	}
+#endif
 	return m;
 }
 
@@ -109,19 +118,18 @@ vec3 normal(vec3 p) {
 
 const float E = .005;
 
+
 vec3 trace(vec3 O, vec3 D, float L, float Lmax) {
 	float Lp = L;
-	float md = Lmax;
-	for (int i = 0; i < 128; ++i) {
+	for (int i = 0; i < 64; ++i) {
 		vec3 p = O + D * L;
 		float d = world(p);
-		md = min(md, d);
-		if (d < 0.) return vec3(Lp, L, md);
+		if (d < 0.) return vec3(Lp, L, 0.);
 		Lp = L;
 		L += max(d, E * L * .5);
-		if (L >= Lmax) return vec3(Lmax, Lmax, md);
+		if (L >= Lmax) return vec3(Lmax, Lmax, 0.);
 	}
-	return vec3(-1., L, md);
+	return vec3(-1., L, 0.);
 }
 
 vec3 refine(vec3 a, vec3 b) {
@@ -131,6 +139,7 @@ vec3 refine(vec3 a, vec3 b) {
 	}
 	return (a + b) * .5;
 }
+
 
 const float PI = 3.1415926;
 
@@ -151,18 +160,28 @@ vec3 brdf(vec3 N, vec3 L, vec3 V, material_t m) {
 }
 
 vec3 enlight(vec3 pos, vec3 normal, vec3 view, vec3 diffuse, vec3 lightpos, vec3 lightcolor) {
+	material_t m = material(pos);
 	vec3 lightdir = lightpos - pos;
 	vec3 nld = normalize(lightdir);
 	float ldist = length(lightdir);
-	float d = trace(pos + normal*E*10., nld, E, ldist).z;
-	material_t m = material(pos);
-	return m.emissive + pow(smoothstep(0., .06, d), 2.) * brdf(normal,nld,view,m) * lightcolor / dot(lightdir, lightdir);
+	float d = 1.;//trace(pos + normal*E*10., nld, E, ldist).z;
+	const int shadow_samples = 20;
+	float L = E;
+	for (int i = 0; i < shadow_samples; ++i) {
+		vec3 p = pos + normal*.1 + nld * L;
+		float w = world(p);
+		d = min(d, w);
+		if (w < .0) break;
+		L += max(w, E * L);
+		if (L >= ldist) break;
+	}
+	return pow(smoothstep(0., .06, d), 2.) * brdf(normal,nld,view,m) * lightcolor / dot(lightdir, lightdir);
 }
 
 vec3 directlight(vec3 p, vec3 v) {
 		vec3 n = normal(p);
 		material_t m = material(p);
-		vec3 color = vec3(.0);
+		vec3 color = m.emissive;
 		color += enlight(p, n, v, vec3(1.), vec3(5., 5. , 5.), 20.*vec3(1., .3, .2));
 		color += enlight(p, n, v, vec3(1.), vec3(8., 8., -8.), 20.*vec3(.2, .8, .3));
 		color += enlight(p, n, v, vec3(1.), vec3(-7., 7., 7.), 20.*vec3(.7, .3, .9));
@@ -191,6 +210,7 @@ void main() {
 	o = lat * o + eye;
 	d = lat * d;
 
+#if 0
 	float Lmax = 30.;
 	vec3 ll = trace(o, d, 0., Lmax);
 	if (ll.x > 0. && ll.x < Lmax) {
@@ -198,13 +218,12 @@ void main() {
 		vec3 n = normal(p);
 		material_t m = material(p);
 		color = directlight(p, -d);
-		int steps = 8;
-		float ksteps = pow(1. / float(steps), 2.);
 
+		int steps = 16;
+		//float ksteps = pow(1. / float(steps), 2.);
+		float ksteps = 1. / float(steps);
 		for (int i = 0; i < steps; ++i) {
 			float seed = float(i) + t;
-			//vec3 sd = normalize(mix(reflect(d,n), normalize(2. * (vec3(hash(seed+p.x), hash(seed+p.y), hash(seed+p.z)) - .5)), .5));
-			//vec3 sd = reflect(d, n);
 			vec3 sd = normalize(mix(reflect(d,n), n + normalize(2. * (vec3(hash(seed+p.x), hash(seed+p.y), hash(seed+p.z)) - .5)), 1.-m.specular));
 			vec3 os = p + n * E * 2.;
 			float Lm = 4.;
@@ -212,12 +231,103 @@ void main() {
 			if (l.x > 0. && l.x < Lm) {
 				//vec3 ps = refine(os + sd * l.x, os + sd * l.y);
 				vec3 ps = os + sd * l.x;
-				color += /* brdf(n, sd, -d, m) */  directlight(ps, -sd)
+				material_t sm = material(ps);
+				color += 0.
+#if 0
+					+ sm.emissive
+#else
+					+ /* brdf(n, sd, -d, m) */  directlight(ps, -sd)
+#endif
 					* ksteps  // l.x; // float(steps);
 				;
 			}
 		}
 	}
+#elif 0
+	float Lmax = 30.;
+	vec3 O = o, D = d, N;
+	material_t M;
+	const int steps = 9;
+	float kstep = 1.;// / float(steps);
+	for (int s = 0; s < steps; ++s) {
+		float L = 0.;
+		float Lp = L;
+		vec3 p;
+		for (int i = 0; i < 64; ++i) {
+			p = O + D * L;
+			float d = world(p);
+			if (d < 0.) break;
+			Lp = L;
+			L += max(d, E * L * .5);
+			if (L >= Lmax) break;
+		}
+
+		if (L >= Lmax) {
+			if (s == 0) break;
+			continue;
+		}
+
+		vec3 n = normal(p);
+		material_t m = material(p);
+		vec3 c = vec3(.0);
+		c += enlight(p, n, -D, vec3(1.), vec3(5., 5. , 5.), 20.*vec3(1., .3, .2));
+		c += enlight(p, n, -D, vec3(1.), vec3(8., 8., -8.), 20.*vec3(.2, .8, .3));
+		c += enlight(p, n, -D, vec3(1.), vec3(-7., 7., 7.), 20.*vec3(.7, .3, .9));
+		color += c * kstep;
+
+		if (s == 0) {
+			O = p + n * E * 2.;
+			N = n;
+			M = m;
+			kstep = pow(1. / float(steps), 2.);
+		}
+
+		float seed = float(s) + t;
+		D = normalize(mix(reflect(D,N), N + normalize(2. * (vec3(hash(seed+p.x), hash(seed+p.y), hash(seed+p.z)) - .5)), 1.-M.specular));
+		Lmax = 4.;
+	}
+#else
+	vec3 O = o, D = d;
+	vec3 N;
+	material_t M;
+	float L = 0.;
+	int nstep = 0;
+	vec3 gic = vec3(0.);
+	for (int i = 0; i < 256; ++i) {
+		vec3 p = O + D * L;
+		float w = world(p);
+		if (w < 0.) {
+			material_t m = material(p);
+			vec3 n = normal(p);
+			vec3 c = m.emissive;
+			if (nstep == 0) {
+				c += enlight(p, n, -D, vec3(1.), vec3(5., 5. , 5.), 20.*vec3(1., .3, .2));
+				c += enlight(p, n, -D, vec3(1.), vec3(8., 8., -8.), 20.*vec3(.2, .8, .3));
+				c += enlight(p, n, -D, vec3(1.), vec3(-7., 7., 7.), 20.*vec3(.7, .3, .9));
+				M = m;
+				N = n;
+				O = p - D * E * L;
+				color = c;
+			} else {
+				gic += c / max(1., (L*L));
+			}
+
+			L = 0.; // TODO preserve L
+			float seed = float(i) + t;
+			D = normalize(mix(
+						reflect(d,N),
+						N + normalize(2. * (vec3(hash(p.x), hash(p.y), hash(p.z)) - .5)),
+						1.-M.specular));
+
+			//color = vec3(float(i)/256.); // DEBUG
+			++nstep;
+		} else {
+			L += max(w, E * L * .5);
+		}
+	}
+
+	color += gic / float(nstep);
+#endif
 
 	gl_FragColor = vec4(pow(color, vec3(1./2.2)), 1.);
 }
