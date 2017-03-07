@@ -1,22 +1,25 @@
 uniform float uf_time;
 uniform vec2 uv2_resolution;
+uniform sampler2D us2_rand;
+uniform vec2 uv2_rand_resolution;
 varying vec2 vv2_pos;
 
 float t = uf_time;
 
-float hash(float n){return fract(sin(n) * 43758.5453123);}
-float hash(vec2 co){
-	    return fract(sin(dot(co.xy ,vec2(12.9898,78.233))) * 43758.5453);
-}
-//float hash(vec2 f){return hash(dot(f,vec2(., 137.))); }
-float noise(float v) {
-	float F = floor(v), f = fract(v); return mix(hash(F), hash(F+1.), f);
-}
-float noise(vec2 v) {
-	vec2 e = vec2(1.,0.);
-	vec2 F = floor(v), f = fract(v);
-	f *= f * (3. - 2. * f);
-	return mix(mix(hash(F), hash(F+e.xy), f.x), mix(hash(F+e.yx), hash(F+e.xx), f.x), f.y);
+float hash(float n) { return texture2D(us2_rand, vec2(n*17.,n*53.)/uv2_rand_resolution).x; }
+float hash(vec2 n) { return texture2D(us2_rand, n*17./uv2_rand_resolution).y; }
+float noise(vec2 v) { return texture2D(us2_rand, (v+.5)/uv2_rand_resolution).z; }
+float noise(float v) { return noise(vec2(v)); }
+
+float fbm(vec2 v) {
+	float r = 0.;
+	float k = .5;
+	for (int i = 0; i < 5; ++i) {
+		r += noise(v) * k;
+		k *= .5;
+		v *= 2.;
+	}
+	return r;
 }
 
 float vmax(vec3 v) { return max(v.x, max(v.y, v.z)); }
@@ -55,7 +58,9 @@ float object(vec3 p) {
 #if 1
 	p.xy = abs(p.yx); p *= rotX(t);
 	p.xz = abs(p.zx); p *= rotX(t*.7);
-	// INTERESTING */ p.zy = abs(p.yx); p *= rotY(t*1.1);
+#if 0
+	/* INTERESTING */ p.zy = abs(p.yx); p *= rotY(t*1.1);
+#endif
 	p.zy = abs(p.yz); p *= rotY(t*1.1);
 #endif
 
@@ -98,7 +103,7 @@ material_t material(vec3 p) {
 		m.fresnel = 0.;
 		m.metalness = 1.;
 	} else {
-		float type = smoothstep(.4,.6,noise(p.xz*4.));
+		float type = smoothstep(.4,.6,fbm(p.xz*4.));
 		m.emissive = vec3(0.);
 		m.color = vec3(.07);
 		m.roughness = mix(1., .01, type);
@@ -192,7 +197,9 @@ void main() {
 	//t = uf_time * .1;
 	vec2 uv = vv2_pos * vec2(1., uv2_resolution.y / uv2_resolution.x);
 
-	//gl_FragColor = vec4(noise(gl_FragCoord.x*.1)); return;
+	//gl_FragColor = texture2D(us2_rand, vv2_pos*.5+.5); return;
+	//gl_FragColor = texture2D(us2_rand, gl_FragCoord.xy/uv2_rand_resolution); return;
+	//gl_FragColor = vec4(noise(gl_FragCoord.xy)); return;
 	//gl_FragColor = vec4(noise(uv*10.)); return;
 
 	vec3 color = vec3(0.);

@@ -57,25 +57,24 @@ public:
 	}
 };
 
-class IResource {
+class INode {
 public:
-	virtual ~IResource() {}
+	virtual ~INode() {}
 	virtual bool update() { return false; }
 };
 
-class ResourceString : public IResource {
+class NodeString : public INode {
 protected:
 	std::string string_;
 public:
-	ResourceString(const std::string &str) : string_(str) {}
+	NodeString(const std::string &str) : string_(str) {}
 	const std::string &str() const { return string_; }
-	bool update() override { return false; }
 };
 
-class ResourceStringFile : public ResourceString {
+class NodeStringFile : public NodeString {
 	FileChangePoller poller_;
 public:
-	ResourceStringFile(const char *filename) : ResourceString(""), poller_(filename) {}
+	NodeStringFile(const char *filename) : NodeString(""), poller_(filename) {}
 	bool update() override {
 		std::string new_content = poller_.poll();
 		if (!new_content.empty()) {
@@ -86,13 +85,13 @@ public:
 	}
 };
 
-class ResourceProgram : public IResource {
-	ResourceString *vertex_, *fragment_;
+class NodeProgram : public INode {
+	NodeString *vertex_, *fragment_;
 	AGLProgram program_;
 public:
-	ResourceProgram(ResourceString *vertex, ResourceString *fragment)
+	NodeProgram(NodeString *vertex, NodeString *fragment)
 		: vertex_(vertex), fragment_(fragment), program_(0) {}
-	~ResourceProgram() {
+	~NodeProgram() {
 		aGLProgramDestroy(program_);
 	}
 	bool update() override {
@@ -116,27 +115,88 @@ public:
 	AGLProgram program() const { return program_; }
 };
 
-class ResourceValue : public IResource {
+class INodeUniform : public INode {
 public:
-protected:
-	AGLAttributeType type_;
-	union {
-		float f;
-		AVec2f v2;
-	} v_;
+	virtual void fillUniform(AGLProgramUniform *uniform) = 0;
+};
+
+class NodeUniformFloat : public INodeUniform {
+	float f_;
 	bool dirty_;
 public:
-	explicit ResourceValue(float f) : type_(AGLAT_Float), dirty_(false) { v_.f = f; }
-	explicit ResourceValue(AVec2f f) : type_(AGLAT_Vec2), dirty_(false) { v_.v2 = f; }
-	void update(float f) { v_.f = f; dirty_ = true; }
-	void update(AVec2f f) { v_.v2 = f; dirty_ = true; }
+	explicit NodeUniformFloat(float f) : f_(f), dirty_(false) {}
+	void update(float f) { f_ = f; dirty_ = true; }
 	bool update() override { if (dirty_) { dirty_ = false; return true; } return false; }
-
-	void fillUniform(AGLProgramUniform *uniform) {
-		uniform->value.pf = &v_.f;
+	void fillUniform(AGLProgramUniform *uniform) override {
+		uniform->value.pf = &f_;
 		uniform->count = 1;
-		uniform->type = type_;
+		uniform->type = AGLAT_Float;
 	}
+};
+
+class NodeUniformVec2 : public INodeUniform {
+	AVec2f v_;
+	bool dirty_;
+public:
+	explicit NodeUniformVec2(AVec2f v) : v_(v), dirty_(false) {}
+	void update(AVec2f v) { v_ = v; dirty_ = true; }
+	bool update() override { if (dirty_) { dirty_ = false; return true; } return false; }
+	void fillUniform(AGLProgramUniform *uniform) override {
+		uniform->value.pf = &v_.x;
+		uniform->count = 1;
+		uniform->type = AGLAT_Vec2;
+	}
+};
+
+class NodeTexture : public INodeUniform {
+protected:
+	AGLTexture tex_;
+	NodeUniformVec2 resolution_;
+
+public:
+	explicit NodeTexture()
+		: tex_(aGLTextureCreate()), resolution_(aVec2f(0,0)) {}
+	NodeUniformVec2 *resolution() { return &resolution_; }
+	void fillUniform(AGLProgramUniform *uniform) override {
+		uniform->value.texture = &tex_;
+		uniform->count = 1;
+		uniform->type = AGLAT_Texture;
+	}
+};
+
+class Rand {
+	uint64_t v_;
+public:
+	Rand(uint64_t seed) : v_(seed) {}
+	uint32_t next() {
+		v_ = v_ * 6364136223846793005ull + 1442695040888963407ull;
+		return v_ >> 32;
+	}
+};
+
+class NodeRandomTexture : public NodeTexture {
+	
+public:
+	explicit NodeRandomTexture(int w, int h, int seed = 31337)
+	{
+		const int num_pixels = w * h;
+		Rand rand(seed);
+
+		std::vector<uint32_t> buffer(num_pixels);
+		for (int i = 0; i < num_pixels; ++i)
+			buffer[i] = rand.next();
+
+		AGLTextureUploadData data;
+		data.pixels = &buffer[0];
+		data.x = data.y = 0;
+		data.width = w;
+		data.height = h;
+		data.format = AGLTF_U8_RGBA;
+		aGLTextureUpload(&tex_, &data);
+		resolution_.update(aVec2f(w, h));
+	}
+
+	bool update() override { return false; }
 };
 
 static const float fsquad_vertices[] = {
@@ -146,33 +206,33 @@ static const float fsquad_vertices[] = {
 	1.f, -1.f
 };
 
-class ResourceDraw : public IResource {
+class NodeDraw : public INode {
 protected:
 	AGLDrawSource src_;
 	AGLDrawMerge merge_;
 
-	ResourceProgram *program_;
+	NodeProgram *program_;
 
 	std::vector<AGLAttribute> attribs_;
 	std::vector<AGLProgramUniform> uniform_;
 
-	struct UniformResource {
+	struct UniformNode {
 		std::string name;
-		ResourceValue *value;
+		INodeUniform *value;
 	};
-	std::vector<UniformResource> uni_values_;
+	std::vector<UniformNode> uni_values_;
 
 public:
-	ResourceDraw(ResourceProgram *program) : program_(program) {
+	NodeDraw(NodeProgram *program) : program_(program) {
 		merge_.blend.enable = 0;
 		merge_.depth.mode = AGLDM_Disabled;
 
 		src_.primitive.mode = GL_TRIANGLE_STRIP;
 		src_.primitive.count = 4;
 		src_.primitive.first = 0;
-		src_.primitive.index_buffer = 0;
-		src_.primitive.indices_ptr = 0;
-		src_.primitive.index_type = 0;
+		src_.primitive.index.buffer = 0;
+		src_.primitive.index.data.ptr = 0;
+		src_.primitive.index.type = 0;
 
 		/* FIXME */
 		AGLAttribute attr;
@@ -194,8 +254,8 @@ public:
 		src_.attribs.n = attribs_.size();
 	}
 
-	void addUniform(const char *name, ResourceValue *value) {
-		UniformResource res;
+	void addUniform(const char *name, INodeUniform *value) {
+		UniformNode res;
 		res.name = name;
 		res.value = value;
 
@@ -227,18 +287,26 @@ public:
 	};
 };
 
-class ResourceFramebuffer : public IResource {
+class NodeFramebuffer : public INode {
 	AGLDrawTarget target_;
-
-	std::vector<ResourceDraw*> draws_;
+	std::vector<NodeDraw*> draws_;
 	bool dirty_;
+	std::vector<std::pair<AGLTextureFormat, NodeTexture*> > targets_;
 
 public:
-	ResourceFramebuffer() : dirty_(false) {
+	NodeFramebuffer() : dirty_(false) {
 		target_.framebuffer = 0; /* TODO */
 	}
-	~ResourceFramebuffer() { /* TODO */ }
+	~NodeFramebuffer() { /* TODO */ }
 
+	/* caller must free these; */
+	NodeTexture *addTarget(AGLTextureFormat fmt) {
+		NodeTexture *tex = new NodeTexture();
+		targets_.push_back(std::make_pair(fmt, tex));
+		return tex;
+	}
+
+	/* FIXME viewport ? viewport vs draws ? */
 	void resize(int x, int y, int w, int h) {
 		target_.viewport.x = x;
 		target_.viewport.y = y;
@@ -248,7 +316,7 @@ public:
 		dirty_ = true;
 	}
 
-	void addDraw(ResourceDraw *draw) {
+	void addDraw(NodeDraw *draw) {
 		draws_.push_back(draw);
 		dirty_ = true;
 	}
@@ -294,13 +362,14 @@ static const char shader_vertex[] =
 ;
 
 class Scene {
-	ResourceString fs_vertex_;
-	ResourceStringFile fragment_;
-	ResourceProgram program_;
-	ResourceValue time_;
-	ResourceValue resolution_;
-	ResourceDraw draw_;
-	ResourceFramebuffer screen_;
+	NodeString fs_vertex_;
+	NodeStringFile fragment_;
+	NodeProgram program_;
+	NodeUniformFloat time_;
+	NodeUniformVec2 resolution_;
+	NodeRandomTexture rand_tex_;
+	NodeDraw draw_;
+	NodeFramebuffer screen_;
 
 public:
 	Scene(const char *fragment_filename)
@@ -309,11 +378,14 @@ public:
 		, program_(&fs_vertex_, &fragment_)
 		, time_(0.f)
 		, resolution_(aVec2f(16.f, 16.f))
+		, rand_tex_(256, 256, 1)
 		, draw_(&program_)
 		, screen_()
 	{
 		draw_.addUniform("uf_time", &time_);
 		draw_.addUniform("uv2_resolution", &resolution_);
+		draw_.addUniform("uv2_rand_resolution", rand_tex_.resolution());
+		draw_.addUniform("us2_rand", &rand_tex_);
 		screen_.addDraw(&draw_);
 	}
 
