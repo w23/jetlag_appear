@@ -1,5 +1,7 @@
 #include "atto/app.h"
 #define ATTO_GL_H_IMPLEMENT
+#define ATTO_GL_DEBUG
+//#define ATTO_GL_TRACE
 #include "atto/gl.h"
 #include "atto/math.h"
 
@@ -152,16 +154,31 @@ class NodeTexture : public INodeUniform {
 protected:
 	AGLTexture tex_;
 	NodeUniformVec2 resolution_;
+	bool dirty_;
 
 public:
 	explicit NodeTexture()
-		: tex_(aGLTextureCreate()), resolution_(aVec2f(0,0)) {}
-	NodeUniformVec2 *resolution() { return &resolution_; }
+		: tex_(aGLTextureCreate()), resolution_(aVec2f(0,0)), dirty_(false) {}
+	~NodeTexture() { aGLTextureDestroy(&tex_); }
+	NodeUniformVec2 *resolution() { return &resolution_; } /* FIXME should depend on this texture */
+	void upload(int w, int h, AGLTextureFormat fmt, void *pixels) {
+		AGLTextureUploadData data;
+		data.pixels = pixels;
+		data.x = data.y = 0;
+		data.width = w;
+		data.height = h;
+		data.format = fmt;
+		aGLTextureUpload(&tex_, &data);
+		resolution_.update(aVec2f(w, h));
+		dirty_ = true;
+	}
+	const AGLTexture& agl() const { return tex_; }
 	void fillUniform(AGLProgramUniform *uniform) override {
 		uniform->value.texture = &tex_;
 		uniform->count = 1;
 		uniform->type = AGLAT_Texture;
 	}
+	bool update() override { if (dirty_) { dirty_ = false; return true; } return false; }
 };
 
 class Rand {
@@ -186,14 +203,7 @@ public:
 		for (int i = 0; i < num_pixels; ++i)
 			buffer[i] = rand.next();
 
-		AGLTextureUploadData data;
-		data.pixels = &buffer[0];
-		data.x = data.y = 0;
-		data.width = w;
-		data.height = h;
-		data.format = AGLTF_U8_RGBA;
-		aGLTextureUpload(&tex_, &data);
-		resolution_.update(aVec2f(w, h));
+		upload(w, h, AGLTF_U8_RGBA, &buffer[0]);
 	}
 
 	bool update() override { return false; }
@@ -227,6 +237,8 @@ public:
 		merge_.blend.enable = 0;
 		merge_.depth.mode = AGLDM_Disabled;
 
+		src_.primitive.front_face = AGLFF_CounterClockwise;
+		src_.primitive.cull_mode = AGLCM_Disable;
 		src_.primitive.mode = GL_TRIANGLE_STRIP;
 		src_.primitive.count = 4;
 		src_.primitive.first = 0;
@@ -287,29 +299,21 @@ public:
 	};
 };
 
-class NodeFramebuffer : public INode {
-	AGLDrawTarget target_;
+class NodeBaseFramebuffer : public INode {
 	std::vector<NodeDraw*> draws_;
+
+protected:
+	AGLDrawTarget target_;
 	bool dirty_;
-	std::vector<std::pair<AGLTextureFormat, NodeTexture*> > targets_;
 
 public:
-	NodeFramebuffer() : dirty_(false) {
-		target_.framebuffer = 0; /* TODO */
-	}
-	~NodeFramebuffer() { /* TODO */ }
-
-	/* caller must free these; */
-	NodeTexture *addTarget(AGLTextureFormat fmt) {
-		NodeTexture *tex = new NodeTexture();
-		targets_.push_back(std::make_pair(fmt, tex));
-		return tex;
+	NodeBaseFramebuffer() : dirty_(false) {
+		target_.framebuffer = 0;
 	}
 
-	/* FIXME viewport ? viewport vs draws ? */
-	void resize(int x, int y, int w, int h) {
-		target_.viewport.x = x;
-		target_.viewport.y = y;
+	void resize(int w, int h) {
+		target_.viewport.x = 0;
+		target_.viewport.y = 0;
 		target_.viewport.w = w;
 		target_.viewport.h = h;
 
@@ -346,6 +350,52 @@ public:
 	}
 };
 
+class NodeScreen : public NodeBaseFramebuffer {};
+
+class NodeFramebuffer : public NodeBaseFramebuffer {
+	class NodeFramebufferTexture : public NodeTexture {
+		NodeFramebuffer& framebuffer_;
+	public:
+		NodeFramebufferTexture(NodeFramebuffer& fb) : framebuffer_(fb) {}
+		bool update() override { return framebuffer_.update(); }
+	};
+
+	AGLFramebufferParams fb_;
+	std::vector<std::pair<AGLTextureFormat, NodeFramebufferTexture*> > targets_;
+
+public:
+	NodeFramebuffer() {
+		target_.viewport.w = target_.viewport.h = 16;
+		target_.framebuffer = &fb_;
+		dirty_ = true;
+	}
+
+	/* caller must free these; */
+	NodeTexture *addTarget(AGLTextureFormat fmt) {
+		ATTO_ASSERT(targets_.empty());
+		NodeFramebufferTexture *tex = new NodeFramebufferTexture(*this);
+		targets_.push_back(std::make_pair(fmt, tex));
+		dirty_ = true;
+		return tex;
+	}
+
+	bool update() override {
+		if (targets_.empty()) return false;
+
+		if (dirty_) {
+			for (auto tex: targets_) {
+				tex.second->upload(target_.viewport.w, target_.viewport.h, tex.first, 0);
+				fb_.color = &tex.second->agl();
+			}
+
+			fb_.depth.mode = AGLDBM_Texture;
+			fb_.depth.texture = 0;
+		}
+
+		return NodeBaseFramebuffer::update();
+	}
+};
+
 static void keyPress(ATimeUs timestamp, AKey key, int pressed) {
 	(void)(timestamp); (void)(pressed);
 	if (key == AK_Esc)
@@ -362,35 +412,60 @@ static const char shader_vertex[] =
 ;
 
 class Scene {
-	NodeString fs_vertex_;
-	NodeStringFile fragment_;
-	NodeProgram program_;
+	NodeRandomTexture rand_tex_;
+
 	NodeUniformFloat time_;
 	NodeUniformVec2 resolution_;
-	NodeRandomTexture rand_tex_;
-	NodeDraw draw_;
-	NodeFramebuffer screen_;
+
+	NodeString fs_vertex_;
+	NodeStringFile ray_frag_;
+	NodeProgram ray_prog_;
+	NodeDraw ray_draw_;
+
+	NodeFramebuffer framebuffer_;
+
+	std::unique_ptr<NodeTexture> frame_tex_;
+	NodeStringFile post_frag_;
+	NodeProgram post_prog_;
+	NodeDraw post_draw_;
+
+	NodeScreen screen_;
 
 public:
-	Scene(const char *fragment_filename)
-		: fs_vertex_(shader_vertex)
-		, fragment_(fragment_filename)
-		, program_(&fs_vertex_, &fragment_)
+	Scene(const char *ray_frag, const char *post_frag)
+		: rand_tex_(256, 256, 1)
 		, time_(0.f)
-		, resolution_(aVec2f(16.f, 16.f))
-		, rand_tex_(256, 256, 1)
-		, draw_(&program_)
+		, resolution_(aVec2f(1280.f, 720.f))
+		, fs_vertex_(shader_vertex)
+		, ray_frag_(ray_frag)
+		, ray_prog_(&fs_vertex_, &ray_frag_)
+		, ray_draw_(&ray_prog_)
+		, framebuffer_()
+		, frame_tex_(framebuffer_.addTarget(AGLTF_F32_RGBA))
+		, post_frag_(post_frag)
+		, post_prog_(&fs_vertex_, &post_frag_)
+		, post_draw_(&post_prog_)
 		, screen_()
 	{
-		draw_.addUniform("uf_time", &time_);
-		draw_.addUniform("uv2_resolution", &resolution_);
-		draw_.addUniform("uv2_rand_resolution", rand_tex_.resolution());
-		draw_.addUniform("us2_rand", &rand_tex_);
-		screen_.addDraw(&draw_);
+		framebuffer_.resize(1280, 720);
+
+		ray_draw_.addUniform("uf_time", &time_);
+		ray_draw_.addUniform("uv2_resolution", frame_tex_->resolution());
+		ray_draw_.addUniform("uv2_rand_resolution", rand_tex_.resolution());
+		ray_draw_.addUniform("us2_rand", &rand_tex_);
+
+		framebuffer_.addDraw(&ray_draw_);
+
+		post_draw_.addUniform("uv2_resolution", &resolution_);
+		post_draw_.addUniform("us2_frame", frame_tex_.get());
+		post_draw_.addUniform("uv2_frame_resolution", frame_tex_->resolution());
+		post_draw_.addUniform("uv2_rand_resolution", rand_tex_.resolution());
+		post_draw_.addUniform("us2_rand", &rand_tex_);
+		screen_.addDraw(&post_draw_);
 	}
 
 	void resize(unsigned w, unsigned h) {
-		screen_.resize(0, 0, w, h);
+		screen_.resize(w, h);
 		resolution_.update(aVec2f(w, h));
 	}
 
@@ -403,7 +478,7 @@ public:
 static Scene *scene;
 
 static void init(void) {
-	scene = new Scene(a_app_state->argv[1]);
+	scene = new Scene(a_app_state->argv[1], a_app_state->argv[2]);
 }
 
 static void resize(ATimeUs timestamp, unsigned int old_w, unsigned int old_h) {
@@ -415,6 +490,7 @@ static void paint(ATimeUs timestamp, float dt) {
 	float t = timestamp * 1e-6f;
 	(void)(dt);
 	scene->draw(t);
+//	exit(0);
 }
 
 void attoAppInit(struct AAppProctable *proctable) {

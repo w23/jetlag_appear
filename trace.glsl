@@ -187,9 +187,9 @@ vec3 directlight(vec3 p, vec3 v) {
 		vec3 n = normal(p);
 		material_t m = material(p);
 		vec3 color = m.emissive;
-		color += enlight(p, n, v, vec3(1.), vec3(5., 5. , 5.), 20.*vec3(1., .3, .2));
-		color += enlight(p, n, v, vec3(1.), vec3(8., 8., -8.), 20.*vec3(.2, .8, .3));
-		color += enlight(p, n, v, vec3(1.), vec3(-7., 7., 7.), 20.*vec3(.7, .3, .9));
+		color += enlight(p, n, v, vec3(1.), vec3(5., 5. , 5.), 200.*vec3(1., .3, .2));
+		color += enlight(p, n, v, vec3(1.), vec3(8., 8., -8.), 200.*vec3(.2, .8, .3));
+		color += enlight(p, n, v, vec3(1.), vec3(-7., 7., 7.), 200.*vec3(.7, .3, .9));
 		return color;
 }
 
@@ -277,9 +277,9 @@ void main() {
 		vec3 n = normal(p);
 		material_t m = material(p);
 		vec3 c = vec3(.0);
-		c += enlight(p, n, -D, vec3(1.), vec3(5., 5. , 5.), 20.*vec3(1., .3, .2));
-		c += enlight(p, n, -D, vec3(1.), vec3(8., 8., -8.), 20.*vec3(.2, .8, .3));
-		c += enlight(p, n, -D, vec3(1.), vec3(-7., 7., 7.), 20.*vec3(.7, .3, .9));
+		c += enlight(p, n, -D, vec3(1.), vec3(5., 5. , 5.), 200.*vec3(1., .3, .2));
+		c += enlight(p, n, -D, vec3(1.), vec3(8., 8., -8.), 200.*vec3(.2, .8, .3));
+		c += enlight(p, n, -D, vec3(1.), vec3(-7., 7., 7.), 200.*vec3(.7, .3, .9));
 		color += c * kstep;
 
 		if (s == 0) {
@@ -308,9 +308,9 @@ void main() {
 			vec3 n = normal(p);
 			vec3 c = m.emissive;
 			if (nstep == 0) {
-				c += enlight(p, n, -D, vec3(1.), vec3(5., 5. , 5.), 20.*vec3(1., .3, .2));
-				c += enlight(p, n, -D, vec3(1.), vec3(8., 8., -8.), 20.*vec3(.2, .8, .3));
-				c += enlight(p, n, -D, vec3(1.), vec3(-7., 7., 7.), 20.*vec3(.7, .3, .9));
+				c += enlight(p, n, -D, vec3(1.), vec3(5., 5. , 5.), 200.*vec3(1., .3, .2));
+				c += enlight(p, n, -D, vec3(1.), vec3(8., 8., -8.), 200.*vec3(.2, .8, .3));
+				c += enlight(p, n, -D, vec3(1.), vec3(-7., 7., 7.), 200.*vec3(.7, .3, .9));
 				M = m;
 				N = n;
 				O = p - D * E * L;
@@ -336,5 +336,5 @@ void main() {
 	color += gic / float(nstep);
 #endif
 
-	gl_FragColor = vec4(pow(color, vec3(1./2.2)), 1.);
+	gl_FragColor = vec4(color, 1.);//vec4(pow(color, vec3(1./2.2)), 1.);
 }
