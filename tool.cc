@@ -232,30 +232,16 @@ protected:
 	};
 	std::vector<UniformNode> uni_values_;
 
-public:
-	NodeDraw(NodeProgram *program) : program_(program) {
+protected:
+	explicit NodeDraw() : program_(nullptr) {
 		merge_.blend.enable = 0;
 		merge_.depth.mode = AGLDM_Disabled;
+	}
 
-		src_.primitive.front_face = AGLFF_CounterClockwise;
-		src_.primitive.cull_mode = AGLCM_Disable;
-		src_.primitive.mode = GL_TRIANGLE_STRIP;
-		src_.primitive.count = 4;
-		src_.primitive.first = 0;
-		src_.primitive.index.buffer = 0;
-		src_.primitive.index.data.ptr = 0;
-		src_.primitive.index.type = 0;
-
-		/* FIXME */
-		AGLAttribute attr;
-		attr.name = "av2_pos";
-		attr.buffer = 0;
-		attr.size = 2;
-		attr.type = GL_FLOAT;
-		attr.normalized = GL_FALSE;
-		attr.stride = 0;
-		attr.ptr = fsquad_vertices;
-		addAttrib(attr);
+public:
+	explicit NodeDraw(NodeProgram *program) : program_(program) {
+		merge_.blend.enable = 0;
+		merge_.depth.mode = AGLDM_Disabled;
 	}
 
 	void addAttrib(const AGLAttribute& attrib) {
@@ -297,6 +283,61 @@ public:
 	void draw(const AGLDrawTarget &target) {
 		aGLDraw(&src_, &merge_, &target);
 	};
+};
+
+class NodeDrawFullscreen : public NodeDraw {
+	NodeString vertex_src_;
+	NodeProgram own_program_;
+
+	static const char shader_vertex_[];
+	static const float fsquad_vertices_[];
+
+public:
+	NodeDrawFullscreen(NodeString *fragment_src)
+		: NodeDraw()
+		, vertex_src_(shader_vertex_)
+		, own_program_(&vertex_src_, fragment_src) {
+		program_ = &own_program_;
+
+		src_.primitive.front_face = AGLFF_CounterClockwise;
+		src_.primitive.cull_mode = AGLCM_Disable;
+		src_.primitive.mode = GL_TRIANGLE_STRIP;
+		src_.primitive.count = 4;
+		src_.primitive.first = 0;
+		src_.primitive.index.buffer = 0;
+		src_.primitive.index.data.ptr = 0;
+		src_.primitive.index.type = 0;
+
+		AGLAttribute attr;
+		attr.name = "av2_pos";
+		attr.buffer = 0;
+		attr.size = 2;
+		attr.type = GL_FLOAT;
+		attr.normalized = GL_FALSE;
+		attr.stride = 0;
+		attr.ptr = fsquad_vertices_;
+		addAttrib(attr);
+	}
+
+	void addUniform(const char *name, INodeUniform *value) {
+		NodeDraw::addUniform(name, value);
+	}
+};
+
+const char NodeDrawFullscreen::shader_vertex_[] =
+	"attribute vec2 av2_pos;\n"
+	"varying vec2 vv2_pos;\n"
+	"void main() {\n"
+		"vv2_pos = av2_pos;\n"
+		"gl_Position = vec4(av2_pos, 0., 1.);\n"
+	"}"
+;
+
+const float NodeDrawFullscreen::fsquad_vertices_[] = {
+	-1.f, 1.f,
+	-1.f, -1.f,
+	1.f, 1.f,
+	1.f, -1.f
 };
 
 class NodeBaseFramebuffer : public INode {
@@ -370,13 +411,12 @@ public:
 		dirty_ = true;
 	}
 
-	/* caller must free these; */
-	NodeTexture *addTarget(AGLTextureFormat fmt) {
+	std::unique_ptr<NodeTexture> addTarget(AGLTextureFormat fmt) {
 		ATTO_ASSERT(targets_.empty());
 		NodeFramebufferTexture *tex = new NodeFramebufferTexture(*this);
 		targets_.push_back(std::make_pair(fmt, tex));
 		dirty_ = true;
-		return tex;
+		return std::unique_ptr<NodeTexture>(tex);
 	}
 
 	bool update() override {
@@ -402,32 +442,20 @@ static void keyPress(ATimeUs timestamp, AKey key, int pressed) {
 		aAppTerminate(0);
 }
 
-static const char shader_vertex[] =
-	"attribute vec2 av2_pos;\n"
-	"varying vec2 vv2_pos;\n"
-	"void main() {\n"
-		"vv2_pos = av2_pos;\n"
-		"gl_Position = vec4(av2_pos, 0., 1.);\n"
-	"}"
-;
-
 class Scene {
 	NodeRandomTexture rand_tex_;
 
 	NodeUniformFloat time_;
 	NodeUniformVec2 resolution_;
 
-	NodeString fs_vertex_;
 	NodeStringFile ray_frag_;
-	NodeProgram ray_prog_;
-	NodeDraw ray_draw_;
+	NodeDrawFullscreen ray_draw_;
 
 	NodeFramebuffer framebuffer_;
 
 	std::unique_ptr<NodeTexture> frame_tex_;
 	NodeStringFile post_frag_;
-	NodeProgram post_prog_;
-	NodeDraw post_draw_;
+	NodeDrawFullscreen post_draw_;
 
 	NodeScreen screen_;
 
@@ -436,15 +464,12 @@ public:
 		: rand_tex_(256, 256, 1)
 		, time_(0.f)
 		, resolution_(aVec2f(1280.f, 720.f))
-		, fs_vertex_(shader_vertex)
 		, ray_frag_(ray_frag)
-		, ray_prog_(&fs_vertex_, &ray_frag_)
-		, ray_draw_(&ray_prog_)
+		, ray_draw_(&ray_frag_)
 		, framebuffer_()
 		, frame_tex_(framebuffer_.addTarget(AGLTF_F32_RGBA))
 		, post_frag_(post_frag)
-		, post_prog_(&fs_vertex_, &post_frag_)
-		, post_draw_(&post_prog_)
+		, post_draw_(&post_frag_)
 		, screen_()
 	{
 		framebuffer_.resize(1280, 720);
