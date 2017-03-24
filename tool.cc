@@ -128,7 +128,7 @@ class NodeUniformFloat : public INodeUniform {
 public:
 	explicit NodeUniformFloat(float f) : f_(f), dirty_(false) {}
 	void update(float f) { f_ = f; dirty_ = true; }
-	bool update() override { if (dirty_) { dirty_ = false; return true; } return false; }
+	bool update() override { if (dirty_) { /*dirty_ = false;*/ return true; } return false; }
 	void fillUniform(AGLProgramUniform *uniform) override {
 		uniform->value.pf = &f_;
 		uniform->count = 1;
@@ -481,6 +481,7 @@ public:
 
 		framebuffer_.addDraw(&ray_draw_);
 
+		post_draw_.addUniform("uf_time", &time_);
 		post_draw_.addUniform("uv2_resolution", &resolution_);
 		post_draw_.addUniform("us2_frame", frame_tex_.get());
 		post_draw_.addUniform("uv2_frame_resolution", frame_tex_->resolution());
@@ -514,8 +515,9 @@ static void resize(ATimeUs timestamp, unsigned int old_w, unsigned int old_h) {
 static void paint(ATimeUs timestamp, float dt) {
 	float t = timestamp * 1e-6f;
 	(void)(dt);
-	scene->draw(t);
-//	exit(0);
+	//static int frame = 0;
+	//if (frame++ & 1)
+		scene->draw(t);
 }
 
 void attoAppInit(struct AAppProctable *proctable) {

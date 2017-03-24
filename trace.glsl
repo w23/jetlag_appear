@@ -6,6 +6,7 @@ varying vec2 vv2_pos;
 
 float t = uf_time;
 
+vec4 rnd(vec2 n) { return texture2D(us2_rand, n/uv2_rand_resolution); }
 float hash(float n) { return texture2D(us2_rand, vec2(n*17.,n*53.)/uv2_rand_resolution).x; }
 float hash(vec2 n) { return texture2D(us2_rand, n*17./uv2_rand_resolution).y; }
 float noise(vec2 v) { return texture2D(us2_rand, (v+.5)/uv2_rand_resolution).z; }
@@ -47,14 +48,19 @@ vec3 rep(vec3 p, vec3 x) {
 }
 
 float bounds(vec3 p) {
-	return -box(p+vec3(0.,-10.,0.), vec3(10.));
+	return -box(p+vec3(0.,-20.,0.), vec3(20.));
 }
 
 float object(vec3 p) {
 	p -= vec3(0., 3., 0.);
 
+	float cd = dot(p, vec3(1.,0.,0.)*rotY(t));
+	const float cr = .4, cs = .02;
+	float cut = abs(mod(cd,cr)-cr*.5)-cs;
+
 	//p.x += sin(p.y*2. + t);
 
+	float t = t * .3;
 #if 1
 	p.xy = abs(p.yx); p *= rotX(t);
 	p.xz = abs(p.zx); p *= rotX(t*.7);
@@ -64,12 +70,14 @@ float object(vec3 p) {
 	p.zy = abs(p.yz); p *= rotY(t*1.1);
 #endif
 
-	return min(min(min(
+	float d = min(min(min(
 			box(p, vec3(.7,2.4,.2)),
 			box(p, vec3(1.3,.4,.3))),
 			box(rotX(.6)*p, vec3(.3,.4,2.3))),
 			tor(p, vec2(1., .1))
 			);
+
+	return max(d, -cut);
 }
 
 float world(vec3 p) {
@@ -96,12 +104,12 @@ material_t material(vec3 p) {
 	m.metalness = 0.;
 #else
 	if (object(p) < bounds(p)) {
-		m.emissive = vec3(2.) * smoothstep(.99,.999,sin(t*4.+(rotX(t)*p).y*7.));
+		m.emissive = vec3(10.) * smoothstep(.99,.999,sin(t*4.*.4+(rotX(t*.4)*p).y*2.));
 		m.color = vec3(.56,.57,.58);
-		m.roughness = .01;
+		m.roughness = .01 + .5 * fbm(p.xy*10.);
 		m.specular = .8;
-		m.fresnel = 0.;
-		m.metalness = 1.;
+		m.fresnel = .4;
+		m.metalness = .5 + fbm(p.zx*21.)*.5;
 	} else {
 		float type = smoothstep(.4,.6,fbm(p.xz*4.));
 		m.emissive = vec3(0.);
@@ -149,7 +157,7 @@ vec3 refine(vec3 a, vec3 b) {
 const float PI = 3.1415926;
 
 vec3 brdf(vec3 N, vec3 L, vec3 V, material_t m) {
-	vec3 H = (L + V) / length(L + V);
+	vec3 H = normalize(L + V);
 	float NL = max(0., dot(N, L));
 	float NH = max(0., dot(N, H));
 	float LH = max(0., dot(L, H));
@@ -164,13 +172,13 @@ vec3 brdf(vec3 N, vec3 L, vec3 V, material_t m) {
 	return PI * mix((1. - Fd)/PI, F * D * G / 4., m.specular) * m.color * NL;
 }
 
-vec3 enlight(vec3 pos, vec3 normal, vec3 view, vec3 diffuse, vec3 lightpos, vec3 lightcolor) {
+vec3 enlight(vec3 pos, vec3 normal, vec3 view, vec3 lightpos, vec3 lightcolor) {
 	material_t m = material(pos);
 	vec3 lightdir = lightpos - pos;
 	vec3 nld = normalize(lightdir);
 	float ldist = length(lightdir);
 	float d = 1.;//trace(pos + normal*E*10., nld, E, ldist).z;
-	const int shadow_samples = 20;
+	const int shadow_samples = 40;
 	float L = E;
 	for (int i = 0; i < shadow_samples; ++i) {
 		vec3 p = pos + normal*.1 + nld * L;
@@ -184,13 +192,29 @@ vec3 enlight(vec3 pos, vec3 normal, vec3 view, vec3 diffuse, vec3 lightpos, vec3
 }
 
 vec3 directlight(vec3 p, vec3 v) {
-		vec3 n = normal(p);
-		material_t m = material(p);
-		vec3 color = m.emissive;
-		color += enlight(p, n, v, vec3(1.), vec3(5., 5. , 5.), 200.*vec3(1., .3, .2));
-		color += enlight(p, n, v, vec3(1.), vec3(8., 8., -8.), 200.*vec3(.2, .8, .3));
-		color += enlight(p, n, v, vec3(1.), vec3(-7., 7., 7.), 200.*vec3(.7, .3, .9));
-		return color;
+	vec3 n = normal(p);
+	material_t m = material(p);
+	vec3 color = m.emissive;
+	color += enlight(p, n, v, vec3(5., 5. , 5.), 200.*vec3(.4, .3, .9));
+	color += enlight(p, n, v, vec3(8., 8., -8.), 20.*vec3(.2, .8, .3));
+	color += enlight(p, n, v, vec3(-7., 7., 7.), 20.*vec3(.7, .3, .9));
+	return color;
+}
+
+vec3 eye(float t) {
+	t *= .7;
+	const vec3 C = vec3(0., 3., 0.), S = 2.*vec3(6., 2., 6.);
+	float T = floor(t); t -= T; t *= t * (3. - 2. * t);
+	t = 1. - pow(1. - t, 2.);
+#if 0
+	vec3 A = (rnd(vec2(T)).wyz - .5) * S,
+			 B = rnd(vec2(T+1.)).wyz;
+#else
+	vec3 A = (rnd(vec2(T)).wyz - .5) * S,
+			 B = (rnd(vec2(T+1.)).wyz - .5) * S;
+#endif
+	vec3 p = mix(A, B, t);
+	return C + normalize(p) * max(length(p), 2.4);
 }
 
 void main() {
@@ -201,11 +225,14 @@ void main() {
 	//gl_FragColor = texture2D(us2_rand, gl_FragCoord.xy/uv2_rand_resolution); return;
 	//gl_FragColor = vec4(noise(gl_FragCoord.xy)); return;
 	//gl_FragColor = vec4(noise(uv*10.)); return;
+	//gl_FragColor = rnd(gl_FragCoord.xy); return;
 
 	vec3 color = vec3(0.);
 
-	vec3 at = vec3(2.2,3.,0.);
-	vec3 eye = vec3(3.7, 4.5, 4.7) + .1 * vec3(noise(t), noise(t*.4), noise(t*.7));
+	//vec3 at = vec3(2.2,3.,0.);
+	vec3 at = vec3(0., 3., 0.);
+	//vec3 eye = vec3(3.7, 4.5, 4.7) + .1 * vec3(noise(t), noise(t*.4), noise(t*.7));
+	vec3 eye = eye(t);
 	vec3 up = vec3(0., 1., 0.);
 	vec3 dir = normalize(at - eye);
 	vec3 side = cross(up, dir); up = cross(dir, side);
@@ -217,7 +244,7 @@ void main() {
 	o = lat * o + eye;
 	d = lat * d;
 
-#if 0
+#if 1
 	float Lmax = 30.;
 	vec3 ll = trace(o, d, 0., Lmax);
 	if (ll.x > 0. && ll.x < Lmax) {
@@ -226,12 +253,15 @@ void main() {
 		material_t m = material(p);
 		color = directlight(p, -d);
 
-		int steps = 16;
+		int steps = 7;
 		//float ksteps = pow(1. / float(steps), 2.);
 		float ksteps = 1. / float(steps);
 		for (int i = 0; i < steps; ++i) {
 			float seed = float(i) + t;
-			vec3 sd = normalize(mix(reflect(d,n), n + normalize(2. * (vec3(hash(seed+p.x), hash(seed+p.y), hash(seed+p.z)) - .5)), 1.-m.specular));
+			vec3 sd = normalize(
+				mix(reflect(d,n),
+					n + normalize(2. * (rnd(1000.*(p.xz+seed+p.y)).zyx - .5)),
+				1.-m.specular));
 			vec3 os = p + n * E * 2.;
 			float Lm = 4.;
 			vec3 l = trace(os, sd, 0., Lm);
@@ -245,7 +275,7 @@ void main() {
 #else
 					+ /* brdf(n, sd, -d, m) */  directlight(ps, -sd)
 #endif
-					* ksteps  // l.x; // float(steps);
+					* ksteps  / max(1.,l.x); // float(steps);
 				;
 			}
 		}
@@ -277,9 +307,9 @@ void main() {
 		vec3 n = normal(p);
 		material_t m = material(p);
 		vec3 c = vec3(.0);
-		c += enlight(p, n, -D, vec3(1.), vec3(5., 5. , 5.), 200.*vec3(1., .3, .2));
-		c += enlight(p, n, -D, vec3(1.), vec3(8., 8., -8.), 200.*vec3(.2, .8, .3));
-		c += enlight(p, n, -D, vec3(1.), vec3(-7., 7., 7.), 200.*vec3(.7, .3, .9));
+		c += enlight(p, n, -D, vec3(5., 5. , 5.), 200.*vec3(1., .3, .2));
+		c += enlight(p, n, -D, vec3(8., 8., -8.), 200.*vec3(.2, .8, .3));
+		c += enlight(p, n, -D, vec3(-7., 7., 7.), 200.*vec3(.7, .3, .9));
 		color += c * kstep;
 
 		if (s == 0) {
@@ -300,7 +330,7 @@ void main() {
 	float L = 0.;
 	int nstep = 0;
 	vec3 gic = vec3(0.);
-	for (int i = 0; i < 256; ++i) {
+	for (int i = 0; i < 128; ++i) {
 		vec3 p = O + D * L;
 		float w = world(p);
 		if (w < 0.) {
@@ -308,9 +338,9 @@ void main() {
 			vec3 n = normal(p);
 			vec3 c = m.emissive;
 			if (nstep == 0) {
-				c += enlight(p, n, -D, vec3(1.), vec3(5., 5. , 5.), 200.*vec3(1., .3, .2));
-				c += enlight(p, n, -D, vec3(1.), vec3(8., 8., -8.), 200.*vec3(.2, .8, .3));
-				c += enlight(p, n, -D, vec3(1.), vec3(-7., 7., 7.), 200.*vec3(.7, .3, .9));
+				c += enlight(p, n, -D, vec3(5., 5. , 5.), 20.*vec3(1., .3, .2));
+				c += enlight(p, n, -D, vec3(8., 8., -8.), 20.*vec3(.2, .8, .3));
+				c += enlight(p, n, -D, vec3(-7., 7., 7.), 20.*vec3(.7, .3, .9));
 				M = m;
 				N = n;
 				O = p - D * E * L;
