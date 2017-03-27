@@ -104,7 +104,7 @@ material_t material(vec3 p) {
 	m.metalness = 0.;
 #else
 	if (object(p) < bounds(p)) {
-		m.emissive = vec3(10.) * smoothstep(.99,.999,sin(t*4.*.4+(rotX(t*.4)*p).y*2.));
+		m.emissive = vec3(2.0) * smoothstep(.99,.999,sin(t*4.*.4+(rotX(t*.4)*p).y*2.));
 		m.color = vec3(.56,.57,.58);
 		m.roughness = .01 + .5 * fbm(p.xy*10.);
 		m.specular = .8;

@@ -26,7 +26,7 @@ vec3 bloom(vec2 p) {
 	const int Ns = 16, N = Ns * Ns;
 	for (int y = 0; y < Ns; ++y)
 		for (int x = 0; x < Ns; ++x) {
-			vec2 o = 3. * vec2(ivec2(x,y) - Ns / 2);
+			vec2 o = 5. * vec2(ivec2(x,y) - Ns / 2);
 			color += texture2D(us2_frame, p + o / uv2_frame_resolution).xyz; 
 		}
 #endif
@@ -37,6 +37,7 @@ void main() {
 	vec2 uv = gl_FragCoord.xy / uv2_resolution;
 	vec3 srccolor = texture2D(us2_frame, uv).xyz;
 	//gl_FragColor = vec4(srccolor, 1.); return;
-	vec3 color = srccolor*1. + 3.*bloom(uv);
+	vec3 color = srccolor + bloom(uv);
+	color = color / (color + 1.0);
 	gl_FragColor = vec4(pow(color, vec3(1./2.2)), 1.);
 }
