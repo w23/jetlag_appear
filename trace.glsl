@@ -155,9 +155,6 @@ vec3 refine(vec3 a, vec3 b) {
 }
 #endif
 
-#define LN 5
-vec3 LP[LN], LC[LN];
-
 float DistributionGGX(float NH, float r) {
 	r *= r; r *= r;
 	float denom = NH * NH * (r - 1.) + 1.;
@@ -189,21 +186,25 @@ mat3 lookat(vec3 p, vec3 a, vec3 y) {
 	return mat3(x, y, z);
 }
 
+vec3 pointlight(vec3 lightpos, vec3 lightcolor, float metallic, float roughness, vec3 albedo, vec3 p, vec3 ray, vec3 normal) {
+	vec3 L = lightpos - p; float LL = dot(L,L), Ls = sqrt(LL);
+	L = normalize(L);
+
+	vec3 tr = trace(p + .02 * L, L, Ls);
+	if (tr.x + .2 < Ls ) return vec3(0.);
+
+	vec3 H = normalize(ray + L), F0 = mix(vec3(.04), albedo, metallic);
+	float HV = max(dot(H, ray), .0), NV = max(dot(normal, ray), .0), NL = max(dot(normal, L), 0.), NH = max(dot(normal, H), 0.);
+	vec3 F = F0 + (1. - F0) * pow(1. - HV, 5.);
+	float G = GeometrySchlickGGX(NV, roughness) * GeometrySchlickGGX(NL, roughness);
+	vec3 brdf = DistributionGGX(NH, roughness)* G * F / (4. * NV * NL + .001);
+	return 30. * (.7 + .3 * noise(t*20. + lightpos.x)) * ((vec3(1.) - F) * (1. - metallic)* albedo / PI + brdf) * NL * lightcolor / LL;
+}
+
 void main() {
 	vec2 uv = gl_FragCoord.xy / V.xy * 2. - 1.;
 	uv.x *= V.x / V.y;
 
-	LP[0] = vec3(11., 6.,11.);
-	LP[1] = vec3(11., 6.,-11.);
-	LP[2] = vec3(-11., 6.,-11.);
-	LP[3] = vec3(-11., 6.,11.);
-	LP[4] = E.xxx;
-
-	LC[0] = vec3(.7,.35,.45);
-	LC[1] = vec3(.7,.35,.15);
-	LC[2] = vec3(.3,.35,.75);
-	LC[3] = vec3(.7,.35,.15);
-	LC[4] = vec3(D.x);
 
 	vec3 origin = C + .1 * noise13(t*3.);
 	mat3 LAT = lookat(origin, A, E.xzx);
@@ -246,26 +247,16 @@ void main() {
 		albedo = vec3(1., 0., 0.);
 		roughness = .2;
 		metallic = .8;
-	} else {
-		for (int i = 0; i < LN; ++i)
-			if (mindex == 100 + i)
-				color = LC[i] * 30.;
 	}
 
-	for(int i = 0; i < LN; ++i) {
-    vec3 L = LP[i] - p; float LL = dot(L,L), Ls = sqrt(LL);
-		L = normalize(L);
 
-		vec3 tr = trace(p + .02 * L, L, Ls);
-		if (tr.x + .2 < Ls ) continue;
+	// vec3 pointlight(vec3 lightpos, vec3 lightcolor, float metallic, float roughness, vec3 albedo, vec3 p, vec3 ray, vec3 normal) {
+	color += pointlight(vec3(11., 6.,11.), vec3(.7,.35,.45), metallic, roughness, albedo, p, ray, normal);
+	color += pointlight(vec3(11., 6.,-11.), vec3(.7,.35,.15), metallic, roughness, albedo, p, ray, normal);
+	color += pointlight(vec3(-11., 6.,-11.), vec3(.3,.35,.75), metallic, roughness, albedo, p, ray, normal);
+	color += pointlight(vec3(-11., 6.,11.), vec3(.7,.35,.15), metallic, roughness, albedo, p, ray, normal);
+	color += pointlight(vec3(0., 10., 0.), vec3(10.), metallic, roughness, albedo, p, ray, normal);
 
-    vec3 H = normalize(ray + L), F0 = mix(vec3(.04), albedo, metallic);
-		float HV = max(dot(H, ray), .0), NV = max(dot(normal, ray), .0), NL = max(dot(normal, L), 0.), NH = max(dot(normal, H), 0.);
-		vec3 F = F0 + (1. - F0) * pow(1. - HV, 5.);
-		float G = GeometrySchlickGGX(NV, roughness) * GeometrySchlickGGX(NL, roughness);
-		vec3 brdf = DistributionGGX(NH, roughness)* G * F / (4. * NV * NL + .001);
-		color += 30. * (.7 + .3 * noise(t*20. + float(i))) * ((vec3(1.) - F) * (1. - metallic)* albedo / PI + brdf) * NL * LC[i] / LL;
-	}
 
 	gl_FragColor = vec4(color, tr.x);
 }
