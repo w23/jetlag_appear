@@ -1,15 +1,16 @@
-uniform float uf_time;
-uniform vec2 uv2_resolution;
-uniform sampler2D us2_rand;
-uniform vec2 uv2_rand_resolution;
-varying vec2 vv2_pos;
+uniform sampler2D R;
+uniform vec3 V, C, A, D, P;
 
-float t = uf_time;
+float t = V.z;
 
-vec4 rnd(vec2 n) { return texture2D(us2_rand, n/uv2_rand_resolution); }
-float hash(float n) { return texture2D(us2_rand, vec2(n*17.,n*53.)/uv2_rand_resolution).x; }
-float hash(vec2 n) { return texture2D(us2_rand, n*17./uv2_rand_resolution).y; }
-float noise(vec2 v) { return texture2D(us2_rand, (v+.5)/uv2_rand_resolution).z; }
+const vec3 E = vec3(.0,.001,1.);
+const float PI = 3.141593;
+
+/*
+vec4 rnd(vec2 n) { return texture2D(R, n/P.xy); }
+float hash(float n) { return texture2D(R, vec2(n*17.,n*53.)/P.xy).x; }
+float hash(vec2 n) { return texture2D(R, n*17./P.xy).y; }
+float noise(vec2 v) { return texture2D(R, (v+.5)/P.xy).z; }
 float noise(float v) { return noise(vec2(v)); }
 
 float fbm(vec2 v) {
@@ -22,6 +23,47 @@ float fbm(vec2 v) {
 	}
 	return r;
 }
+*/
+
+float hash1(float v){return fract(sin(v)*43758.5); }
+//float hash2(vec2 p){return fract(1e4*sin(17.*p.x+.1*p.y)*(.1+abs(sin(13.*p.y+p.x))));}
+float hash2(vec2 p){return fract(sin(17.*hash1(p.x)+54.*hash1(p.y)));}
+//float hash3(vec3 p){return hash2(vec2(hash2(p.xy), p.z));}
+float noise2(vec2 p){
+	vec2 P=floor(p);p-=P;
+	//p*=p*(3.-2.*p);
+	return mix(mix(hash2(P), hash2(P+E.zx), p.x), mix(hash2(P+E.xz), hash2(P+E.zz), p.x), p.y);
+}
+/*float noise3(vec3 p){
+	vec3 P=floor(p);p-=P;
+	p*=p*(3.-2.*p);
+	return mix(
+		mix(mix(hash3(P      ), hash3(P+E.zxx), p.x), mix(hash3(P+E.xzx), hash3(P+E.zzx), p.x), p.y),
+		mix(mix(hash3(P+E.xxz), hash3(P+E.zxz), p.x), mix(hash3(P+E.xzz), hash3(P+E.zzz), p.x), p.y), p.z);
+}
+*/
+float noise(float p){
+	float P = floor(p); p -= P;
+	//p*=p*(3.-2.*p);
+	return mix(hash1(P), hash1(P+1.), p);
+}
+vec3 noise13(float p) { return vec3(noise(p), noise(p+13.), noise(p+29.)); }
+
+
+//float box2(vec2 p, vec2 s) { p = abs(p) - s; return max(p.x, p.y); }
+float box3(vec3 p, vec3 s) { p = abs(p) - s; return max(p.x, max(p.y, p.z)); }
+//mat3 RX(float a){ float s=sin(a),c=cos(a); return mat3(1.,0.,0.,0.,c,-s,0.,s,c); }
+mat3 RY(float a){	float s=sin(a),c=cos(a); return mat3(c,0.,s,0.,1.,0,-s,0.,c); }
+//mat3 RZ(float a){ float s=sin(a),c=cos(a); return mat3(c,s,0.,-s,c,0.,0.,0.,1.); }
+
+float ball(vec3 p, float r) { return length(p) - r; }
+vec3 rep3(vec3 p, vec3 r) { return mod(p,r) - r*.5; }
+//vec2 rep2(vec2 p, vec2 r) { return mod(p,r) - r*.5; }
+float ring(vec3 p, float r, float R, float t) {
+	float pr = length(p);
+	return max(abs(p.y)-t, max(pr - R, r - pr));
+}
+float vmax(vec2 p) { return max(p.x, p.y); }
 
 float vmax(vec3 v) { return max(v.x, max(v.y, v.z)); }
 
@@ -84,6 +126,7 @@ float world(vec3 p) {
 	return min(bounds(p), object(p));
 }
 
+#if 0
 struct material_t {
 	vec3 emissive;
 	vec3 color;
@@ -128,10 +171,7 @@ vec3 normal(vec3 p) {
 	float d = world(p);
 	return normalize(vec3(world(p+e.yxx) - d, world(p+e.xyx) - d, world(p+e.xxy) - d));
 }
-
 const float E = .005;
-
-
 vec3 trace(vec3 O, vec3 D, float L, float Lmax) {
 	float Lp = L;
 	for (int i = 0; i < 64; ++i) {
@@ -144,7 +184,6 @@ vec3 trace(vec3 O, vec3 D, float L, float Lmax) {
 	}
 	return vec3(-1., L, 0.);
 }
-
 vec3 refine(vec3 a, vec3 b) {
 	for (int i = 0; i < 8; ++i) {
 		vec3 m = (a + b) * .5;
@@ -152,219 +191,116 @@ vec3 refine(vec3 a, vec3 b) {
 	}
 	return (a + b) * .5;
 }
-
-
-const float PI = 3.1415926;
-
-vec3 brdf(vec3 N, vec3 L, vec3 V, material_t m) {
-	vec3 H = normalize(L + V);
-	float NL = max(0., dot(N, L));
-	float NH = max(0., dot(N, H));
-	float LH = max(0., dot(L, H));
-	float r2 = m.roughness * m.roughness;
-
-	vec3 F0 = mix(vec3(m.fresnel), m.color, m.metalness);
-	vec3 F = F0 + (vec3(1.) - F0) * pow(1. - LH, 5.);
-	float D = r2 / (PI * pow(NH * NH * (r2 - 1.) + 1., 2.));
-	float G = 1. / (LH * LH);
-
-	vec3 Fd = F0 + (vec3(1.) - F0) * pow(1. - NL, 5.);
-	return PI * mix((1. - Fd)/PI, F * D * G / 4., m.specular) * m.color * NL;
-}
-
-vec3 enlight(vec3 pos, vec3 normal, vec3 view, vec3 lightpos, vec3 lightcolor) {
-	material_t m = material(pos);
-	vec3 lightdir = lightpos - pos;
-	vec3 nld = normalize(lightdir);
-	float ldist = length(lightdir);
-	float d = 1.;//trace(pos + normal*E*10., nld, E, ldist).z;
-	const int shadow_samples = 40;
-	float L = E;
-	for (int i = 0; i < shadow_samples; ++i) {
-		vec3 p = pos + normal*.1 + nld * L;
-		float w = world(p);
-		d = min(d, w);
-		if (w < .0) break;
-		L += max(w, E * L);
-		if (L >= ldist) break;
-	}
-	return pow(smoothstep(0., .06, d), 2.) * brdf(normal,nld,view,m) * lightcolor / dot(lightdir, lightdir);
-}
-
-vec3 directlight(vec3 p, vec3 v) {
-	vec3 n = normal(p);
-	material_t m = material(p);
-	vec3 color = m.emissive;
-	color += enlight(p, n, v, vec3(5., 5. , 5.), 200.*vec3(.4, .3, .9));
-	color += enlight(p, n, v, vec3(8., 8., -8.), 20.*vec3(.2, .8, .3));
-	color += enlight(p, n, v, vec3(-7., 7., 7.), 20.*vec3(.7, .3, .9));
-	return color;
-}
-
-vec3 eye(float t) {
-	t *= .7;
-	const vec3 C = vec3(0., 3., 0.), S = 2.*vec3(6., 2., 6.);
-	float T = floor(t); t -= T; t *= t * (3. - 2. * t);
-	t = 1. - pow(1. - t, 2.);
-#if 0
-	vec3 A = (rnd(vec2(T)).wyz - .5) * S,
-			 B = rnd(vec2(T+1.)).wyz;
-#else
-	vec3 A = (rnd(vec2(T)).wyz - .5) * S,
-			 B = (rnd(vec2(T+1.)).wyz - .5) * S;
 #endif
-	vec3 p = mix(A, B, t);
-	return C + normalize(p) * max(length(p), 2.4);
+
+int mindex = 0;
+void PICK(inout float d, float dn, int mat) { if (dn<d) {d = dn; mindex = mat;} }
+
+#define LN 5
+vec3 LP[LN], LC[LN];
+
+float DistributionGGX(float NH, float r) {
+	r *= r; r *= r;
+	float denom = NH * NH * (r - 1.) + 1.;
+	denom = PI * denom * denom;
+	return r / denom;
+}
+float GeometrySchlickGGX(float NV, float r) {
+	r += 1.; r *= r / 8.;
+	return NV / (NV * (1. - r) + r);
+}
+
+vec3 trace(vec3 o, vec3 d, float maxl) {
+	float l = 0., minw = 1e3;
+	int i;
+	for (i = 0; i < 128; ++i) {
+		vec3 p = o+d*l;
+		float w = world(p);
+		l += w;
+		minw = min(minw, w);
+		if (w < .002*l || l > maxl) break;
+	}
+	return vec3(l, minw, float(i));
+}
+
+mat3 lookat(vec3 p, vec3 a, vec3 y) {
+	vec3 z = normalize(p - a);
+	vec3 x = normalize(cross(y, z));
+	y = cross(z, x);
+	return mat3(x, y, z);
 }
 
 void main() {
-	//t = uf_time * .1;
-	vec2 uv = vv2_pos * vec2(1., uv2_resolution.y / uv2_resolution.x);
+	vec2 uv = gl_FragCoord.xy / V.xy * 2. - 1.;
+	uv.x *= V.x / V.y;
 
-	//gl_FragColor = texture2D(us2_rand, vv2_pos*.5+.5); return;
-	//gl_FragColor = texture2D(us2_rand, gl_FragCoord.xy/uv2_rand_resolution); return;
-	//gl_FragColor = vec4(noise(gl_FragCoord.xy)); return;
-	//gl_FragColor = vec4(noise(uv*10.)); return;
-	//gl_FragColor = rnd(gl_FragCoord.xy); return;
+	LP[0] = vec3(11., 6.,11.);
+	LP[1] = vec3(11., 6.,-11.);
+	LP[2] = vec3(-11., 6.,-11.);
+	LP[3] = vec3(-11., 6.,11.);
+	LP[4] = E.xxx;
 
-	vec3 color = vec3(0.);
+	LC[0] = vec3(.7,.35,.45);
+	LC[1] = vec3(.7,.35,.15);
+	LC[2] = vec3(.3,.35,.75);
+	LC[3] = vec3(.7,.35,.15);
+	LC[4] = vec3(D.x);
 
-	//vec3 at = vec3(2.2,3.,0.);
-	vec3 at = vec3(0., 3., 0.);
-	//vec3 eye = vec3(3.7, 4.5, 4.7) + .1 * vec3(noise(t), noise(t*.4), noise(t*.7));
-	vec3 eye = eye(t);
-	vec3 up = vec3(0., 1., 0.);
-	vec3 dir = normalize(at - eye);
-	vec3 side = cross(up, dir); up = cross(dir, side);
-	mat3 lat = mat3(side, up, -dir);
-	
-	vec3 o = vec3(uv, 0.);
-	vec3 d = normalize(vec3(uv, -1.));
+	vec3 origin = C + .1 * noise13(t*3.);
+	mat3 LAT = lookat(origin, A, E.xzx);
+	//origin += LAT * vec3(uv*.01, 0.);
+	vec3 ray = - LAT * normalize(vec3(uv, -D.y));
 
-	o = lat * o + eye;
-	d = lat * d;
+	vec3 tr = trace(origin, -ray, 40.);
+	vec3 p = origin - tr.x * ray;
 
-#if 1
-	float Lmax = 30.;
-	vec3 ll = trace(o, d, 0., Lmax);
-	if (ll.x > 0. && ll.x < Lmax) {
-		vec3 p = refine(o + d * ll.x, o + d * ll.y);
-		vec3 n = normal(p);
-		material_t m = material(p);
-		color = directlight(p, -d);
+	vec3 color = E.xxx, albedo = E.zzz;
+	float metallic = 0., roughness = 0.;
 
-		int steps = 7;
-		//float ksteps = pow(1. / float(steps), 2.);
-		float ksteps = 1. / float(steps);
-		for (int i = 0; i < steps; ++i) {
-			float seed = float(i) + t;
-			vec3 sd = normalize(
-				mix(reflect(d,n),
-					n + normalize(2. * (rnd(1000.*(p.xz+seed+p.y)).zyx - .5)),
-				1.-m.specular));
-			vec3 os = p + n * E * 2.;
-			float Lm = 4.;
-			vec3 l = trace(os, sd, 0., Lm);
-			if (l.x > 0. && l.x < Lm) {
-				//vec3 ps = refine(os + sd * l.x, os + sd * l.y);
-				vec3 ps = os + sd * l.x;
-				material_t sm = material(ps);
-				color += 0.
-#if 0
-					+ sm.emissive
-#else
-					+ /* brdf(n, sd, -d, m) */  directlight(ps, -sd)
-#endif
-					* ksteps  / max(1.,l.x); // float(steps);
-				;
-			}
-		}
-	}
-#elif 0
-	float Lmax = 30.;
-	vec3 O = o, D = d, N;
-	material_t M;
-	const int steps = 9;
-	float kstep = 1.;// / float(steps);
-	for (int s = 0; s < steps; ++s) {
-		float L = 0.;
-		float Lp = L;
-		vec3 p;
-		for (int i = 0; i < 64; ++i) {
-			p = O + D * L;
-			float d = world(p);
-			if (d < 0.) break;
-			Lp = L;
-			L += max(d, E * L * .5);
-			if (L >= Lmax) break;
-		}
+	float w=world(p);
+	vec3 normal = normalize(vec3(world(p+E.yxx),world(p+E.xyx),world(p+E.xxy))-w);
 
-		if (L >= Lmax) {
-			if (s == 0) break;
-			continue;
-		}
-
-		vec3 n = normal(p);
-		material_t m = material(p);
-		vec3 c = vec3(.0);
-		c += enlight(p, n, -D, vec3(5., 5. , 5.), 200.*vec3(1., .3, .2));
-		c += enlight(p, n, -D, vec3(8., 8., -8.), 200.*vec3(.2, .8, .3));
-		c += enlight(p, n, -D, vec3(-7., 7., 7.), 200.*vec3(.7, .3, .9));
-		color += c * kstep;
-
-		if (s == 0) {
-			O = p + n * E * 2.;
-			N = n;
-			M = m;
-			kstep = pow(1. / float(steps), 2.);
-		}
-
-		float seed = float(s) + t;
-		D = normalize(mix(reflect(D,N), N + normalize(2. * (vec3(hash(seed+p.x), hash(seed+p.y), hash(seed+p.z)) - .5)), 1.-M.specular));
-		Lmax = 4.;
-	}
-#else
-	vec3 O = o, D = d;
-	vec3 N;
-	material_t M;
-	float L = 0.;
-	int nstep = 0;
-	vec3 gic = vec3(0.);
-	for (int i = 0; i < 128; ++i) {
-		vec3 p = O + D * L;
-		float w = world(p);
-		if (w < 0.) {
-			material_t m = material(p);
-			vec3 n = normal(p);
-			vec3 c = m.emissive;
-			if (nstep == 0) {
-				c += enlight(p, n, -D, vec3(5., 5. , 5.), 20.*vec3(1., .3, .2));
-				c += enlight(p, n, -D, vec3(8., 8., -8.), 20.*vec3(.2, .8, .3));
-				c += enlight(p, n, -D, vec3(-7., 7., 7.), 20.*vec3(.7, .3, .9));
-				M = m;
-				N = n;
-				O = p - D * E * L;
-				color = c;
-			} else {
-				gic += c / max(1., (L*L));
-			}
-
-			L = 0.; // TODO preserve L
-			float seed = float(i) + t;
-			D = normalize(mix(
-						reflect(d,N),
-						N + normalize(2. * (vec3(hash(p.x), hash(p.y), hash(p.z)) - .5)),
-						1.-M.specular));
-
-			//color = vec3(float(i)/256.); // DEBUG
-			++nstep;
-		} else {
-			L += max(w, E * L * .5);
-		}
+	if (mindex == 1) {
+		albedo = vec3(.5);
+		roughness = .4;
+		metallic = .99;
+	} else if (mindex == 2) {
+		albedo = vec3(.56, .57, .58);
+		roughness = mix(.15, .5, step(box3(rep3(p, vec3(2.)), vec3(.6)), 0.));
+		metallic = .8;
+	} else if (mindex == 3) {
+		float stripe = step(0., sin(atan(p.x,p.z)*60.));
+		albedo = vec3(mix(1., .1, stripe));
+		roughness = mix(.9, .2, stripe);
+		metallic = .1;
+	} else if (mindex == 4) {
+		albedo = vec3(.56, .57, .58);
+		roughness = .2 + .6 * pow(noise2(p.xz*4.+40.),4.);
+		metallic = .8;
+	} else if (mindex == 5) {
+		albedo = vec3(1., 0., 0.);
+		roughness = .2;
+		metallic = .8;
+	} else {
+		for (int i = 0; i < LN; ++i)
+			if (mindex == 100 + i)
+				color = LC[i] * 30.;
 	}
 
-	color += gic / float(nstep);
-#endif
+	for(int i = 0; i < LN; ++i) {
+    vec3 L = LP[i] - p; float LL = dot(L,L), Ls = sqrt(LL);
+		L = normalize(L);
 
-	gl_FragColor = vec4(color, 1.);//vec4(pow(color, vec3(1./2.2)), 1.);
+		vec3 tr = trace(p + .02 * L, L, Ls);
+		if (tr.x + .2 < Ls ) continue;
+
+    vec3 H = normalize(ray + L), F0 = mix(vec3(.04), albedo, metallic);
+		float HV = max(dot(H, ray), .0), NV = max(dot(normal, ray), .0), NL = max(dot(normal, L), 0.), NH = max(dot(normal, H), 0.);
+		vec3 F = F0 + (1. - F0) * pow(1. - HV, 5.);
+		float G = GeometrySchlickGGX(NV, roughness) * GeometrySchlickGGX(NL, roughness);
+		vec3 brdf = DistributionGGX(NH, roughness)* G * F / (4. * NV * NL + .001);
+		color += 30. * (.7 + .3 * noise(t*20. + float(i))) * ((vec3(1.) - F) * (1. - metallic)* albedo / PI + brdf) * NL * LC[i] / LL;
+	}
+
+	gl_FragColor = vec4(color, tr.x);
 }

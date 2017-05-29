@@ -1,21 +1,22 @@
+//#include "music/4klang.h"
+
 #include "atto/app.h"
 #define ATTO_GL_H_IMPLEMENT
-#define ATTO_GL_DEBUG
-//#define ATTO_GL_TRACE
+//#define ATTO_GL_DEBUG
 #include "atto/gl.h"
 #include "atto/math.h"
 
-#include <math.h>
+#include <utility>
+#include <memory>
+#include <string>
+#include <vector>
 
 #include <stdlib.h>
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <fcntl.h>
 #include <unistd.h>
-
-#include <string>
-#include <memory>
-#include <vector>
+#include <cstring>
 
 class FileChangePoller {
 	const std::string filename_;
@@ -36,13 +37,11 @@ public:
 				st.st_mtim.tv_nsec == mtime_.tv_nsec)
 			return content;
 
-		aAppDebugPrintf("Updating..");
-
 		mtime_ = st.st_mtim;
 
 		int fd = open(filename_.c_str(), O_RDONLY);
 		if (fd < 0) {
-			aAppDebugPrintf("Cannot open file");
+			aAppDebugPrintf("Cannot open file %s", filename_.c_str());
 			return content;
 		}
 
@@ -54,52 +53,52 @@ public:
 			return content;
 		}
 
+		aAppDebugPrintf("Reread file %s", filename_.c_str());
+
 		close(fd);
 		return content;
 	}
 };
 
-class INode {
+class String {
+protected:
+	std::string value_;
+
 public:
-	virtual ~INode() {}
+	String(const std::string &str) : value_(str) {}
+	const std::string &string() const { return value_; }
 	virtual bool update() { return false; }
 };
 
-class NodeString : public INode {
-protected:
-	std::string string_;
-public:
-	NodeString(const std::string &str) : string_(str) {}
-	const std::string &str() const { return string_; }
-};
-
-class NodeStringFile : public NodeString {
+class FileString : public String {
 	FileChangePoller poller_;
+
 public:
-	NodeStringFile(const char *filename) : NodeString(""), poller_(filename) {}
-	bool update() override {
+	FileString(const char *filename) : String(""), poller_(filename) {}
+
+	bool update() {
 		std::string new_content = poller_.poll();
 		if (!new_content.empty()) {
-			string_ = std::move(new_content);
+			value_ = std::move(new_content);
 			return true;
 		}
 		return false;
 	}
 };
 
-class NodeProgram : public INode {
-	NodeString *vertex_, *fragment_;
+class Program {
+	String &vertex_src_;
+	String &fragment_src_;
 	AGLProgram program_;
+
 public:
-	NodeProgram(NodeString *vertex, NodeString *fragment)
-		: vertex_(vertex), fragment_(fragment), program_(0) {}
-	~NodeProgram() {
-		aGLProgramDestroy(program_);
-	}
-	bool update() override {
-		if (vertex_->update() || fragment_->update()) {
+	const AGLProgram& program() const { return program_; }
+	Program(String &vtx, String &frg) : vertex_src_(vtx), fragment_src_(frg), program_(0) {}
+
+	bool update() {
+		if (vertex_src_.update() || fragment_src_.update()) {
 			AGLProgram new_program = aGLProgramCreateSimple(
-					vertex_->str().c_str(), fragment_->str().c_str());
+					vertex_src_.string().c_str(), fragment_src_.string().c_str());
 			if (new_program < 0) {
 				aAppDebugPrintf("shader error: %s\n", a_gl_error);
 				return false;
@@ -113,419 +112,312 @@ public:
 		}
 		return false;
 	}
-
-	AGLProgram program() const { return program_; }
 };
 
-class INodeUniform : public INode {
-public:
-	virtual void fillUniform(AGLProgramUniform *uniform) = 0;
-};
+class Timeline {
+	String &source_;
 
-class NodeUniformFloat : public INodeUniform {
-	float f_;
-	bool dirty_;
-public:
-	explicit NodeUniformFloat(float f) : f_(f), dirty_(false) {}
-	void update(float f) { f_ = f; dirty_ = true; }
-	bool update() override { if (dirty_) { /*dirty_ = false;*/ return true; } return false; }
-	void fillUniform(AGLProgramUniform *uniform) override {
-		uniform->value.pf = &f_;
-		uniform->count = 1;
-		uniform->type = AGLAT_Float;
-	}
-};
+	int columns_, rows_;
+	std::vector<float> data_;
 
-class NodeUniformVec2 : public INodeUniform {
-	AVec2f v_;
-	bool dirty_;
-public:
-	explicit NodeUniformVec2(AVec2f v) : v_(v), dirty_(false) {}
-	void update(AVec2f v) { v_ = v; dirty_ = true; }
-	bool update() override { if (dirty_) { dirty_ = false; return true; } return false; }
-	void fillUniform(AGLProgramUniform *uniform) override {
-		uniform->value.pf = &v_.x;
-		uniform->count = 1;
-		uniform->type = AGLAT_Vec2;
-	}
-};
+	bool parse(const char *str) {
+		const char *p = str;
+		int columns, pattern_size, icol = 0, irow = 0;
 
-class NodeTexture : public INodeUniform {
-protected:
-	AGLTexture tex_;
-	NodeUniformVec2 resolution_;
-	bool dirty_;
+#define SSCAN(expect, format, ...) { \
+	int n;\
+	if (expect != sscanf(p, format " %n", __VA_ARGS__, &n)) { \
+		aAppDebugPrintf("parsing error at %d (row=%d, col=%d)", \
+			p - str, irow, icol); \
+		return false; \
+	} \
+	p += n; \
+}
+		SSCAN(2, "%d %d", &columns, &pattern_size);
+		std::vector<float> data;
+		float lasttime = 0;
+		while (*p != '\0') {
+			int pat, tick, tick2;
+			++irow;
+			SSCAN(3, "%d:%d.%d", &pat, &tick, &tick2);
+#define SAMPLES_PER_TICK 7190
+#define SAMPLE_RATE 44100
+			const float time = ((pat * pattern_size + tick) * 2 + tick2)
+				* (float)(SAMPLES_PER_TICK) / (float)(SAMPLE_RATE) / 2.f;
+			data.push_back(time - lasttime);
+			aAppDebugPrintf("row=%d time=(%dx%d:%d+%d)%f, dt=%f",
+				irow, pat, pattern_size, tick, tick2, time, data.back());
+			lasttime = time;
 
-public:
-	explicit NodeTexture()
-		: tex_(aGLTextureCreate()), resolution_(aVec2f(0,0)), dirty_(false) {}
-	~NodeTexture() { aGLTextureDestroy(&tex_); }
-	NodeUniformVec2 *resolution() { return &resolution_; } /* FIXME should depend on this texture */
-	void upload(int w, int h, AGLTextureFormat fmt, void *pixels) {
-		AGLTextureUploadData data;
-		data.pixels = pixels;
-		data.x = data.y = 0;
-		data.width = w;
-		data.height = h;
-		data.format = fmt;
-		aGLTextureUpload(&tex_, &data);
-		resolution_.update(aVec2f(w, h));
-		dirty_ = true;
-	}
-	const AGLTexture& agl() const { return tex_; }
-	void fillUniform(AGLProgramUniform *uniform) override {
-		uniform->value.texture = &tex_;
-		uniform->count = 1;
-		uniform->type = AGLAT_Texture;
-	}
-	bool update() override { if (dirty_) { dirty_ = false; return true; } return false; }
-};
+			for (int i = 0; i < columns; ++i) {
+				float value;
+				icol = i;
+				SSCAN(1, "%f", &value);
+				data.push_back(value);
+			}
+		}
+#undef SSCAN
 
-class Rand {
-	uint64_t v_;
-public:
-	Rand(uint64_t seed) : v_(seed) {}
-	uint32_t next() {
-		v_ = v_ * 6364136223846793005ull + 1442695040888963407ull;
-		return v_ >> 32;
-	}
-};
-
-class NodeRandomTexture : public NodeTexture {
-	
-public:
-	explicit NodeRandomTexture(int w, int h, int seed = 31337)
-	{
-		const int num_pixels = w * h;
-		Rand rand(seed);
-
-		std::vector<uint32_t> buffer(num_pixels);
-		for (int i = 0; i < num_pixels; ++i)
-			buffer[i] = rand.next();
-
-		upload(w, h, AGLTF_U8_RGBA, &buffer[0]);
-	}
-
-	bool update() override { return false; }
-};
-
-static const float fsquad_vertices[] = {
-	-1.f, 1.f,
-	-1.f, -1.f,
-	1.f, 1.f,
-	1.f, -1.f
-};
-
-class NodeDraw : public INode {
-protected:
-	AGLDrawSource src_;
-	AGLDrawMerge merge_;
-
-	NodeProgram *program_;
-
-	std::vector<AGLAttribute> attribs_;
-	std::vector<AGLProgramUniform> uniform_;
-
-	struct UniformNode {
-		std::string name;
-		INodeUniform *value;
-	};
-	std::vector<UniformNode> uni_values_;
-
-protected:
-	explicit NodeDraw() : program_(nullptr) {
-		merge_.blend.enable = 0;
-		merge_.depth.mode = AGLDM_Disabled;
+		rows_ = irow - 1;
+		columns_ = columns;
+		data_ = std::move(data);
+		return true;
 	}
 
 public:
-	explicit NodeDraw(NodeProgram *program) : program_(program) {
-		merge_.blend.enable = 0;
-		merge_.depth.mode = AGLDM_Disabled;
+	Timeline(String &source) : source_(source), columns_(0), rows_(0) {}
+
+	bool update() {
+		return source_.update() && parse(source_.string().c_str());
 	}
 
-	void addAttrib(const AGLAttribute& attrib) {
-		/* FIXME */
-		attribs_.push_back(attrib);
+	struct Sample {
+		float operator[](int index) const {
+			if (index < 0 || (size_t)index >= data_.size()) {
+				//aAppDebugPrintf("index %d is out of bounds [%d, %d]",
+				//	index, 0, static_cast<int>(data_.size()) - 1);
+				return 0;
+			}
 
-		src_.attribs.p = &attribs_.front();
-		src_.attribs.n = attribs_.size();
-	}
-
-	void addUniform(const char *name, INodeUniform *value) {
-		UniformNode res;
-		res.name = name;
-		res.value = value;
-
-		AGLProgramUniform uniform;
-		uniform.name = res.name.c_str();
-		value->fillUniform(&uniform);
-		uniform_.push_back(std::move(uniform));
-		uni_values_.push_back(std::move(res));
-
-		src_.uniforms.p = &uniform_.front();
-		src_.uniforms.n = uniform_.size();
-	}
-
-	bool update() override {
-		bool updated = false;
-		if (program_->update()) {
-			src_.program = program_->program();
-			updated = true;
+			return data_[index];
 		}
 
-		for (auto it: uni_values_)
-			updated |= it.value->update();
-
-		return updated;
-	}
-
-	void draw(const AGLDrawTarget &target) {
-		aGLDraw(&src_, &merge_, &target);
+		std::vector<float> data_;
 	};
-};
 
-class NodeDrawFullscreen : public NodeDraw {
-	NodeString vertex_src_;
-	NodeProgram own_program_;
+	Sample sample(float time) {
+		int i, j;
+		for (i = 1; i < rows_ - 1; ++i) {
+			const float dt = data_.at(i * (columns_ + 1));
+			//printf("%.2f: [i=%d; dt=%.2f, t=%.2f]\n", time, i, dt, time/dt);
+			if (dt >= time) {
+				time /= dt;
+				break;
+			}
+			time -= dt;
+		}
 
-	static const char shader_vertex_[];
-	static const float fsquad_vertices_[];
+		Sample ret;
+		ret.data_.resize(columns_);
 
-public:
-	NodeDrawFullscreen(NodeString *fragment_src)
-		: NodeDraw()
-		, vertex_src_(shader_vertex_)
-		, own_program_(&vertex_src_, fragment_src) {
-		program_ = &own_program_;
+		for (j = 0; j < columns_; ++j) {
+			const float a = data_.at((i - 1) * (columns_ + 1) + j + 1);
+			const float b = data_.at(i * (columns_ + 1) + j + 1);
+			ret.data_[j] = a + (b - a) * time;
+			//printf("%.2f ", ret.data_[j]);
+		}
+		//printf("\n");
 
-		src_.primitive.front_face = AGLFF_CounterClockwise;
-		src_.primitive.cull_mode = AGLCM_Disable;
-		src_.primitive.mode = GL_TRIANGLE_STRIP;
-		src_.primitive.count = 4;
-		src_.primitive.first = 0;
-		src_.primitive.index.buffer = 0;
-		src_.primitive.index.data.ptr = 0;
-		src_.primitive.index.type = 0;
-
-		AGLAttribute attr;
-		attr.name = "av2_pos";
-		attr.buffer = 0;
-		attr.size = 2;
-		attr.type = GL_FLOAT;
-		attr.normalized = GL_FALSE;
-		attr.stride = 0;
-		attr.ptr = fsquad_vertices_;
-		addAttrib(attr);
-	}
-
-	void addUniform(const char *name, INodeUniform *value) {
-		NodeDraw::addUniform(name, value);
+		return ret;
 	}
 };
 
-const char NodeDrawFullscreen::shader_vertex_[] =
-	"attribute vec2 av2_pos;\n"
-	"varying vec2 vv2_pos;\n"
+const char fs_vtx_source[] =
 	"void main() {\n"
-		"vv2_pos = av2_pos;\n"
-		"gl_Position = vec4(av2_pos, 0., 1.);\n"
+		"gl_Position = gl_Vertex;\n"
 	"}"
 ;
 
-const float NodeDrawFullscreen::fsquad_vertices_[] = {
-	-1.f, 1.f,
-	-1.f, -1.f,
-	1.f, 1.f,
-	1.f, -1.f
-};
+class Intro {
+	int paused_;
+	const ATimeUs time_end_;
+	bool time_adjusted_;
+	ATimeUs time_, last_frame_time_;
+	ATimeUs loop_a_, loop_b_;
 
-class NodeBaseFramebuffer : public INode {
-	std::vector<NodeDraw*> draws_;
+	AVec3f cam_, at_;
+	AVec3f mouse;
 
-protected:
-	AGLDrawTarget target_;
-	bool dirty_;
+	int frame_width, frame_height;
 
-public:
-	NodeBaseFramebuffer() : dirty_(false) {
-		target_.framebuffer = 0;
-	}
+	String fs_vtx;
+	FileString raymarch_src;
+	Program raymarch_prg;
+	FileString post_src;
+	Program post_prg;
+	FileString out_src;
+	Program out_prg;
 
-	void resize(int w, int h) {
-		target_.viewport.x = 0;
-		target_.viewport.y = 0;
-		target_.viewport.w = w;
-		target_.viewport.h = h;
+	FileString timeline_src_;
+	Timeline timeline_;
 
-		dirty_ = true;
-	}
-
-	void addDraw(NodeDraw *draw) {
-		draws_.push_back(draw);
-		dirty_ = true;
-	}
-
-	bool update() override {
-		bool updated = dirty_;
-		for (auto it: draws_)
-			updated |= it->update();
-
-		if (updated) {
-			/* TODO parametrize */
-			AGLClearParams clear;
-			clear.a = 0;
-			clear.r = 0;
-			clear.g = 0;
-			clear.b = 0;
-			clear.depth = 0;
-			clear.bits = AGLCB_Everything;
-			aGLClear(&clear, &target_);
-
-			for (auto it: draws_)
-				it->draw(target_);
-		}
-
-		dirty_ = false;
-		return updated;
-	}
-};
-
-class NodeScreen : public NodeBaseFramebuffer {};
-
-class NodeFramebuffer : public NodeBaseFramebuffer {
-	class NodeFramebufferTexture : public NodeTexture {
-		NodeFramebuffer& framebuffer_;
-	public:
-		NodeFramebufferTexture(NodeFramebuffer& fb) : framebuffer_(fb) {}
-		bool update() override { return framebuffer_.update(); }
+	enum {
+		FbTex_None,
+		FbTex_Random,
+		FbTex_Ray,
+		FbTex_Frame,
+		FbTex_COUNT
 	};
+	GLuint tex_[FbTex_COUNT];
+	GLuint fb_[FbTex_COUNT];
 
-	AGLFramebufferParams fb_;
-	std::vector<std::pair<AGLTextureFormat, NodeFramebufferTexture*> > targets_;
+	static void createTexture(GLint t, int w, int h)
+	{
+		AGL__CALL(glBindTexture(GL_TEXTURE_2D, t));
+		AGL__CALL(glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA16F, w, h, 0, GL_RGBA, GL_FLOAT, 0));
+		AGL__CALL(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR));
+		AGL__CALL(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR));
+		AGL__CALL(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_BORDER));
+		AGL__CALL(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_BORDER));
+	}
 
 public:
-	NodeFramebuffer() {
-		target_.viewport.w = target_.viewport.h = 16;
-		target_.framebuffer = &fb_;
-		dirty_ = true;
+	Intro(int width, int height)
+		: paused_(0)
+		, time_end_(1000000.f * 120.f) // * MAX_SAMPLES / (float)SAMPLE_RATE)
+		, time_(0)
+		, time_adjusted_(true)
+		, last_frame_time_(0)
+		, loop_a_(0)
+		, loop_b_(time_end_)
+		, cam_(aVec3f(40.f, 1.5f, 0.f))
+		, at_(aVec3ff(0.f))
+		, mouse(aVec3ff(0))
+		, frame_width(width)
+		, frame_height(height)
+		, fs_vtx(fs_vtx_source)
+		, raymarch_src("trace.glsl")
+		, raymarch_prg(fs_vtx, raymarch_src)
+		, post_src("post.glsl")
+		, post_prg(fs_vtx, post_src)
+		, out_src("out.glsl")
+		, out_prg(fs_vtx, out_src)
+		, timeline_src_("timeline.seq")
+		, timeline_(timeline_src_)
+	{
+		tex_[0] = fb_[0] = 0;
+		AGL__CALL(glGenTextures(FbTex_COUNT-1, tex_ + 1));
+		AGL__CALL(glGenFramebuffers(FbTex_COUNT-1, fb_ + 1));
+
+		for (int i = 0; i < FbTex_COUNT; ++i)
+			aAppDebugPrintf("tex_[%d] = %u; fb_[%d] = %u;", i, tex_[i], i, fb_[i]);
+
+		createTexture(tex_[FbTex_Ray], frame_width, frame_height);
+		AGL__CALL(glBindFramebuffer(GL_FRAMEBUFFER, fb_[FbTex_Ray]));
+		AGL__CALL(glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, tex_[FbTex_Ray], 0));
+		int status = glCheckFramebufferStatus(GL_FRAMEBUFFER);
+		ATTO_ASSERT(status == GL_FRAMEBUFFER_COMPLETE);
+
+		createTexture(tex_[FbTex_Frame], frame_width, frame_height);
+		AGL__CALL(glBindFramebuffer(GL_FRAMEBUFFER, fb_[FbTex_Frame]));
+		AGL__CALL(glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, tex_[FbTex_Frame], 0));
+		status = glCheckFramebufferStatus(GL_FRAMEBUFFER);
+		ATTO_ASSERT(status == GL_FRAMEBUFFER_COMPLETE);
 	}
 
-	std::unique_ptr<NodeTexture> addTarget(AGLTextureFormat fmt) {
-		ATTO_ASSERT(targets_.empty());
-		NodeFramebufferTexture *tex = new NodeFramebufferTexture(*this);
-		targets_.push_back(std::make_pair(fmt, tex));
-		dirty_ = true;
-		return std::unique_ptr<NodeTexture>(tex);
+	void drawPass(float now, const Timeline::Sample &TV, int tex, int prog, int fb) {
+		AGL__CALL(glBindTexture(GL_TEXTURE_2D, tex));
+		AGL__CALL(glUseProgram(prog));
+		AGL__CALL(glBindFramebuffer(GL_FRAMEBUFFER, fb));
+		if (fb > 0) {
+			AGL__CALL(glViewport(0, 0, frame_width, frame_height));
+			AGL__CALL(glUniform3f(glGetUniformLocation(prog, "V"), frame_width, frame_height, now));
+		} else {
+			AGL__CALL(glViewport(0, 0, a_app_state->width, a_app_state->height));
+			AGL__CALL(glUniform3f(glGetUniformLocation(prog, "V"), a_app_state->width, a_app_state->height, now));
+		}
+		AGL__CALL(glUniform1i(glGetUniformLocation(prog, "B"), 0));
+		AGL__CALL(glUniform3f(glGetUniformLocation(prog, "C"), TV[0], TV[1], TV[2]));
+		AGL__CALL(glUniform3f(glGetUniformLocation(prog, "A"), TV[3], TV[4], TV[5]));
+		AGL__CALL(glUniform3f(glGetUniformLocation(prog, "D"), TV[6], TV[7], TV[8]));
+
+		AGL__CALL(glUniform1f(glGetUniformLocation(prog, "TPCT"), (float)time_ / (float)time_end_));
+		AGL__CALL(glRects(-1,-1,1,1));
 	}
 
-	bool update() override {
-		if (targets_.empty()) return false;
+	void paint(ATimeUs ts) {
+		if (!paused_) {
+			const ATimeUs delta = ts - last_frame_time_;
+			time_ += delta;
+			if (time_ < loop_a_) time_ = loop_a_;
+			if (time_ > loop_b_) time_ = loop_a_ + time_ % (loop_b_ - loop_a_);
+		}
+		last_frame_time_ = ts;
 
-		if (dirty_) {
-			for (auto tex: targets_) {
-				tex.second->upload(target_.viewport.w, target_.viewport.h, tex.first, 0);
-				fb_.color = &tex.second->agl();
-			}
+		const float now = 1e-6f * time_;
 
-			fb_.depth.mode = AGLDBM_Texture;
-			fb_.depth.texture = 0;
+		cam_.x = 20.f + sinf(now*.1f) * 18.f;
+
+		bool need_redraw = !paused_ || time_adjusted_;
+		need_redraw |= raymarch_prg.update();
+		need_redraw |= post_prg.update();
+		need_redraw |= out_prg.update();
+		need_redraw |= timeline_.update();
+
+		const Timeline::Sample TV = timeline_.sample(now);
+
+		if (need_redraw) {
+			drawPass(now, TV, 0, raymarch_prg.program(), FbTex_Ray);
+			drawPass(now, TV, FbTex_Ray, post_prg.program(), FbTex_Frame);
+		}
+		drawPass(now, TV, FbTex_Frame, out_prg.program(), 0);
+
+		time_adjusted_ = false;
+	}
+
+	void adjustTime(int delta) {
+		if (delta < 0 && -delta > (int)(time_ - loop_a_))
+			time_ = loop_a_;
+		else
+			time_ += delta;
+		time_adjusted_ = true;
+	}
+
+	void key(ATimeUs ts, AKey key) {
+		(void)ts;
+		switch (key) {
+			case AK_Space: paused_ ^= 1; break;
+			case AK_Right: adjustTime(5000000); break;
+			case AK_Left: adjustTime(-5000000); break;
+			case AK_Esc: aAppTerminate(0);
+			default: break;
+		}
+	}
+
+	void pointer(int dx, int dy, unsigned buttons, unsigned btn_ch) {
+		if (buttons) {
+			mouse.x += dx;
+			mouse.y += dy;
 		}
 
-		return NodeBaseFramebuffer::update();
+		if (btn_ch & AB_WheelUp) mouse.z += 1.f;
+		if (btn_ch & AB_WheelDown) mouse.z -= 1.f;
 	}
 };
 
-static void keyPress(ATimeUs timestamp, AKey key, int pressed) {
-	(void)(timestamp); (void)(pressed);
-	if (key == AK_Esc)
-		aAppTerminate(0);
-}
+static std::unique_ptr<Intro> intro;
 
-class Scene {
-	NodeRandomTexture rand_tex_;
-
-	NodeUniformFloat time_;
-	NodeUniformVec2 resolution_;
-
-	NodeStringFile ray_frag_;
-	NodeDrawFullscreen ray_draw_;
-
-	NodeFramebuffer framebuffer_;
-
-	std::unique_ptr<NodeTexture> frame_tex_;
-	NodeStringFile post_frag_;
-	NodeDrawFullscreen post_draw_;
-
-	NodeScreen screen_;
-
-public:
-	Scene(const char *ray_frag, const char *post_frag)
-		: rand_tex_(256, 256, 1)
-		, time_(0.f)
-		, resolution_(aVec2f(1280.f, 720.f))
-		, ray_frag_(ray_frag)
-		, ray_draw_(&ray_frag_)
-		, framebuffer_()
-		, frame_tex_(framebuffer_.addTarget(AGLTF_F32_RGBA))
-		, post_frag_(post_frag)
-		, post_draw_(&post_frag_)
-		, screen_()
-	{
-		framebuffer_.resize(1280, 720);
-
-		ray_draw_.addUniform("uf_time", &time_);
-		ray_draw_.addUniform("uv2_resolution", frame_tex_->resolution());
-		ray_draw_.addUniform("uv2_rand_resolution", rand_tex_.resolution());
-		ray_draw_.addUniform("us2_rand", &rand_tex_);
-
-		framebuffer_.addDraw(&ray_draw_);
-
-		post_draw_.addUniform("uf_time", &time_);
-		post_draw_.addUniform("uv2_resolution", &resolution_);
-		post_draw_.addUniform("us2_frame", frame_tex_.get());
-		post_draw_.addUniform("uv2_frame_resolution", frame_tex_->resolution());
-		post_draw_.addUniform("uv2_rand_resolution", rand_tex_.resolution());
-		post_draw_.addUniform("us2_rand", &rand_tex_);
-		screen_.addDraw(&post_draw_);
-	}
-
-	void resize(unsigned w, unsigned h) {
-		screen_.resize(w, h);
-		resolution_.update(aVec2f(w, h));
-	}
-
-	void draw(float t) {
-		time_.update(t);
-		screen_.update();
-	}
-};
-
-static Scene *scene;
-
-static void init(void) {
-	scene = new Scene(a_app_state->argv[1], a_app_state->argv[2]);
-}
-
-static void resize(ATimeUs timestamp, unsigned int old_w, unsigned int old_h) {
-	(void)(timestamp); (void)(old_w); (void)(old_h);
-	scene->resize(a_app_state->width, a_app_state->height);
-}
-
-static void paint(ATimeUs timestamp, float dt) {
-	float t = timestamp * 1e-6f;
+void paint(ATimeUs ts, float dt) {
 	(void)(dt);
-	//static int frame = 0;
-	//if (frame++ & 1)
-		scene->draw(t);
+	intro->paint(ts);
 }
 
-void attoAppInit(struct AAppProctable *proctable) {
-	aGLInit();
-	init();
-
-	proctable->resize = resize;
-	proctable->paint = paint;
-	proctable->key = keyPress;
+void key(ATimeUs ts, AKey key, int down) {
+	(void)(ts);
+	if (down) intro->key(ts, key);
 }
 
+void pointer(ATimeUs ts, int dx, int dy, unsigned int buttons_changed_bits) {
+	(void)(ts);
+	(void)(dx);
+	(void)(dy);
+	(void)(buttons_changed_bits);
+	intro->pointer(dx, dy, a_app_state->pointer.buttons, buttons_changed_bits);
+}
+
+void attoAppInit(struct AAppProctable *ptbl) {
+	ptbl->key = key;
+	ptbl->pointer = pointer;
+	ptbl->paint = paint;
+
+	int width = 1280, height = 720;
+	for (int iarg = 1; iarg < a_app_state->argc; ++iarg) {
+		const char *argv = a_app_state->argv[iarg];
+		if (strcmp(argv, "-w") == 0)
+			width = atoi(a_app_state->argv[++iarg]);
+		else if (strcmp(argv, "-h") == 0)
+			height = atoi(a_app_state->argv[++iarg]);
+	}
+
+	intro.reset(new Intro(width, height));
+}
