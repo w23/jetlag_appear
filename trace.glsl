@@ -12,17 +12,6 @@ float hash(float n) { return texture2D(R, vec2(n*17.,n*53.)/P.xy).x; }
 float hash(vec2 n) { return texture2D(R, n*17./P.xy).y; }
 float noise(vec2 v) { return texture2D(R, (v+.5)/P.xy).z; }
 float noise(float v) { return noise(vec2(v)); }
-
-float fbm(vec2 v) {
-	float r = 0.;
-	float k = .5;
-	for (int i = 0; i < 5; ++i) {
-		r += noise(v) * k;
-		k *= .5;
-		v *= 2.;
-	}
-	return r;
-}
 */
 
 float hash1(float v){return fract(sin(v)*43758.5); }
@@ -48,6 +37,17 @@ float noise(float p){
 	return mix(hash1(P), hash1(P+1.), p);
 }
 vec3 noise13(float p) { return vec3(noise(p), noise(p+13.), noise(p+29.)); }
+
+float fbm(vec2 v) {
+	float r = 0.;
+	float k = .5;
+	for (int i = 0; i < 5; ++i) {
+		r += noise2(v) * k;
+		k *= .5;
+		v *= 2.;
+	}
+	return r;
+}
 
 
 //float box2(vec2 p, vec2 s) { p = abs(p) - s; return max(p.x, p.y); }
@@ -122,55 +122,17 @@ float object(vec3 p) {
 	return max(d, -cut);
 }
 
+int mindex = 0;
+void PICK(inout float d, float dn, int mat) { if (dn<d) {d = dn; mindex = mat;} }
+
 float world(vec3 p) {
-	return min(bounds(p), object(p));
+	float w = 1e6;
+	PICK(w, bounds(p), 1);
+	PICK(w, object(p), 2);
+	return w;
 }
 
 #if 0
-struct material_t {
-	vec3 emissive;
-	vec3 color;
-	float roughness;
-	float specular;
-	float fresnel;
-	float metalness;
-};
-
-material_t material(vec3 p) {
-	material_t m;
-#if 0
-	m.emissive = vec3(0.);
-	m.color = vec3(1.);
-	m.roughness = 1.;
-	m.specular = 0.;
-	m.fresnel = 0.;
-	m.metalness = 0.;
-#else
-	if (object(p) < bounds(p)) {
-		m.emissive = vec3(10.) * smoothstep(.99,.999,sin(t*4.*.4+(rotX(t*.4)*p).y*2.));
-		m.color = vec3(.56,.57,.58);
-		m.roughness = .01 + .5 * fbm(p.xy*10.);
-		m.specular = .8;
-		m.fresnel = .4;
-		m.metalness = .5 + fbm(p.zx*21.)*.5;
-	} else {
-		float type = smoothstep(.4,.6,fbm(p.xz*4.));
-		m.emissive = vec3(0.);
-		m.color = vec3(.07);
-		m.roughness = mix(1., .01, type);
-		m.specular = mix(.1, .9, type);
-		m.fresnel = .02;
-		m.metalness = mix(.01, .9, type);
-	}
-#endif
-	return m;
-}
-
-vec3 normal(vec3 p) {
-	vec2 e = vec2(0., .001);
-	float d = world(p);
-	return normalize(vec3(world(p+e.yxx) - d, world(p+e.xyx) - d, world(p+e.xxy) - d));
-}
 const float E = .005;
 vec3 trace(vec3 O, vec3 D, float L, float Lmax) {
 	float Lp = L;
@@ -193,9 +155,6 @@ vec3 refine(vec3 a, vec3 b) {
 }
 #endif
 
-int mindex = 0;
-void PICK(inout float d, float dn, int mat) { if (dn<d) {d = dn; mindex = mat;} }
-
 #define LN 5
 vec3 LP[LN], LC[LN];
 
@@ -213,7 +172,7 @@ float GeometrySchlickGGX(float NV, float r) {
 vec3 trace(vec3 o, vec3 d, float maxl) {
 	float l = 0., minw = 1e3;
 	int i;
-	for (i = 0; i < 128; ++i) {
+	for (i = 0; i < 64; ++i) {
 		vec3 p = o+d*l;
 		float w = world(p);
 		l += w;
@@ -261,13 +220,19 @@ void main() {
 	vec3 normal = normalize(vec3(world(p+E.yxx),world(p+E.xyx),world(p+E.xxy))-w);
 
 	if (mindex == 1) {
-		albedo = vec3(.5);
-		roughness = .4;
-		metallic = .99;
+		float type = smoothstep(.4,.6,fbm(p.xz*4.));
+		albedo = vec3(.07);
+		roughness = mix(1., .01, type);
+		metallic = mix(.01, .9, type);
 	} else if (mindex == 2) {
 		albedo = vec3(.56, .57, .58);
 		roughness = mix(.15, .5, step(box3(rep3(p, vec3(2.)), vec3(.6)), 0.));
-		metallic = .8;
+		metallic = 0.;
+
+		color = vec3(10.) * smoothstep(.99,.999,sin(t*4.*.4+(rotX(t*.4)*p).y*2.));
+		albedo = vec3(.56,.57,.58);
+		roughness = .01 + .5 * fbm(p.xy*10.);
+		metallic = .5 + fbm(p.zx*21.)*.5;
 	} else if (mindex == 3) {
 		float stripe = step(0., sin(atan(p.x,p.z)*60.));
 		albedo = vec3(mix(1., .1, stripe));
