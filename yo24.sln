@@ -1,0 +1,46 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio 14
+VisualStudioVersion = 14.0.25420.1
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "yo24", "yo24.vcxproj", "{4697D2A5-0BA3-4305-960C-C1405D38894A}"
+	ProjectSection(ProjectDependencies) = postProject
+		{AE72AEE9-DF77-44BF-9D06-D43694780EC8} = {AE72AEE9-DF77-44BF-9D06-D43694780EC8}
+	EndProjectSection
+EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "timepack", "timepack.vcxproj", "{AE72AEE9-DF77-44BF-9D06-D43694780EC8}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Capture|x86 = Capture|x86
+		Debug|x86 = Debug|x86
+		Release|x86 = Release|x86
+		ReleaseFast|x86 = ReleaseFast|x86
+		ReleaseFastShaderDebug|x86 = ReleaseFastShaderDebug|x86
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{4697D2A5-0BA3-4305-960C-C1405D38894A}.Capture|x86.ActiveCfg = Capture|Win32
+		{4697D2A5-0BA3-4305-960C-C1405D38894A}.Capture|x86.Build.0 = Capture|Win32
+		{4697D2A5-0BA3-4305-960C-C1405D38894A}.Debug|x86.ActiveCfg = Debug|Win32
+		{4697D2A5-0BA3-4305-960C-C1405D38894A}.Debug|x86.Build.0 = Debug|Win32
+		{4697D2A5-0BA3-4305-960C-C1405D38894A}.Release|x86.ActiveCfg = Release|Win32
+		{4697D2A5-0BA3-4305-960C-C1405D38894A}.Release|x86.Build.0 = Release|Win32
+		{4697D2A5-0BA3-4305-960C-C1405D38894A}.ReleaseFast|x86.ActiveCfg = ReleaseFast|Win32
+		{4697D2A5-0BA3-4305-960C-C1405D38894A}.ReleaseFast|x86.Build.0 = ReleaseFast|Win32
+		{4697D2A5-0BA3-4305-960C-C1405D38894A}.ReleaseFastShaderDebug|x86.ActiveCfg = ReleaseFastShaderDebug|Win32
+		{4697D2A5-0BA3-4305-960C-C1405D38894A}.ReleaseFastShaderDebug|x86.Build.0 = ReleaseFastShaderDebug|Win32
+		{AE72AEE9-DF77-44BF-9D06-D43694780EC8}.Capture|x86.ActiveCfg = Release|Win32
+		{AE72AEE9-DF77-44BF-9D06-D43694780EC8}.Capture|x86.Build.0 = Release|Win32
+		{AE72AEE9-DF77-44BF-9D06-D43694780EC8}.Debug|x86.ActiveCfg = Debug|Win32
+		{AE72AEE9-DF77-44BF-9D06-D43694780EC8}.Debug|x86.Build.0 = Debug|Win32
+		{AE72AEE9-DF77-44BF-9D06-D43694780EC8}.Release|x86.ActiveCfg = Release|Win32
+		{AE72AEE9-DF77-44BF-9D06-D43694780EC8}.Release|x86.Build.0 = Release|Win32
+		{AE72AEE9-DF77-44BF-9D06-D43694780EC8}.ReleaseFast|x86.ActiveCfg = Release|Win32
+		{AE72AEE9-DF77-44BF-9D06-D43694780EC8}.ReleaseFast|x86.Build.0 = Release|Win32
+		{AE72AEE9-DF77-44BF-9D06-D43694780EC8}.ReleaseFastShaderDebug|x86.ActiveCfg = Release|Win32
+		{AE72AEE9-DF77-44BF-9D06-D43694780EC8}.ReleaseFastShaderDebug|x86.Build.0 = Release|Win32
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+EndGlobal

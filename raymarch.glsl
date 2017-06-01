@@ -103,14 +103,10 @@ float object(vec3 p) {
 	//p.x += sin(p.y*2. + t);
 
 	float tt = t * .3;
-#if 1
 	p.xy = abs(p.yx); p *= rotX(tt);
 	p.xz = abs(p.zx); p *= rotX(tt*.7);
-#if 0
-	/* INTERESTING */ p.zy = abs(p.yx); p *= rotY(tt*1.1);
-#endif
+	// p.zy = abs(p.yx); p *= rotY(tt*1.1);
 	p.zy = abs(p.yz); p *= rotY(tt*1.1);
-#endif
 
 	float d = min(min(min(
 			box(p, vec3(.7,2.4,.2)),
@@ -131,29 +127,6 @@ float world(vec3 p) {
 	PICK(w, object(p), 2);
 	return w;
 }
-
-#if 0
-const float E = .005;
-vec3 trace(vec3 O, vec3 D, float L, float Lmax) {
-	float Lp = L;
-	for (int i = 0; i < 64; ++i) {
-		vec3 p = O + D * L;
-		float d = world(p);
-		if (d < 0.) return vec3(Lp, L, 0.);
-		Lp = L;
-		L += max(d, E * L * .5);
-		if (L >= Lmax) return vec3(Lmax, Lmax, 0.);
-	}
-	return vec3(-1., L, 0.);
-}
-vec3 refine(vec3 a, vec3 b) {
-	for (int i = 0; i < 8; ++i) {
-		vec3 m = (a + b) * .5;
-		if (world(m) < 0.) b = m; else a = m;
-	}
-	return (a + b) * .5;
-}
-#endif
 
 float DistributionGGX(float NH, float r) {
 	r *= r; r *= r;
