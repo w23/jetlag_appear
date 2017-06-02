@@ -19,9 +19,9 @@ float hash1(float v){return fract(sin(v)*43758.5); }
 float hash2(vec2 p){return fract(sin(17.*hash1(p.x)+54.*hash1(p.y)));}
 //float hash3(vec3 p){return hash2(vec2(hash2(p.xy), p.z));}
 float noise2(vec2 p){
-	vec2 P=floor(p);p-=P;
+	vec2 pp=floor(p);p-=pp;
 	//p*=p*(3.-2.*p);
-	return mix(mix(hash2(P), hash2(P+E.zx), p.x), mix(hash2(P+E.xz), hash2(P+E.zz), p.x), p.y);
+	return mix(mix(hash2(pp), hash2(pp+E.zx), p.x), mix(hash2(pp+E.xz), hash2(pp+E.zz), p.x), p.y);
 }
 /*float noise3(vec3 p){
 	vec3 P=floor(p);p-=P;
@@ -102,14 +102,14 @@ float object(vec3 p) {
 
 	//p.x += sin(p.y*2. + t);
 
-	float t = t * .3;
+	float tt = t * .3;
 #if 1
-	p.xy = abs(p.yx); p *= rotX(t);
-	p.xz = abs(p.zx); p *= rotX(t*.7);
+	p.xy = abs(p.yx); p *= rotX(tt);
+	p.xz = abs(p.zx); p *= rotX(tt*.7);
 #if 0
-	/* INTERESTING */ p.zy = abs(p.yx); p *= rotY(t*1.1);
+	/* INTERESTING */ p.zy = abs(p.yx); p *= rotY(tt*1.1);
 #endif
-	p.zy = abs(p.yz); p *= rotY(t*1.1);
+	p.zy = abs(p.yz); p *= rotY(tt*1.1);
 #endif
 
 	float d = min(min(min(
