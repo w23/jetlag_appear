@@ -211,7 +211,7 @@ void main() {
 	//origin += LAT * vec3(uv*.01, 0.);
 	vec3 ray = - LAT * normalize(vec3(uv, -D.y));
 
-	vec3 tr = trace(origin, -ray, 40.);
+	vec3 tr = trace(origin, -ray, 80.);
 	vec3 p = origin - tr.x * ray;
 
 	vec3 color = E.xxx, albedo = E.zzz;
