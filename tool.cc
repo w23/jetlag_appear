@@ -243,6 +243,9 @@ class Intro {
 	FileString timeline_src_;
 	Timeline timeline_;
 
+	float midi_[4];
+	bool midi_changed_;
+
 	enum {
 		FbTex_None,
 		FbTex_Random,
@@ -322,6 +325,7 @@ public:
 		AGL__CALL(glUniform3f(glGetUniformLocation(prog, "C"), TV[0], TV[1], TV[2]));
 		AGL__CALL(glUniform3f(glGetUniformLocation(prog, "A"), TV[3], TV[4], TV[5]));
 		AGL__CALL(glUniform3f(glGetUniformLocation(prog, "D"), TV[6], TV[7], TV[8]));
+		AGL__CALL(glUniform4f(glGetUniformLocation(prog, "M"), midi_[0], midi_[1], midi_[2], midi_[3]));
 
 		AGL__CALL(glUniform1f(glGetUniformLocation(prog, "TPCT"), (float)time_ / (float)time_end_));
 		AGL__CALL(glRects(-1,-1,1,1));
@@ -340,11 +344,13 @@ public:
 
 		cam_.x = 20.f + sinf(now*.1f) * 18.f;
 
-		bool need_redraw = !paused_ || time_adjusted_;
+		bool need_redraw = !paused_ || (midi_changed_ | time_adjusted_);
 		need_redraw |= raymarch_prg.update();
 		need_redraw |= post_prg.update();
 		need_redraw |= out_prg.update();
 		need_redraw |= timeline_.update();
+
+		midi_changed_ = false;
 
 		const Timeline::Sample TV = timeline_.sample(now);
 
@@ -355,6 +361,13 @@ public:
 		drawPass(now, TV, FbTex_Frame, out_prg.program(), 0);
 
 		time_adjusted_ = false;
+	}
+
+	void midiControl(int ctl, int value) {
+		if (ctl >= 0 && ctl < 4)
+			midi_[ctl] = value / 127.f;
+		printf("%d -> %d\n", ctl, value);
+		midi_changed_ = true;
 	}
 
 	void adjustTime(int delta) {
@@ -394,7 +407,7 @@ static void audioCallback(void *userdata, float *samples, int nsamples) {
 	for (int i = 0; i < nsamples; ++i) {
 		phase += dphase;
 		phase = phase - floor(phase);
-		samples[i] = .1f * sinf(phase * 2.f * 3.141593f);
+		samples[i] = .0f * sinf(phase * 2.f * 3.141593f);
 	}
 }
 
@@ -403,6 +416,8 @@ static void midiCallback(void *userdata, const unsigned char *data, int bytes) {
 		printf("%02x ", data[i]);
 	printf("\n");
 
+	Intro *intro = static_cast<Intro*>(userdata);
+
 	for (; bytes > 2; bytes -= 3, data += 3) {
 		//const int channel = data[0] & 0x0f;
 		switch(data[0] & 0xf0) {
@@ -410,7 +425,8 @@ static void midiCallback(void *userdata, const unsigned char *data, int bytes) {
 			case 0x90:
 				dphase = powf(2.f, (data[1]-69) / 12.f) * 440.f / 44100.f;
 				break;
-			case 0x0B:
+			case 0xb0:
+				intro->midiControl(data[1] - 0x30, data[2]);
 				break;
 		}
 	}
@@ -452,5 +468,5 @@ void attoAppInit(struct AAppProctable *ptbl) {
 	}
 
 	intro.reset(new Intro(width, height));
-	audioOpen(NULL, audioCallback, midi_device, midiCallback);
+	audioOpen(intro.get(), audioCallback, midi_device, midiCallback);
 }
