@@ -5,6 +5,8 @@
 //#define ATTO_GL_DEBUG
 #include "atto/gl.h"
 #include "atto/math.h"
+#define AUDIO_IMPLEMENT
+#include "audio.h"
 
 #include <utility>
 #include <memory>
@@ -276,7 +278,7 @@ public:
 		, frame_width(width)
 		, frame_height(height)
 		, fs_vtx(fs_vtx_source)
-		, raymarch_src("trace.glsl")
+		, raymarch_src("raymarch.glsl")
 		, raymarch_prg(fs_vtx, raymarch_src)
 		, post_src("post.glsl")
 		, post_prg(fs_vtx, post_src)
@@ -387,6 +389,33 @@ public:
 
 static std::unique_ptr<Intro> intro;
 
+static float phase = 0.f, dphase = 440.f / 44100.f;
+static void audioCallback(void *userdata, float *samples, int nsamples) {
+	for (int i = 0; i < nsamples; ++i) {
+		phase += dphase;
+		phase = phase - floor(phase);
+		samples[i] = .1f * sinf(phase * 2.f * 3.141593f);
+	}
+}
+
+static void midiCallback(void *userdata, const unsigned char *data, int bytes) {
+	for (int i = 0; i < bytes; ++i)
+		printf("%02x ", data[i]);
+	printf("\n");
+
+	for (; bytes > 2; bytes -= 3, data += 3) {
+		//const int channel = data[0] & 0x0f;
+		switch(data[0] & 0xf0) {
+			//case 0x80:
+			case 0x90:
+				dphase = powf(2.f, (data[1]-69) / 12.f) * 440.f / 44100.f;
+				break;
+			case 0x0B:
+				break;
+		}
+	}
+}
+
 void paint(ATimeUs ts, float dt) {
 	(void)(dt);
 	intro->paint(ts);
@@ -411,13 +440,17 @@ void attoAppInit(struct AAppProctable *ptbl) {
 	ptbl->paint = paint;
 
 	int width = 1280, height = 720;
+	const char* midi_device = "default";
 	for (int iarg = 1; iarg < a_app_state->argc; ++iarg) {
 		const char *argv = a_app_state->argv[iarg];
 		if (strcmp(argv, "-w") == 0)
 			width = atoi(a_app_state->argv[++iarg]);
 		else if (strcmp(argv, "-h") == 0)
 			height = atoi(a_app_state->argv[++iarg]);
+		else if (strcmp(argv, "-m") == 0)
+			midi_device = a_app_state->argv[++iarg];
 	}
 
 	intro.reset(new Intro(width, height));
+	audioOpen(NULL, audioCallback, midi_device, midiCallback);
 }
