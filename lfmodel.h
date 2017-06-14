@@ -21,8 +21,8 @@ typedef struct {
 typedef struct {
 	int max_threads, data_size;
 	size_t slot_size;
-	/* atomic */ unsigned sequence;
-	/* atomic */ unsigned active, next_free;
+	/* atomic */ unsigned seq_active;
+	/* atomic */ unsigned next_free;
 	char *slot_mem;
 } LFModel;
 
@@ -34,7 +34,6 @@ typedef struct {
 	void *data_dst;
 
 	struct {
-		int src_acq, src_seq;
 		unsigned src, dst;
 	} _;
 } LFLock;
@@ -54,6 +53,8 @@ int lfmModifyUnlock(LFModel *model, LFLock *lock);
 #endif
 
 #if defined(LFM_IMPLEMENT)
+
+#define LFM_MAX_THREADS 8
 
 #if 1
 #define MEMORY_BARRIER() __atomic_thread_fence(__ATOMIC_SEQ_CST)
@@ -78,7 +79,9 @@ static inline LFSlot *lfm_GetSlot(const LFModel *model, unsigned index) {
 }
 
 LFModel *lfmCreate(int max_threads, int data_size, const void *initial_data, void *(*alloc)(size_t size)) {
-	//max_threads += 10;
+	if (max_threads >= LFM_MAX_THREADS)
+		return NULL;
+
 	const size_t data_offset = ALIGNED_SIZE(sizeof(LFSlot), 16); 
 	const size_t slot_size = ALIGNED_SIZE(data_offset + data_size, 16);
 	const size_t slot_offset = ALIGNED_SIZE(sizeof(LFModel), 16);
@@ -104,9 +107,10 @@ LFModel *lfmCreate(int max_threads, int data_size, const void *initial_data, voi
 }
 
 #ifdef LFM_RUN_TEST
-static inline int doAbort() { abort(); return 1; }
+#include <stdio.h>
+static inline int doAbort() { printf("exceeded max amount of retries\n"); abort(); return 1; }
 #define FOREVER() \
-	for (int test_bound = 0; test_bound < 1024 || doAbort(); ++test_bound)
+	for (int test_bound = 0; test_bound < 16384 || doAbort(); ++test_bound)
 #else
 #define FOREVER() for(;;)
 #endif
@@ -123,21 +127,22 @@ void lfmModifyLock(LFModel *model, LFLock *lock) {
 			lfmReadLock(model, lock);
 			return;
 		}
+		// TODO add random wait?
 	}
 }
 
 int lfmModifyUnlock(LFModel *model, LFLock *lock) {
 	lfmReadUnlock(model, lock);
 
-	LFSlot *slot_src = lfm_GetSlot(model, lock->_.src);
+	LFSlot *slot_src = lfm_GetSlot(model, lock->_.src % LFM_MAX_THREADS);
 	LFSlot *slot_dst = lfm_GetSlot(model, lock->_.dst);
 
-	ATOMIC_ADD_AND_FETCH(model->sequence, 1);
 	ATOMIC_ADD_AND_FETCH(slot_dst->state, model->max_threads * 2);
 
-	const unsigned new_active = lock->_.dst;
+	const unsigned sequence = lock->_.src / LFM_MAX_THREADS;
+	const unsigned new_active = lock->_.dst + (sequence + 1) * LFM_MAX_THREADS;
 	unsigned old_active = lock->_.src;
-	if (!ATOMIC_CAS(model->active, old_active, new_active)) {
+	if (!ATOMIC_CAS(model->seq_active, old_active, new_active)) {
 		ATOMIC_ADD_AND_FETCH(slot_dst->state, - model->max_threads * 2);
 		return 0;
 	}
@@ -153,25 +158,23 @@ int lfmModifyUnlock(LFModel *model, LFLock *lock) {
 
 void lfmReadLock(LFModel *model, LFLock *lock) {
 	FOREVER() {
-		const unsigned sequence = ATOMIC_FETCH(model->sequence);
-		const unsigned active = ATOMIC_FETCH(model->active);
-		LFSlot *const slot = lfm_GetSlot(model, active);
+		const unsigned seq_active = ATOMIC_FETCH(model->seq_active);
+		LFSlot *const slot = lfm_GetSlot(model, seq_active % LFM_MAX_THREADS);
 		const int state = ATOMIC_ADD_AND_FETCH(slot->state, 1);
-		if (state > model->max_threads && sequence == ATOMIC_FETCH(model->sequence)) {
-			lock->_.src_seq = sequence;
-			lock->_.src_acq = state;
-			lock->_.src = active;
+		if (state > model->max_threads && seq_active == ATOMIC_FETCH(model->seq_active)) {
+			lock->_.src = seq_active;
 			lock->data_src = slot->data;
 			break;
 		}
 		ATOMIC_ADD_AND_FETCH(slot->state, -1);
+		// TODO add random wait?
 	}
 }
 
 void lfmReadUnlock(LFModel *model, LFLock *lock) {
 	(void)(model);
-	LFSlot *slot = lfm_GetSlot(model, lock->_.src);
-	if (ATOMIC_ADD_AND_FETCH(slot->state, -1) == -1) abort();
+	LFSlot *slot = lfm_GetSlot(model, lock->_.src % LFM_MAX_THREADS);
+	if (ATOMIC_ADD_AND_FETCH(slot->state, -1) == -1) { printf("IMPOSSIBURU!\n"); abort(); }
 }
 
 #endif // defined(LFM_IMPLEMENT)
@@ -180,7 +183,6 @@ void lfmReadUnlock(LFModel *model, LFLock *lock) {
 
 #include <pthread.h>
 #include <stdlib.h>
-#include <stdio.h>
 #include <alloca.h>
 
 struct test_info_t {
@@ -279,6 +281,8 @@ static void *readLoop(void *param) {
 }
 
 static void runTest(struct test_info_t *info) {
+	printf("Running test with readers=%d writers=%d cycles=%d data_size=%d...\n",
+		info->readers, info->writers, info->cycles, info->data_size);
 	const int num_threads = info->readers + info->writers;
 	info->model = lfmCreate(num_threads, sizeof(struct data_t) + sizeof(int) * (info->data_size - 1), NULL, malloc);
 
@@ -303,6 +307,7 @@ static void runTest(struct test_info_t *info) {
 		pthread_join(threads[i], NULL);
 
 	free(info->model);
+	printf("DONE\n");
 }
 
 int main(int argc, char *argv[]) {
@@ -320,6 +325,19 @@ int main(int argc, char *argv[]) {
 
 	info.writers = 2;
 	runTest(&info);
+
+	info.writers = 3;
+	runTest(&info);
+
+	info.data_size = 256;
+	runTest(&info);
+
+	info.data_size = 2;
+	info.cycles = 4 * 1024 * 1024;
+	runTest(&info);
+
+	printf("OK? ok\n");
+	return 0;
 }
 
 #endif // defined(LFM_RUN_TEST)
