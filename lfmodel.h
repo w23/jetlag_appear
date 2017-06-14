@@ -1,6 +1,7 @@
 #ifndef LFMODEL_H_
 #define LFMODEL_H_
 
+#include <stdlib.h>
 #include <memory.h>
 #include <stdint.h>
 
@@ -33,6 +34,7 @@ typedef struct {
 	void *data_dst;
 
 	struct {
+		int src_acq, src_seq;
 		unsigned src, dst;
 	} _;
 } LFLock;
@@ -53,12 +55,21 @@ int lfmModifyUnlock(LFModel *model, LFLock *lock);
 
 #if defined(LFM_IMPLEMENT)
 
+#if 1
+#define MEMORY_BARRIER() __atomic_thread_fence(__ATOMIC_SEQ_CST)
+#define ATOMIC_FETCH(value) __atomic_load_n(&(value), __ATOMIC_SEQ_CST)
+#define ATOMIC_ADD_AND_FETCH(value, add) __atomic_add_fetch(&(value), add, __ATOMIC_SEQ_CST)
+#define ATOMIC_CAS(value, expect, replace) \
+	__atomic_compare_exchange_n(&(value), &(expect), replace, 0, __ATOMIC_SEQ_CST, __ATOMIC_SEQ_CST)
+#else
 #define MEMORY_BARRIER() __sync_synchronize()
 static inline int sync_fetch_int(int *ptr) { __sync_synchronize(); return *ptr; }
 static inline unsigned sync_fetch_unsigned(unsigned *ptr) { __sync_synchronize(); return *ptr; }
-#define ATOMIC_FETCH(value) sync_fetch_unsigned(&(value))
+//#define ATOMIC_FETCH(value) sync_fetch_unsigned(&(value))
 #define ATOMIC_ADD_AND_FETCH(value, add) __sync_add_and_fetch(&(value), add)
+#define ATOMIC_FETCH(value) ATOMIC_ADD_AND_FETCH(value, 0)
 #define ATOMIC_CAS(value, expect, new_value) __sync_val_compare_and_swap(&(value), expect, new_value)
+#endif
 
 #define ALIGNED_SIZE(size, alignment) ((alignment) * (((size) + (alignment) - 1) / (alignment)))
 
@@ -67,6 +78,7 @@ static inline LFSlot *lfm_GetSlot(const LFModel *model, unsigned index) {
 }
 
 LFModel *lfmCreate(int max_threads, int data_size, const void *initial_data, void *(*alloc)(size_t size)) {
+	//max_threads += 10;
 	const size_t data_offset = ALIGNED_SIZE(sizeof(LFSlot), 16); 
 	const size_t slot_size = ALIGNED_SIZE(data_offset + data_size, 16);
 	const size_t slot_offset = ALIGNED_SIZE(sizeof(LFModel), 16);
@@ -91,31 +103,27 @@ LFModel *lfmCreate(int max_threads, int data_size, const void *initial_data, voi
 	return model;
 }
 
+#ifdef LFM_RUN_TEST
+static inline int doAbort() { abort(); return 1; }
+#define FOREVER() \
+	for (int test_bound = 0; test_bound < 1024 || doAbort(); ++test_bound)
+#else
+#define FOREVER() for(;;)
+#endif
+
 void lfmModifyLock(LFModel *model, LFLock *lock) {
 	LFSlot *slot = NULL;
-	for (;;) {
-		unsigned slot_index = (ATOMIC_ADD_AND_FETCH(model->next_free, 1) % model->max_threads);
+	FOREVER() {
+		const unsigned slot_index = (ATOMIC_ADD_AND_FETCH(model->next_free, 1) % model->max_threads);
 		slot = lfm_GetSlot(model, slot_index);
 		int state = 0;
-		for (;;) {
-			const int old = ATOMIC_CAS(slot->state, state, -model->max_threads);
-			if (old == state) {
-				state = 0;
-				break;
-			}
-			state = old;
-			if (state < 0 || state >= model->max_threads)
-				break;
-		}
-		if (state == 0) {
+		if (ATOMIC_CAS(slot->state, state, -model->max_threads)) {
 			lock->data_dst = slot->data;
 			lock->_.dst = slot_index;
-
-			break;
+			lfmReadLock(model, lock);
+			return;
 		}
 	}
-
-	lfmReadLock(model, lock);
 }
 
 int lfmModifyUnlock(LFModel *model, LFLock *lock) {
@@ -125,47 +133,45 @@ int lfmModifyUnlock(LFModel *model, LFLock *lock) {
 	LFSlot *slot_dst = lfm_GetSlot(model, lock->_.dst);
 
 	ATOMIC_ADD_AND_FETCH(model->sequence, 1);
-	MEMORY_BARRIER();
 	ATOMIC_ADD_AND_FETCH(slot_dst->state, model->max_threads * 2);
 
 	const unsigned new_active = lock->_.dst;
-	const unsigned old_active = lock->_.src;
-	if (old_active != ATOMIC_CAS(model->active, old_active, new_active)) {
-		ATOMIC_ADD_AND_FETCH(slot_dst->state, -model->max_threads * 2);
+	unsigned old_active = lock->_.src;
+	if (!ATOMIC_CAS(model->active, old_active, new_active)) {
+		ATOMIC_ADD_AND_FETCH(slot_dst->state, - model->max_threads * 2);
 		return 0;
 	}
 
 /// FIXME at this point both old and new slots are in "occupied" state
 // this might be a problem when the system is under high load
+//	ATOMIC_ADD_AND_FETCH(model->sequence, 1);
 
-	ATOMIC_ADD_AND_FETCH(slot_src->state, -model->max_threads);
+	ATOMIC_ADD_AND_FETCH(slot_src->state, - model->max_threads);
 
 	return 1;
 }
 
 void lfmReadLock(LFModel *model, LFLock *lock) {
-	for (;;) {
+	FOREVER() {
 		const unsigned sequence = ATOMIC_FETCH(model->sequence);
-		MEMORY_BARRIER();
 		const unsigned active = ATOMIC_FETCH(model->active);
 		LFSlot *const slot = lfm_GetSlot(model, active);
 		const int state = ATOMIC_ADD_AND_FETCH(slot->state, 1);
-		MEMORY_BARRIER();
-		if (state < model->max_threads || sequence != ATOMIC_FETCH(model->sequence)) {
-			ATOMIC_ADD_AND_FETCH(slot->state, -1);
-			continue;
+		if (state > model->max_threads && sequence == ATOMIC_FETCH(model->sequence)) {
+			lock->_.src_seq = sequence;
+			lock->_.src_acq = state;
+			lock->_.src = active;
+			lock->data_src = slot->data;
+			break;
 		}
-
-		lock->_.src = active;
-		lock->data_src = slot->data;
-		break;
+		ATOMIC_ADD_AND_FETCH(slot->state, -1);
 	}
 }
 
 void lfmReadUnlock(LFModel *model, LFLock *lock) {
 	(void)(model);
 	LFSlot *slot = lfm_GetSlot(model, lock->_.src);
-	ATOMIC_ADD_AND_FETCH(slot->state, -1);
+	if (ATOMIC_ADD_AND_FETCH(slot->state, -1) == -1) abort();
 }
 
 #endif // defined(LFM_IMPLEMENT)
@@ -222,14 +228,15 @@ static void *writeLoop(void *param) {
 	for (int i = 0; i < info->cycles; ++i) {
 		LFLock lock;
 		lfmModifyLock(info->model, &lock);
-		for (;;) {
+
+		FOREVER() {
 			const struct data_t *src = (const struct data_t*)lock.data_src;
 			struct data_t *dst = (struct data_t*)lock.data_dst;
 
 			const int result = testValidate(&last_seq, info->data_size, src);
 			if (result != 1) {
 				printf("Validation failed: i=%d, last_seq=%d, err=%d\n", i, last_seq, result);
-				exit(-1);
+				abort();
 			}
 
 			++last_seq;
@@ -260,7 +267,7 @@ static void *readLoop(void *param) {
 		const int result = testValidate(&last_seq, info->data_size, src);
 		if (result != 1) {
 			printf("Validation failed: i=%d, last_seq=%d, err=%d\n", i, last_seq, result);
-			exit(-1);
+			abort();
 		}
 
 		lfmReadUnlock(info->model, &lock);
@@ -287,10 +294,8 @@ static void runTest(struct test_info_t *info) {
 	}
 
 	pthread_t *threads = (pthread_t*)alloca(num_threads * sizeof(pthread_t));
-	for (int i = 0; i < info->writers; ++i)
-		pthread_create(threads + i, NULL, writeLoop, info);
-	for (int i = 0; i < info->readers; ++i)
-		pthread_create(threads + info->writers + i, NULL, readLoop, info);
+	for (int i = 0; i < info->writers; ++i) pthread_create(threads + i, NULL, writeLoop, info);
+	for (int i = 0; i < info->readers; ++i)	pthread_create(threads + info->writers + i, NULL, readLoop, info);
 
 	///
 
@@ -306,11 +311,14 @@ int main(int argc, char *argv[]) {
 	struct test_info_t info;
 	info.data_size = 17;
 	info.readers = 4;
-	info.cycles = 16 * 16 * 1024;
+	info.cycles = 1024 * 1024;
 	info.writers = 0;
-	//runTest(&info);
+	runTest(&info);
 
 	info.writers = 1;
+	runTest(&info);
+
+	info.writers = 2;
 	runTest(&info);
 }
 
