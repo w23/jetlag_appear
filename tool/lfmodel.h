@@ -82,6 +82,10 @@ LFModel *lfmCreate(int max_threads, int data_size, const void *initial_data, voi
 	if (max_threads >= LFM_MAX_THREADS)
 		return NULL;
 
+	// It is possible that all max_threads will try to write new data, and then the
+	// last one will wait for someone to free a slot
+	// TODO: increase number of slot?
+
 	const size_t data_offset = ALIGNED_SIZE(sizeof(LFSlot), 16); 
 	const size_t slot_size = ALIGNED_SIZE(data_offset + data_size, 16);
 	const size_t slot_offset = ALIGNED_SIZE(sizeof(LFModel), 16);
@@ -174,7 +178,7 @@ void lfmReadLock(LFModel *model, LFLock *lock) {
 void lfmReadUnlock(LFModel *model, LFLock *lock) {
 	(void)(model);
 	LFSlot *slot = lfm_GetSlot(model, lock->_.src % LFM_MAX_THREADS);
-	if (ATOMIC_ADD_AND_FETCH(slot->state, -1) == -1) { printf("IMPOSSIBURU!\n"); abort(); }
+	ATOMIC_ADD_AND_FETCH(slot->state, -1);
 }
 
 #endif // defined(LFM_IMPLEMENT)

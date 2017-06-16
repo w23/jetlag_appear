@@ -1,92 +1,18 @@
-//#include "music/4klang.h"
+#pragma once
+#include "FileString.h"
 
+#include "atto/math.h"
 #include "atto/app.h"
 #define ATTO_GL_H_IMPLEMENT
-//#define ATTO_GL_DEBUG
 #include "atto/gl.h"
-#include "atto/math.h"
-#define AUDIO_IMPLEMENT
-#include "audio.h"
 
-#include <utility>
-#include <memory>
-#include <string>
-#include <vector>
+#include "Timeline.h"
 
-#include <stdlib.h>
-#include <sys/types.h>
-#include <sys/stat.h>
-#include <fcntl.h>
-#include <unistd.h>
-#include <cstring>
-
-class FileChangePoller {
-	const std::string filename_;
-	timespec mtime_;
-
-public:
-	FileChangePoller(const char *filename) : filename_(filename) {
-		mtime_.tv_sec = 0;
-		mtime_.tv_nsec = 0;
-	}
-	~FileChangePoller() {}
-
-	std::string poll() {
-		std::string content;
-		struct stat st;
-		stat(filename_.c_str(), &st);
-		if (st.st_mtim.tv_sec == mtime_.tv_sec &&
-				st.st_mtim.tv_nsec == mtime_.tv_nsec)
-			return content;
-
-		mtime_ = st.st_mtim;
-
-		int fd = open(filename_.c_str(), O_RDONLY);
-		if (fd < 0) {
-			aAppDebugPrintf("Cannot open file %s", filename_.c_str());
-			return content;
-		}
-
-		content.resize(st.st_size + 1, 0);
-
-		if (read(fd, &content[0], st.st_size) != st.st_size) {
-			aAppDebugPrintf("Cannot read file\n");
-			content.resize(0);
-			return content;
-		}
-
-		aAppDebugPrintf("Reread file %s", filename_.c_str());
-
-		close(fd);
-		return content;
-	}
-};
-
-class String {
-protected:
-	std::string value_;
-
-public:
-	String(const std::string &str) : value_(str) {}
-	const std::string &string() const { return value_; }
-	virtual bool update() { return false; }
-};
-
-class FileString : public String {
-	FileChangePoller poller_;
-
-public:
-	FileString(const char *filename) : String(""), poller_(filename) {}
-
-	bool update() {
-		std::string new_content = poller_.poll();
-		if (!new_content.empty()) {
-			value_ = std::move(new_content);
-			return true;
-		}
-		return false;
-	}
-};
+const char fs_vtx_source[] =
+	"void main() {\n"
+		"gl_Position = gl_Vertex;\n"
+	"}"
+;
 
 class Program {
 	String &vertex_src_;
@@ -115,110 +41,6 @@ public:
 		return false;
 	}
 };
-
-class Timeline {
-	String &source_;
-
-	int columns_, rows_;
-	std::vector<float> data_;
-
-	bool parse(const char *str) {
-		const char *p = str;
-		int columns, pattern_size, icol = 0, irow = 0;
-
-#define SSCAN(expect, format, ...) { \
-	int n;\
-	if (expect != sscanf(p, format " %n", __VA_ARGS__, &n)) { \
-		aAppDebugPrintf("parsing error at %d (row=%d, col=%d)", \
-			p - str, irow, icol); \
-		return false; \
-	} \
-	p += n; \
-}
-		SSCAN(2, "%d %d", &columns, &pattern_size);
-		std::vector<float> data;
-		float lasttime = 0;
-		while (*p != '\0') {
-			int pat, tick, tick2;
-			++irow;
-			SSCAN(3, "%d:%d.%d", &pat, &tick, &tick2);
-#define SAMPLES_PER_TICK 7190
-#define SAMPLE_RATE 44100
-			const float time = ((pat * pattern_size + tick) * 2 + tick2)
-				* (float)(SAMPLES_PER_TICK) / (float)(SAMPLE_RATE) / 2.f;
-			data.push_back(time - lasttime);
-			aAppDebugPrintf("row=%d time=(%dx%d:%d+%d)%f, dt=%f",
-				irow, pat, pattern_size, tick, tick2, time, data.back());
-			lasttime = time;
-
-			for (int i = 0; i < columns; ++i) {
-				float value;
-				icol = i;
-				SSCAN(1, "%f", &value);
-				data.push_back(value);
-			}
-		}
-#undef SSCAN
-
-		rows_ = irow - 1;
-		columns_ = columns;
-		data_ = std::move(data);
-		return true;
-	}
-
-public:
-	Timeline(String &source) : source_(source), columns_(0), rows_(0) {}
-
-	bool update() {
-		return source_.update() && parse(source_.string().c_str());
-	}
-
-	struct Sample {
-		float operator[](int index) const {
-			if (index < 0 || (size_t)index >= data_.size()) {
-				//aAppDebugPrintf("index %d is out of bounds [%d, %d]",
-				//	index, 0, static_cast<int>(data_.size()) - 1);
-				return 0;
-			}
-
-			return data_[index];
-		}
-
-		std::vector<float> data_;
-	};
-
-	Sample sample(float time) {
-		int i, j;
-		for (i = 1; i < rows_ - 1; ++i) {
-			const float dt = data_.at(i * (columns_ + 1));
-			//printf("%.2f: [i=%d; dt=%.2f, t=%.2f]\n", time, i, dt, time/dt);
-			if (dt >= time) {
-				time /= dt;
-				break;
-			}
-			time -= dt;
-		}
-
-		Sample ret;
-		ret.data_.resize(columns_);
-
-		for (j = 0; j < columns_; ++j) {
-			const float a = data_.at((i - 1) * (columns_ + 1) + j + 1);
-			const float b = data_.at(i * (columns_ + 1) + j + 1);
-			ret.data_[j] = a + (b - a) * time;
-			//printf("%.2f ", ret.data_[j]);
-		}
-		//printf("\n");
-
-		return ret;
-	}
-};
-
-const char fs_vtx_source[] =
-	"void main() {\n"
-		"gl_Position = gl_Vertex;\n"
-	"}"
-;
 
 class Intro {
 	int paused_;
@@ -399,74 +221,3 @@ public:
 		if (btn_ch & AB_WheelDown) mouse.z -= 1.f;
 	}
 };
-
-static std::unique_ptr<Intro> intro;
-
-static float phase = 0.f, dphase = 440.f / 44100.f;
-static void audioCallback(void *userdata, float *samples, int nsamples) {
-	for (int i = 0; i < nsamples; ++i) {
-		phase += dphase;
-		phase = phase - floor(phase);
-		samples[i] = .0f * sinf(phase * 2.f * 3.141593f);
-	}
-}
-
-static void midiCallback(void *userdata, const unsigned char *data, int bytes) {
-	for (int i = 0; i < bytes; ++i)
-		printf("%02x ", data[i]);
-	printf("\n");
-
-	Intro *intro = static_cast<Intro*>(userdata);
-
-	for (; bytes > 2; bytes -= 3, data += 3) {
-		//const int channel = data[0] & 0x0f;
-		switch(data[0] & 0xf0) {
-			//case 0x80:
-			case 0x90:
-				dphase = powf(2.f, (data[1]-69) / 12.f) * 440.f / 44100.f;
-				break;
-			case 0xb0:
-				intro->midiControl(data[1] - 0x30, data[2]);
-				break;
-		}
-	}
-}
-
-void paint(ATimeUs ts, float dt) {
-	(void)(dt);
-	intro->paint(ts);
-}
-
-void key(ATimeUs ts, AKey key, int down) {
-	(void)(ts);
-	if (down) intro->key(ts, key);
-}
-
-void pointer(ATimeUs ts, int dx, int dy, unsigned int buttons_changed_bits) {
-	(void)(ts);
-	(void)(dx);
-	(void)(dy);
-	(void)(buttons_changed_bits);
-	intro->pointer(dx, dy, a_app_state->pointer.buttons, buttons_changed_bits);
-}
-
-void attoAppInit(struct AAppProctable *ptbl) {
-	ptbl->key = key;
-	ptbl->pointer = pointer;
-	ptbl->paint = paint;
-
-	int width = 1280, height = 720;
-	const char* midi_device = "default";
-	for (int iarg = 1; iarg < a_app_state->argc; ++iarg) {
-		const char *argv = a_app_state->argv[iarg];
-		if (strcmp(argv, "-w") == 0)
-			width = atoi(a_app_state->argv[++iarg]);
-		else if (strcmp(argv, "-h") == 0)
-			height = atoi(a_app_state->argv[++iarg]);
-		else if (strcmp(argv, "-m") == 0)
-			midi_device = a_app_state->argv[++iarg];
-	}
-
-	intro.reset(new Intro(width, height));
-	audioOpen(intro.get(), audioCallback, midi_device, midiCallback);
-}
