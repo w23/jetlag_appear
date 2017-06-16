@@ -75,7 +75,7 @@ public:
 		std::vector<float> data_;
 	};
 
-	Sample sample(float time) {
+	Sample sample(float time) const {
 		int i, j;
 		for (i = 1; i < rows_ - 1; ++i) {
 			const float dt = data_.at(i * (columns_ + 1));

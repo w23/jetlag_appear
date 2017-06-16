@@ -17,7 +17,7 @@ do
 	OBJS="$OBJS $OBJ"
 done
 
-for src in tool/tool.cc
+for src in tool/tool.cc tool/Video.cc
 do
 	OBJ="./.build/$(basename "$src" .cc).oo"
 	echo $CXX -c $CXXFLAGS $src -o $OBJ
