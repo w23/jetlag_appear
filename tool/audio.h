@@ -37,18 +37,20 @@ static void *audio_Thread(void *data) {
 		float buffer[AUDIO_BUFFER_SIZE];
 		unsigned char midibuf[MIDI_BUFFER_SIZE];
 
-		int err = snd_rawmidi_read(audio_.midi, midibuf, sizeof(midibuf));
-		if (err < 0 && err != -EAGAIN) {
-			printf("midi_read: %s\n", snd_strerror(err));
-			return NULL;
-		}
+		if (audio_.midi && audio_.mcb) {
+			int err = snd_rawmidi_read(audio_.midi, midibuf, sizeof(midibuf));
+			if (err < 0 && err != -EAGAIN) {
+				printf("midi_read: %s\n", snd_strerror(err));
+				return NULL;
+			}
 
-		if (err > 0)
-			audio_.mcb(data, midibuf, err);
+			if (err > 0)
+				audio_.mcb(data, midibuf, err);
+		}
 
 		audio_.acb(data, buffer, AUDIO_BUFFER_SIZE);
 
-		err = snd_pcm_writei(audio_.pcm, buffer, AUDIO_BUFFER_SIZE);
+		int err = snd_pcm_writei(audio_.pcm, buffer, AUDIO_BUFFER_SIZE);
 		if (err < 0) err = snd_pcm_recover(audio_.pcm, err, 0);
 		if (err < 0) {
 			printf("recover error: %s\n", snd_strerror(err));
@@ -73,10 +75,14 @@ int audioOpen(void *userdata, audio_callback_f acb, const char *midi, midi_callb
 		return -2;
 	}
 
-	err = snd_rawmidi_open(&audio_.midi, NULL, midi, SND_RAWMIDI_NONBLOCK);
-	if (err < 0) {
-		printf("rawmidi_open: %s\n", snd_strerror(err));
-		return -3;
+	if (mcb && midi && midi[0] != '\0') {
+		err = snd_rawmidi_open(&audio_.midi, NULL, midi, SND_RAWMIDI_NONBLOCK);
+		if (err < 0) {
+			printf("rawmidi_open: %s\n", snd_strerror(err));
+			return -3;
+		}
+	} else {
+		audio_.midi = NULL;
 	}
 
 	audio_.acb = acb;

@@ -19,15 +19,9 @@
 
 static std::unique_ptr<Intro> intro;
 
-static float phase = 0.f, dphase = 440.f / 44100.f;
 static void audioCallback(void *userdata, float *samples, int nsamples) {
-	(void)(userdata);
-//	Intro *intro = static_cast<Intro*>(userdata);
-	for (int i = 0; i < nsamples; ++i) {
-		phase += dphase;
-		phase = phase - floor(phase);
-		samples[i] = .0f * sinf(phase * 2.f * 3.141593f);
-	}
+	Intro *intro = static_cast<Intro*>(userdata);
+	intro->audio(samples, nsamples);
 }
 
 static void midiCallback(void *userdata, const unsigned char *data, int bytes) {
@@ -41,9 +35,9 @@ static void midiCallback(void *userdata, const unsigned char *data, int bytes) {
 		//const int channel = data[0] & 0x0f;
 		switch(data[0] & 0xf0) {
 			//case 0x80:
-			case 0x90:
-				dphase = powf(2.f, (data[1]-69) / 12.f) * 440.f / 44100.f;
-				break;
+			//case 0x90:
+			//	dphase = powf(2.f, (data[1]-69) / 12.f) * 440.f / 44100.f;
+			//	break;
 			case 0xb0:
 				intro->midiControl(data[1] - 0x30, data[2]);
 				break;

@@ -6,6 +6,7 @@
 
 #include "Timeline.h"
 #include "Video.h"
+#include "Audio.h"
 
 class Intro {
 	int paused_;
@@ -20,6 +21,7 @@ class Intro {
 	Timeline timeline_;
 
 	Video video_;
+	Audio audio_;
 
 	float midi_[4];
 	bool midi_changed_;
@@ -37,7 +39,12 @@ public:
 		, timeline_src_("timeline.seq")
 		, timeline_(timeline_src_)
 		, video_(width, height)
+		, audio_(44100, "")
 	{
+	}
+
+	void audio(float *samples, int nsamples) {
+		audio_.synthesize(samples, nsamples);
 	}
 
 	void paint(ATimeUs ts) {
