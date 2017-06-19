@@ -10,7 +10,7 @@ Intro::Intro(int width, int height)
 	, loop_b_(time_end_)
 	, mouse(aVec3ff(0))
 	, timeline_src_("timeline.seq")
-	, timeline_(timeline_src_)
+	, timeline_(timeline_src_, 44100, 120)
 	, video_(width, height)
 	, audio_(44100, "")
 {

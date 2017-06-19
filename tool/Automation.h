@@ -8,6 +8,10 @@
 #define MAX_INSTRUMENTS 8
 #define TICKS_PER_BAR 16
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 /*
 typedef struct {
 	int bar;
@@ -62,24 +66,41 @@ typedef struct {
 
 typedef unsigned int sample_t;
 
+typedef struct {
+	int samplerate, bpm;
+	int samples_per_bar, samples_per_tick;
+	Score score;
+
+	struct {
+		struct {
+			int env[MAX_PATTERN_ENVELOPES];
+			int poly_start, poly_count;
+		} instrument[MAX_INSTRUMENTS];
+	} map;
+} Automation;
+
 // 0: SAMPLERATE, BPM
 // 1: absolute time (sec)
 // 2: absolute samples (44100/sec)
 
-void automationInit(int samplerate, int bpm);
+void automationInit(Automation *a, int samplerate, int bpm);
 
-void automationMapEnv(int instrument, int env, int signal);
-void automationMapInstrument(int instrument, int maxpoly, int start_signal);
+void automationMapEnv(Automation *a, int instrument, int env, int signal);
+void automationMapInstrument(Automation *a, int instrument, int maxpoly, int start_signal);
 
-void automationPatternPut(int pattern, int bar);
-void automationPatternDel(int pattern, int bar);
+void automationPatternPut(Automation *a, int pattern, int bar);
+void automationPatternDel(Automation *a, int pattern, int bar);
 
-void automationPatternSetInstrument(int pattern, int instrument);
-void automationPatternNoteAdd(int pattern, int number, int start, int end, int velocity);
-void automationPatternNoteChange(int pattern, int number, int start, int new_end, int new_velocity);
-void automationPatternNoteDel(int pattern, int number, int start);
+void automationPatternSetInstrument(Automation *a, int pattern, int instrument);
+void automationPatternNoteAdd(Automation *a, int pattern, int number, int start, int end, int velocity);
+void automationPatternNoteChange(Automation *a, int pattern, int number, int start, int new_end, int new_velocity);
+void automationPatternNoteDel(Automation *a, int pattern, int number, int start);
 
-void automationPatternEnvPointSet(int pattern, int env, int tick, float v);
-void automationPatternEnvPointDel(int pattern, int env, int tick);
+void automationPatternEnvPointSet(Automation *a, int pattern, int env, int tick, float v);
+void automationPatternEnvPointDel(Automation *a, int pattern, int env, int tick);
 
-void automationGetSamples(sample_t start, sample_t end, Frame* frames);
+void automationGetSamples(const Automation *a, sample_t start, sample_t end, Frame* frames);
+
+#ifdef __cplusplus
+}
+#endif

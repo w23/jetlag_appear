@@ -18,7 +18,7 @@ typedef struct {
 	void *data;
 } LFSlot;
 
-typedef struct {
+typedef struct LFModel {
 	int max_threads, data_size;
 	size_t slot_size;
 	/* atomic */ unsigned seq_active;
@@ -45,8 +45,6 @@ void lfmModifyLock(LFModel *model, LFLock *lock);
 void lfmModifyRetry(LFModel *model, LFLock *lock) { lfmReadLock(model, lock); }
 /* return 0 if need to retry */
 int lfmModifyUnlock(LFModel *model, LFLock *lock);
-
-#define LFM_RUN_TEST
 
 #if defined(LFM_RUN_TEST)
 #define LFM_IMPLEMENT
