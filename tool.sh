@@ -9,7 +9,7 @@ mkdir -p ./.build
 
 OBJS=""
 
-for src in ./atto/src/app_linux.c ./atto/src/app_x11.c
+for src in ./atto/src/app_linux.c ./atto/src/app_x11.c tool/syntmash.c
 do
 	OBJ="./.build/$(basename "$src" .c).o"
 	echo $CC -c -std=gnu99 $CFLAGS $src -o $OBJ

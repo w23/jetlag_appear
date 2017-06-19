@@ -41,6 +41,16 @@ public:
 		, video_(width, height)
 		, audio_(44100, "")
 	{
+#if 0
+		float samples[440];
+		audio_.synthesize(samples, 110);
+		audio_.synthesize(samples + 110, 110);
+		audio_.synthesize(samples + 220, 110);
+		audio_.synthesize(samples + 330, 110);
+		for (int i = 0; i < 440; ++i)
+			printf("%f %f\n", samples[i], (i>0)?samples[i] - samples[i-1] : 0);
+		aAppTerminate(0);
+#endif
 	}
 
 	void audio(float *samples, int nsamples) {
