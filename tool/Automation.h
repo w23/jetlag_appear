@@ -82,4 +82,4 @@ void automationPatternNoteDel(int pattern, int number, int start);
 void automationPatternEnvPointSet(int pattern, int env, int tick, float v);
 void automationPatternEnvPointDel(int pattern, int env, int tick);
 
-void automationGetSamples(sample_t start, sample_t end, int frames_count, Frame* frames);
+void automationGetSamples(sample_t start, sample_t end, Frame* frames);

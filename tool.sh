@@ -9,7 +9,7 @@ mkdir -p ./.build
 
 OBJS=""
 
-for src in ./atto/src/app_linux.c ./atto/src/app_x11.c tool/syntmash.c
+for src in ./atto/src/app_linux.c ./atto/src/app_x11.c tool/syntmash.c tool/Automation.c
 do
 	OBJ="./.build/$(basename "$src" .c).o"
 	echo $CC -c -std=gnu99 $CFLAGS $src -o $OBJ
@@ -17,7 +17,7 @@ do
 	OBJS="$OBJS $OBJ"
 done
 
-for src in tool/tool.cc tool/Video.cc tool/Audio.cc
+for src in tool/tool.cc tool/Video.cc tool/Audio.cc tool/Intro.cc tool/Timeline.cc
 do
 	OBJ="./.build/$(basename "$src" .cc).oo"
 	echo $CXX -c $CXXFLAGS $src -o $OBJ

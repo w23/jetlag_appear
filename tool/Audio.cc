@@ -47,7 +47,7 @@ Audio::Audio(int samplerate, const char *audio_file)
 	memset(state_, 0, sizeof(state_));
 }
 
-void Audio::synthesize(float *samples, int num_samples /*Timeline*/) {
+void Audio::synthesize(float *samples, int num_samples, const Timeline &timeline) {
 	float input[1] = { 440.f / samplerate_ };
 	float stack[16];
 
