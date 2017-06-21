@@ -1,12 +1,12 @@
 #pragma once
 
-#define MAX_ENVELOPE_POINTS 32
-#define MAX_PATTERN_NOTES 64
-#define MAX_PATTERN_ENVELOPES 8
-#define MAX_SCORE_PATTERNS 8
-#define MAX_SCORE_SIZE 32
-#define MAX_INSTRUMENTS 8
+#define PATTERN_ENVELOPES 4
+#define SCORE_PATTERNS 8
+#define SCORE_LENGTH 8
+#define PATTERN_BARS 8
 #define TICKS_PER_BAR 16
+#define PATTERN_TICKS (PATTERN_BARS * TICKS_PER_BAR)
+#define SCORE_TICKS (PATTERN_TICKS * SCORE_LENGTH)
 
 #ifdef __cplusplus
 extern "C" {
@@ -24,59 +24,28 @@ typedef struct {
 - tick_seconds = bar_seconds / 16
 - bar_samples = 44100 / bar_seconds
 - tick_samples = bar_samples / 16
-
 */
 
+#define MAX_POINT_VALUES 3
+
 typedef struct {
-	int t;
-	float v;
+	int tick;
+	float v[MAX_POINT_VALUES];
 } Point;
 
+#define MAX_ENVELOPE_POINTS 64
+
 typedef struct {
-	int count;
-	Point points[MAX_ENVELOPE_POINTS]; // 256
+	Point points[MAX_ENVELOPE_POINTS];
 } Envelope;
 
-typedef struct {
-	int number;
-	int velocity;
-	int start, end; // pattern relative ticks
-} Note;
-
-typedef struct {
-	int instrument;
-	int notes_count;
-	int length_ticks;
-	Note notes[MAX_PATTERN_NOTES]; // 1024
-	Envelope envelopes[MAX_PATTERN_ENVELOPES]; // ~2048
-} Pattern;
-
-typedef struct {
-	Pattern patterns[MAX_SCORE_PATTERNS]; // ~24k
-	struct {
-		int bar, pattern;
-	} pattern_positions[MAX_SCORE_SIZE]; // 256
-} Score; // < 32k
-
-#define MAX_SAMPLE_SIGNALS 32
-
-typedef struct {
-	float signal[MAX_SAMPLE_SIGNALS];
-} Frame;
-
-typedef unsigned int sample_t;
+#define SCORE_ENVELOPES 4
 
 typedef struct {
 	int samplerate, bpm;
 	int samples_per_bar, samples_per_tick;
-	Score score;
 
-	struct {
-		struct {
-			int env[MAX_PATTERN_ENVELOPES];
-			int poly_start, poly_count;
-		} instrument[MAX_INSTRUMENTS];
-	} map;
+	Envelope env[SCORE_ENVELOPES];
 } Automation;
 
 // 0: SAMPLERATE, BPM
@@ -85,19 +54,16 @@ typedef struct {
 
 void automationInit(Automation *a, int samplerate, int bpm);
 
-void automationMapEnv(Automation *a, int instrument, int env, int signal);
-void automationMapInstrument(Automation *a, int instrument, int maxpoly, int start_signal);
+void automationEnvPointSet(Automation *a, int env, int tick, float v[MAX_POINT_VALUES]);
+void automationEnvPointDel(Automation *a, int env, int tick);
 
-void automationPatternPut(Automation *a, int pattern, int bar);
-void automationPatternDel(Automation *a, int pattern, int bar);
+#define SAMPLE_SIGNALS 32
 
-void automationPatternSetInstrument(Automation *a, int pattern, int instrument);
-void automationPatternNoteAdd(Automation *a, int pattern, int number, int start, int end, int velocity);
-void automationPatternNoteChange(Automation *a, int pattern, int number, int start, int new_end, int new_velocity);
-void automationPatternNoteDel(Automation *a, int pattern, int number, int start);
+typedef struct {
+	float signal[SAMPLE_SIGNALS];
+} Frame;
 
-void automationPatternEnvPointSet(Automation *a, int pattern, int env, int tick, float v);
-void automationPatternEnvPointDel(Automation *a, int pattern, int env, int tick);
+typedef unsigned int sample_t;
 
 void automationGetSamples(const Automation *a, sample_t start, sample_t end, Frame* frames);
 

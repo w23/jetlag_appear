@@ -14,7 +14,7 @@ public:
 
 	struct Sample {
 		float operator[](int index) const {
-			if (index < 0 || index >= MAX_SAMPLE_SIGNALS) {
+			if (index < 0 || index >= SAMPLE_SIGNALS) {
 				//aAppDebugPrintf("index %d is out of bounds [%d, %d]",
 				//	index, 0, static_cast<int>(data_.size()) - 1);
 				return 0;

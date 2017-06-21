@@ -51,12 +51,15 @@ p += n; \
 		aAppDebugPrintf("row=%d time=(%dx%d:%d+%d)%f",
 			irow, pat, pattern_size, tick, tick2, time);
 
+		float value[MAX_POINT_VALUES];
 		for (int i = 0; i < columns; ++i) {
-			float value;
 			icol = i;
-			SSCAN(1, "%f", &value);
-			automationPatternEnvPointSet(a, pat, i, tick, value);
+			SSCAN(1, "%f", value + i % MAX_POINT_VALUES);
+			if (i % MAX_POINT_VALUES == MAX_POINT_VALUES - 1)
+				automationEnvPointSet(a, i / MAX_POINT_VALUES, pat * 16 + tick, value);
 		}
+		if (columns % MAX_POINT_VALUES != 0)
+			automationEnvPointSet(a, columns / MAX_POINT_VALUES, pat * 16 + tick, value);
 	}
 #undef SSCAN
 
@@ -90,7 +93,7 @@ Timeline::Sample Timeline::sample(float time) const {
 	const Automation *a = static_cast<const Automation*>(lock.data_src);
 
 	Timeline::Sample ret;
-	automationGetSamples(a, /*FIXME*/time * a->samplerate, time * a->samplerate, &ret.frame);
+	automationGetSamples(a, /*FIXME*/time * a->samplerate, time * a->samplerate + 1, &ret.frame);
 
 	lfmReadUnlock(model_, &lock);
 
