@@ -42,11 +42,6 @@ void automationEnvPointSet(Automation *a, int env, int tick, float v[MAX_POINT_V
 			break;
 		}
 	}
-
-	for (int i = 0; i < MAX_ENVELOPE_POINTS; ++i) {
-		Point *p = e->points + i;
-		printf("%d: %d %f %f %f\n", i, p->tick, p->v[0], p->v[1], p->v[2]);
-	}
 }
 
 void automationEnvPointDel(Automation *a, int env, int tick) {
@@ -56,8 +51,8 @@ void automationEnvPointDel(Automation *a, int env, int tick) {
 	Envelope *e = a->env + env;
 	for (int i = 0; i < MAX_ENVELOPE_POINTS; ++i) {
 		Point *p = e->points + i;
-		if (e->points[i].tick == tick) {
-			memmove(e->points + i, e->points + i + 1, sizeof(Point) * (MAX_ENVELOPE_POINTS - i - 1));
+		if (p->tick == tick) {
+			memmove(p, p + 1, sizeof(Point) * (MAX_ENVELOPE_POINTS - i - 1));
 			break;
 		}
 	}
@@ -106,8 +101,10 @@ static void auto_getFrame(const Automation *a, sample_t sample, Frame *frame) {
 		const Point *pa = e->points + lt, *pb = e->points + gt;
 		const float t = (float)(pb->tick * a->samples_per_tick - sample) / ((pb->tick - pa->tick) * a->samples_per_tick);
 
+		//printf("%d: %d %d %f\n", sample / a->samples_per_tick, pa->tick, pb->tick, t);
+
 		for (int j = 0; j < MAX_POINT_VALUES; ++j)
-			signal[j] = pa->v[j] + (pb->v[j] - pa->v[j]) * t;
+			signal[j] = pb->v[j] + (pa->v[j] - pb->v[j]) * t;
 	}
 }
 
