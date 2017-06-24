@@ -1,6 +1,7 @@
 #include "Timeline.h"
 #define LFM_IMPLEMENT
 #include "lfmodel.h"
+#include "atto/app.h"
 #include <cstdio>
 
 Timeline::Timeline(String &source, int samplerate, int bpm)
@@ -51,15 +52,17 @@ p += n; \
 		aAppDebugPrintf("row=%d time=(%dx%d:%d+%d)%f",
 			irow, pat, pattern_size, tick, tick2, time);
 
-		float value[MAX_POINT_VALUES];
+		Point point;
+		point.time = pat * 16 + tick;
 		for (int i = 0; i < columns; ++i) {
 			icol = i;
-			SSCAN(1, "%f", value + i % MAX_POINT_VALUES);
-			if (i % MAX_POINT_VALUES == MAX_POINT_VALUES - 1)
-				automationEnvPointSet(a, i / MAX_POINT_VALUES, pat * 16 + tick, value);
+			SSCAN(1, "%f", point.v + i % MAX_POINT_VALUES);
+			if (i % MAX_POINT_VALUES == MAX_POINT_VALUES - 1 || i == columns - 1) {
+				Envelope *e = automationGetEnvelope(a, i / MAX_POINT_VALUES);
+				if (e)
+					envKeypointCreate(e, &point);
+			}
 		}
-		if (columns % MAX_POINT_VALUES != 0)
-			automationEnvPointSet(a, columns / MAX_POINT_VALUES, pat * 16 + tick, value);
 	}
 #undef SSCAN
 

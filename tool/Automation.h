@@ -26,10 +26,10 @@ typedef struct {
 - tick_samples = bar_samples / 16
 */
 
-#define MAX_POINT_VALUES 3
+#define MAX_POINT_VALUES 4
 
 typedef struct {
-	int tick;
+	int time;
 	float v[MAX_POINT_VALUES];
 } Point;
 
@@ -54,8 +54,12 @@ typedef struct {
 
 void automationInit(Automation *a, int samplerate, int bpm);
 
-void automationEnvPointSet(Automation *a, int env, int tick, float v[MAX_POINT_VALUES]);
-void automationEnvPointDel(Automation *a, int env, int tick);
+Envelope *automationGetEnvelope(Automation *a, int index);
+
+void envGetValues(const Envelope *e, float time, Point *pout);
+void envKeypointCreate(Envelope *e, const Point *pin); 
+int envKeypointGet(Envelope *e, int time, Point **pout);
+void envKeypointDelete(Envelope *e, Point *p);
 
 #define SAMPLE_SIGNALS 32
 
