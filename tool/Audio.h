@@ -10,4 +10,5 @@ public:
 private:
 	const int samplerate_;
 	float state_[2];
+	unsigned long samples_;
 }; // class Audio

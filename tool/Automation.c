@@ -8,11 +8,17 @@ void automationInit(Automation *a, int samplerate, int bpm) {
 	a->bpm = bpm;
 	a->samples_per_bar = a->samplerate * 4 * 60 / a->bpm;
 	a->samples_per_tick = a->samples_per_bar / TICKS_PER_BAR;
+	a->seconds_per_tick = (float)a->samples_per_tick / a->samplerate;
 
 	for (int i = 0; i < SCORE_ENVELOPES; ++i) {
 		for (int j = 0; j < MAX_ENVELOPE_POINTS; ++j) {
 			a->env[i].points[j].time = -1;
 		}
+	}
+
+	for (int i = 0; i < SCORE_PATTERNS; ++i) {
+		Pattern *p = a->patterns + i;
+		memset(p->notes, 0, sizeof(p->notes));
 	}
 }
 
@@ -104,6 +110,28 @@ void envKeypointDelete(Envelope *e, Point *p) {
 	memmove(p, p + 1, sizeof(Point) * (MAX_ENVELOPE_POINTS - index - 1));
 }
 
+void patGetSignal(const Pattern *p, float t, NoteSignal *sig_out) {
+	const int tick = (int)floor(t) % PATTERN_TICKS;
+	int last_note_on = -1;
+	sig_out->gate = 0;
+	sig_out->notenum = 0;
+	sig_out->time_since_last_on = 0;
+	for (int i = tick + 1; i <= PATTERN_TICKS + tick; ++i) {
+		const Note *n = p->notes + i % PATTERN_TICKS;
+		if (n->event) {
+			if (!n->off) {
+				last_note_on = i;
+				sig_out->gate = 1;
+				sig_out->notenum = n->num;
+			} else
+				sig_out->gate = 0;
+		}
+	}
+
+	sig_out->notenum = 440.f * powf(2.f, (sig_out->notenum - 69.f) / 12.f);
+	sig_out->time_since_last_on = last_note_on - PATTERN_TICKS - tick + fmodf(t, 1.f);
+}
+
 static void auto_getFrame(const Automation *a, sample_t sample, Frame *frame) {
 	const int global_time = (sample / a->samples_per_tick) % SCORE_TICKS;
 
@@ -114,10 +142,26 @@ static void auto_getFrame(const Automation *a, sample_t sample, Frame *frame) {
 		float *signal = frame->signal + i * MAX_POINT_VALUES;
 
 		Point p;
-		envGetValues(e, fmod((float)sample / a->samples_per_tick, SCORE_TICKS), &p);
+		envGetValues(e, fmodf((float)sample / a->samples_per_tick, SCORE_TICKS), &p);
 
 		for (int j = 0; j < MAX_POINT_VALUES; ++j)
 			signal[j] = p.v[j];
+	}
+
+	const float pat_tick_time = fmodf((float)sample / a->samples_per_tick, PATTERN_TICKS);
+
+	for (int i = 0; i < SCORE_PATTERNS; ++i) {
+		const Pattern *p = a->patterns + i;
+#define PATTERN_SIGNALS 3
+		const int sig_index = SCORE_ENVELOPES * MAX_POINT_VALUES + i * PATTERN_SIGNALS;
+		if (sig_index + PATTERN_SIGNALS >= SAMPLE_SIGNALS) break;
+		float *signal = frame->signal + sig_index;
+		
+		NoteSignal sig;
+		patGetSignal(p, pat_tick_time, &sig);
+		signal[0] = sig.gate;
+		signal[1] = sig.notenum / a->samplerate;
+		signal[2] = sig.time_since_last_on * a->seconds_per_tick;
 	}
 }
 

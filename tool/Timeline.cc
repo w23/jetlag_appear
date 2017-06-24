@@ -76,6 +76,20 @@ bool Timeline::update() {
 		if (!parse(source_.string().c_str(), &a))
 			return false;
 
+		Note *n = a.patterns[0].notes;
+		int i = 0;
+#define NOTE(N) \
+		n[i].event = 1; n[i].num = N; i += 2; \
+		n[i].event = 1; n[i].off = 1; i += 2
+		NOTE(72);
+		NOTE(74);
+		NOTE(76);
+		NOTE(77);
+		NOTE(79);
+		NOTE(81);
+		NOTE(83);
+		NOTE(84);
+
 		LFLock lock;
 		lfmModifyLock(model_, &lock);
 		for(;;) {

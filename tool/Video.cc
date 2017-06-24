@@ -72,6 +72,12 @@ Video::Video(int width, int height)//const char *raymarch_file, const char *post
 bool Video::paint(const Timeline &timeline, float now, bool force_redraw) {
 	const Timeline::Sample TV = timeline.sample(now);
 
+	/*
+	for (int i = SCORE_ENVELOPES * MAX_POINT_VALUES; i < SAMPLE_SIGNALS; ++i)
+		printf("%.02f ", TV.frame.signal[i]);
+	printf("\n");
+	*/
+
 	bool need_redraw = raymarch_prg.update();
 	need_redraw |= post_prg.update();
 	need_redraw |= out_prg.update();
