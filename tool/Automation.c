@@ -133,8 +133,6 @@ void patGetSignal(const Pattern *p, float t, NoteSignal *sig_out) {
 }
 
 static void auto_getFrame(const Automation *a, sample_t sample, Frame *frame) {
-	const int global_time = (sample / a->samples_per_tick) % SCORE_TICKS;
-
 	memset(frame, 0, sizeof(*frame));
 
 	for (int i = 0; i < SCORE_ENVELOPES; ++i) {

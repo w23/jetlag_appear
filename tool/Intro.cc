@@ -1,3 +1,4 @@
+#include "seqgui.h"
 #include "Intro.h"
 
 Intro::Intro(int width, int height)
@@ -39,12 +40,24 @@ void Intro::paint(ATimeUs ts) {
 	}
 	last_frame_time_ = ts;
 
-	const float now = 1e-6f * time_;
+	const float now = audio_.time();//1e-6f * time_;
 
 	bool need_redraw = !paused_ || (midi_changed_ | time_adjusted_);
 	need_redraw |= timeline_.update();
 
 	video_.paint(timeline_, now, need_redraw);
+
+	glUseProgram(0);
+	glEnable(GL_BLEND);
+	glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+	const GuiViewport vp = {0, 0, (int)a_app_state->width, (int)a_app_state->height};
+	guiSetViewport(vp);
+	const GuiColor c = {255, 128, 56, 100};
+	guiRect(50, 50, 150, 150, c);
+	GuiTransform transform = {0, 0, 1};
+	guiPaintAutomation(&timeline_.automation(), now, transform);
+	glDisable(GL_BLEND);
+	glLoadIdentity();
 
 	midi_changed_ = false;
 	time_adjusted_ = false;

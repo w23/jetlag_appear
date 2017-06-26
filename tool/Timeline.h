@@ -12,6 +12,8 @@ public:
 	
 	bool update();
 
+	const Automation &automation() const { return automation_; /*FIXME read update from lfmodel*/ }
+
 	struct Sample {
 		float operator[](int index) const {
 			if (index < 0 || index >= SAMPLE_SIGNALS) {
@@ -32,6 +34,7 @@ private:
 	String &source_;
 	const int samplerate_, bpm_;
 
+	Automation automation_;
 	LFModel *model_;
 
 	bool parse(const char *str, Automation *a);

@@ -77,4 +77,6 @@ void Audio::synthesize(float *samples, int num_samples, const Timeline &timeline
 		} else
 			abort();
 	}
+
+	time_ = samples_ / (float)samplerate_;
 }

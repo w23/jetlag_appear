@@ -10,12 +10,11 @@ Timeline::Timeline(String &source, int samplerate, int bpm)
 	, bpm_(bpm)
 	, model_(lfmCreate(4, sizeof(Automation), nullptr, malloc))
 {
-	Automation a;
-	automationInit(&a, samplerate, bpm);
+	automationInit(&automation_, samplerate, bpm);
 	LFLock lock;
 	lfmModifyLock(model_, &lock);
 	for(;;) {
-		memcpy(lock.data_dst, &a, sizeof(a));
+		memcpy(lock.data_dst, &automation_, sizeof(automation_));
 		if (lfmModifyUnlock(model_, &lock))
 			break;
 		lfmModifyRetry(model_, &lock);
@@ -76,7 +75,9 @@ bool Timeline::update() {
 		if (!parse(source_.string().c_str(), &a))
 			return false;
 
-		Note *n = a.patterns[0].notes;
+		automation_ = a;
+
+		Note *n = automation_.patterns[0].notes;
 		int i = 0;
 #define NOTE(N) \
 		n[i].event = 1; n[i].num = N; i += 2; \
@@ -93,7 +94,7 @@ bool Timeline::update() {
 		LFLock lock;
 		lfmModifyLock(model_, &lock);
 		for(;;) {
-			memcpy(lock.data_dst, &a, sizeof(a));
+			memcpy(lock.data_dst, &automation_, sizeof(automation_));
 			if (lfmModifyUnlock(model_, &lock))
 				break;
 			lfmModifyRetry(model_, &lock);
