@@ -1,11 +1,12 @@
 #include "seqgui.h"
 #include "atto/gl.h"
+#include "atto/app.h"
 
 static struct {
-	GuiViewport vp;
+	GuiRect vp;
 } g;
 
-void guiSetViewport(GuiViewport v) {
+void guiSetViewport(GuiRect v) {
 	g.vp = v;
 	glScalef(1.f / v.w, 1.f / v.h, 1);
 	glTranslatef(-v.w, -v.h, 0);
@@ -24,13 +25,13 @@ void guiLine(int ax, int ay, int bx, int by, GuiColor c) {
 	glEnd();
 }
 
+static const int tick_width = 10;
+static const int note_height = 20;
+static const float y_offset = 10;
+static const float y_scale = 50;
+
 void guiPaintAutomation(const Automation *a, float now_sec, GuiTransform transform) {
 	(void)transform;
-
-	const int tick_width = 10;
-	const int note_height = 20;
-	const float y_offset = 10;
-	const float y_scale = 50;
 
 	for (int i = 0; i < SCORE_PATTERNS; ++i) {
 		const GuiColor color = {
@@ -53,7 +54,7 @@ void guiPaintAutomation(const Automation *a, float now_sec, GuiTransform transfo
 					note_num = -1;
 				}
 				if (n->num != note_num) {
-					/* FIXME draw if note_start >= 0 */
+				/* FIXME draw if note_start >= 0 */
 					note_start = j;
 					note_num = n->num;
 				}
@@ -97,58 +98,49 @@ void guiPaintAutomation(const Automation *a, float now_sec, GuiTransform transfo
 	guiLine(cursor_x, 0, cursor_x, g.vp.h * 2, cursor_color);
 }
 
-#if 0
+enum Mode {
+	Mode_Idle,
+	Mode_SelectNotes,
+	Mode_SelectKeypoints,
+	Mode_DragKeypoints,
+	Mode_DragNotes,
+	Mode_ResizeNote
+};
 
-static void sg_paintEnvelope(const Envelope *e, viewport) {
-	rect(env aabb, alpha = .1);
-	for (all points) {
-		line(prev_point, point);
-		rect(point, 10);
-	}
-}
-
-static void sg_paintPattern(const Pattern *p, viewport) {
-	rect(p aabb, alpha = .1);
-	for (all notes) {
-		calc note rect
-		rect(note_rect);
-	}
-}
-
-void seqguiPaint(const Automation *a, viewport) {
-	for (all mapped envelopes) {
-		calc env rect
-		draw envelope in viewport
-	}
-	for (all mapped patterns) {
-		calc pattern rect
-		draw pattern
-	}
-}
+#define MAX_SELECTION 128
 
 static struct {
+	enum Mode mode;
 	struct {
-		int env, keypoint, submask;
-		int pat, note;
+		int pattern;
+		int envelope;
+		int selected[MAX_SELECTION];
 	} selection;
-} g;
+} edit;
 
-void seqguiPointer(Automation *a, event, viewport) {
-	if (selection)
-		move selection by event dx dy
-
-	for (all mapped envelopes) {
-		calc env rect
-		if (event in rect) {
-			for (all env keypoint) {
-				event in keypoint rect
-			}
-		}
+void guiEventPointer(Automation *a, GuiEventPointer ptr) {
+	(void)(a);
+	if (!ptr.button_mask) {
+		edit.mode = Mode_Idle;
+		return;
 	}
-	for (all mapped patterns) {
-		calc pattern rect
-		if (event in rect) {
+
+	switch (edit.mode) {
+	case Mode_Idle:
+		if (ptr.xor_button_mask == AB_Left && ptr.button_mask == AB_Left) {
+			// TODO
+			// 1. find object under; -> (envelope, key) || (pattern, note)
+			// 2. if not env|pattern then idle and return
+			// 3. if env|pat but not key|note, then start new selection under env|pat and return
+			// 4. if key|note not in selection, then replace selection with key|note
+			// 5. if key|note in selection start drag selection
 		}
+		break;
+	default:
+		break;
+	}
+
+	if (ptr.xor_button_mask == 0 && ptr.button_mask == AB_Left) {
+		// if mode == drag, drag
 	}
 }
-#endif

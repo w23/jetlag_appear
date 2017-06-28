@@ -10,14 +10,14 @@ typedef struct {
 } GuiColor;
 
 typedef struct {
-	int x, y, w, h;
-} GuiViewport;
-
-typedef struct {
 	int x, y;
 } GuiPoint;
 
-void guiSetViewport(GuiViewport v);
+typedef struct {
+	int x, y, w, h;
+} GuiRect;
+
+void guiSetViewport(GuiRect v);
 
 void guiRect(int ax, int ay, int bx, int by, GuiColor c);
 void guiLine(int ax, int ay, int bx, int by, GuiColor c);
@@ -28,6 +28,14 @@ typedef struct {
 } GuiTransform;
 
 void guiPaintAutomation(const Automation *a, float now_sec, GuiTransform transform);
+
+typedef struct {
+	int x, y;
+	int button_mask;
+	int xor_button_mask;
+} GuiEventPointer;
+
+void guiEventPointer(Automation *a, GuiEventPointer ptr);
 
 #ifdef __cplusplus
 } // extern "C"

@@ -2,8 +2,7 @@
 
 #include "FileString.h"
 #include "Automation.h"
-
-typedef struct LFModel LFModel;
+#include "lfmodel.h"
 
 class Timeline {
 public:
@@ -12,7 +11,26 @@ public:
 	
 	bool update();
 
-	const Automation &automation() const { return automation_; /*FIXME read update from lfmodel*/ }
+	struct ReadOnlyLock {
+		ReadOnlyLock(const Timeline &timeline);
+		~ReadOnlyLock();
+		const Automation &automation() const;
+	
+	private:
+		LFLock lock_;
+		LFModel &model_;
+	};
+
+	struct WriteLock {
+		WriteLock(Timeline &timeline);
+		bool unlock();
+		~WriteLock();
+		Automation &automation();
+	
+	private:
+		LFLock lock_;
+		LFModel &model_;
+	};
 
 	struct Sample {
 		float operator[](int index) const {
@@ -31,10 +49,12 @@ public:
 	Sample sample(float time) const;
 
 private:
+	friend struct ReadOnlyLock;
+	friend struct WriteLock;
+
 	String &source_;
 	const int samplerate_, bpm_;
 
-	Automation automation_;
 	LFModel *model_;
 
 	bool parse(const char *str, Automation *a);

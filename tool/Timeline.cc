@@ -10,11 +10,12 @@ Timeline::Timeline(String &source, int samplerate, int bpm)
 	, bpm_(bpm)
 	, model_(lfmCreate(4, sizeof(Automation), nullptr, malloc))
 {
-	automationInit(&automation_, samplerate, bpm);
+	Automation a;
+	automationInit(&a, samplerate, bpm);
 	LFLock lock;
 	lfmModifyLock(model_, &lock);
 	for(;;) {
-		memcpy(lock.data_dst, &automation_, sizeof(automation_));
+		memcpy(lock.data_dst, &a, sizeof(a));
 		if (lfmModifyUnlock(model_, &lock))
 			break;
 		lfmModifyRetry(model_, &lock);
@@ -75,9 +76,7 @@ bool Timeline::update() {
 		if (!parse(source_.string().c_str(), &a))
 			return false;
 
-		automation_ = a;
-
-		Note *n = automation_.patterns[0].notes;
+		Note *n = a.patterns[0].notes;
 		int i = 0;
 #define NOTE(N) \
 		n[i].event = 1; n[i].num = N; i += 2; \
@@ -94,7 +93,7 @@ bool Timeline::update() {
 		LFLock lock;
 		lfmModifyLock(model_, &lock);
 		for(;;) {
-			memcpy(lock.data_dst, &automation_, sizeof(automation_));
+			memcpy(lock.data_dst, &a, sizeof(a));
 			if (lfmModifyUnlock(model_, &lock))
 				break;
 			lfmModifyRetry(model_, &lock);
@@ -116,4 +115,48 @@ Timeline::Sample Timeline::sample(float time) const {
 	lfmReadUnlock(model_, &lock);
 
 	return ret;
+}
+
+Timeline::ReadOnlyLock::ReadOnlyLock(const Timeline &timeline)
+	: model_(const_cast<LFModel&>(*timeline.model_))
+{
+	lfmReadLock(&model_, &lock_);
+}
+
+Timeline::ReadOnlyLock::~ReadOnlyLock() {
+	lfmReadUnlock(&model_, &lock_);
+}
+
+const Automation &Timeline::ReadOnlyLock::automation() const {
+	return *static_cast<const Automation*>(lock_.data_src);
+}
+
+Timeline::WriteLock::WriteLock(Timeline &timeline)
+	: model_(const_cast<LFModel&>(*timeline.model_))
+{
+	lfmModifyLock(&model_, &lock_);
+	memcpy(lock_.data_dst, &lock_.data_src, sizeof(Automation));
+}
+
+#define ASSERT(cond) do{if(!(cond)){printf("%s:%d: ASSERT(%s) failed\n", __FILE__, __LINE__, #cond); abort();}}while(false)
+
+bool Timeline::WriteLock::unlock() {
+	ASSERT(lock_.data_dst != 0);
+	if (lfmModifyUnlock(&model_, &lock_)) {
+		lock_.data_dst = nullptr;
+		return true;
+	}
+
+	lfmModifyRetry(&model_, &lock_);
+	memcpy(lock_.data_dst, &lock_.data_src, sizeof(Automation));
+	return false;
+}
+
+Timeline::WriteLock::~WriteLock() {
+	ASSERT(lock_.data_dst == 0);
+}
+
+Automation &Timeline::WriteLock::automation() {
+	ASSERT(lock_.data_dst != 0);
+	return *static_cast<Automation*>(lock_.data_dst);
 }

@@ -47,17 +47,20 @@ void Intro::paint(ATimeUs ts) {
 
 	video_.paint(timeline_, now, need_redraw);
 
-	glUseProgram(0);
-	glEnable(GL_BLEND);
-	glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-	const GuiViewport vp = {0, 0, (int)a_app_state->width, (int)a_app_state->height};
-	guiSetViewport(vp);
-	const GuiColor c = {255, 128, 56, 100};
-	guiRect(50, 50, 150, 150, c);
-	GuiTransform transform = {0, 0, 1};
-	guiPaintAutomation(&timeline_.automation(), now, transform);
-	glDisable(GL_BLEND);
-	glLoadIdentity();
+	{
+		glUseProgram(0);
+		glEnable(GL_BLEND);
+		glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+		const GuiRect vp = {0, 0, (int)a_app_state->width, (int)a_app_state->height};
+		guiSetViewport(vp);
+		GuiTransform transform = {0, 0, 1};
+		{
+			Timeline::ReadOnlyLock lock(timeline_);
+			guiPaintAutomation(&lock.automation(), now, transform);
+		}
+		glDisable(GL_BLEND);
+		glLoadIdentity();
+	}
 
 	midi_changed_ = false;
 	time_adjusted_ = false;
@@ -90,11 +93,14 @@ void Intro::key(ATimeUs ts, AKey key) {
 }
 
 void Intro::pointer(int dx, int dy, unsigned buttons, unsigned btn_ch) {
-	if (buttons) {
-		mouse.x += dx;
-		mouse.y += dy;
-	}
-
-	if (btn_ch & AB_WheelUp) mouse.z += 1.f;
-	if (btn_ch & AB_WheelDown) mouse.z -= 1.f;
+	(void)(dx); (void)(dy);
+	Timeline::WriteLock lock(timeline_);
+	GuiEventPointer ptr;
+	ptr.x = a_app_state->pointer.x;
+	ptr.y = a_app_state->pointer.y;
+	ptr.button_mask = buttons;
+	ptr.xor_button_mask = btn_ch;
+	do {
+		guiEventPointer(&lock.automation(), ptr);
+	} while (!lock.unlock());
 }

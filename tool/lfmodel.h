@@ -1,5 +1,9 @@
-#ifndef LFMODEL_H_
-#define LFMODEL_H_
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+#ifndef LFMODEL_H__DECLARED
+#define LFMODEL_H__DECLARED
 
 #include <stdlib.h>
 #include <memory.h>
@@ -42,9 +46,11 @@ void lfmReadLock(LFModel *model, LFLock *lock);
 void lfmReadUnlock(LFModel *model, LFLock *lock);
 
 void lfmModifyLock(LFModel *model, LFLock *lock);
-void lfmModifyRetry(LFModel *model, LFLock *lock) { lfmReadLock(model, lock); }
+static inline void lfmModifyRetry(LFModel *model, LFLock *lock) { lfmReadLock(model, lock); }
 /* return 0 if need to retry */
 int lfmModifyUnlock(LFModel *model, LFLock *lock);
+
+#endif // ifndef LFMODEL_H__DECLARED
 
 #if defined(LFM_RUN_TEST)
 #define LFM_IMPLEMENT
@@ -343,4 +349,7 @@ int main(int argc, char *argv[]) {
 }
 
 #endif // defined(LFM_RUN_TEST)
-#endif // ifndef LFMODEL_H_
+
+#ifdef __cplusplus
+}
+#endif
