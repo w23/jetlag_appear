@@ -1,4 +1,4 @@
-#pragma once 
+#pragma once
 
 typedef void(*audio_callback_f)(void *userdata, float *samples, int nsamples);
 typedef void(*midi_callback_f)(void *userdata, const unsigned char *data, int bytes);
@@ -26,6 +26,7 @@ static struct {
 	audio_callback_f acb;
 	midi_callback_f mcb;
 	pthread_t thread;
+	int should_exit;
 } audio_;
 
 #define AUDIO_BUFFER_SIZE 256
@@ -33,7 +34,7 @@ static struct {
 
 static void *audio_Thread(void *data) {
 	// TODO priority
-	for(;;) {
+	while (!__atomic_load_n(&audio_.should_exit, __ATOMIC_SEQ_CST)) {
 		float buffer[AUDIO_BUFFER_SIZE];
 		unsigned char midibuf[MIDI_BUFFER_SIZE];
 
@@ -54,9 +55,11 @@ static void *audio_Thread(void *data) {
 		if (err < 0) err = snd_pcm_recover(audio_.pcm, err, 0);
 		if (err < 0) {
 			printf("recover error: %s\n", snd_strerror(err));
-			return NULL;
+			break;
 		}
 	}
+
+	return NULL;
 }
 
 int audioOpen(void *userdata, audio_callback_f acb, const char *midi, midi_callback_f mcb) {
@@ -85,15 +88,23 @@ int audioOpen(void *userdata, audio_callback_f acb, const char *midi, midi_callb
 		audio_.midi = NULL;
 	}
 
+	audio_.should_exit = 0;
 	audio_.acb = acb;
 	audio_.mcb = mcb;
-	pthread_create(&audio_.thread, NULL, audio_Thread, userdata);
+	err = pthread_create(&audio_.thread, NULL, audio_Thread, userdata);
+	if (err) {
+		printf("pthread_create: %d\n", err);
+		return -4;
+	}
 
 	return 1;
 }
 
 void audioClose() {
+	__atomic_store_n(&audio_.should_exit, 1, __ATOMIC_SEQ_CST);
+	pthread_join(audio_.thread, NULL);
 	snd_pcm_close(audio_.pcm);
+	// TODO Close midi
 }
 #else
 #error NOT IMPLEMENTED

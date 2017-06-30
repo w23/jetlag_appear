@@ -63,10 +63,15 @@ void pointer(ATimeUs ts, int dx, int dy, unsigned int buttons_changed_bits) {
 	intro->pointer(dx, dy, a_app_state->pointer.buttons, buttons_changed_bits);
 }
 
+void close() {
+	audioClose();
+}
+
 void attoAppInit(struct AAppProctable *ptbl) {
 	ptbl->key = key;
 	ptbl->pointer = pointer;
 	ptbl->paint = paint;
+	ptbl->close = close;
 
 	int width = 1280, height = 720;
 	const char* midi_device = "default";
@@ -81,5 +86,6 @@ void attoAppInit(struct AAppProctable *ptbl) {
 	}
 
 	intro.reset(new Intro(width, height));
-	audioOpen(intro.get(), audioCallback, midi_device, midiCallback);
+	if (1 != audioOpen(intro.get(), audioCallback, midi_device, midiCallback))
+		aAppTerminate(-1);
 }

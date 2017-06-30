@@ -135,7 +135,7 @@ Timeline::WriteLock::WriteLock(Timeline &timeline)
 	: model_(const_cast<LFModel&>(*timeline.model_))
 {
 	lfmModifyLock(&model_, &lock_);
-	memcpy(lock_.data_dst, &lock_.data_src, sizeof(Automation));
+	memcpy(lock_.data_dst, lock_.data_src, sizeof(Automation));
 }
 
 #define ASSERT(cond) do{if(!(cond)){printf("%s:%d: ASSERT(%s) failed\n", __FILE__, __LINE__, #cond); abort();}}while(false)
@@ -148,7 +148,7 @@ bool Timeline::WriteLock::unlock() {
 	}
 
 	lfmModifyRetry(&model_, &lock_);
-	memcpy(lock_.data_dst, &lock_.data_src, sizeof(Automation));
+	memcpy(lock_.data_dst, lock_.data_src, sizeof(Automation));
 	return false;
 }
 
