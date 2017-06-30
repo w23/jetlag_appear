@@ -40,14 +40,14 @@ typedef struct {
 } Envelope;
 
 void envGetValues(const Envelope *e, float time, Point *pout);
-void envKeypointCreate(Envelope *e, const Point *pin); 
+void envKeypointCreate(Envelope *e, const Point *pin);
 int envKeypointGet(Envelope *e, int time, Point **pout);
 void envKeypointDelete(Envelope *e, Point *p);
 
 typedef struct {
-	int event : 1;
-	int off : 1;
-	int num : 8;
+	unsigned int event : 1;
+	unsigned off : 1;
+	unsigned num : 8;
 } Note;
 
 typedef struct {

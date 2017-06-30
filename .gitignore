@@ -240,3 +240,9 @@ _Pvt_Extensions
 *Debug*/
 *.db
 *.html
+
+*.oo
+*.dd
+*.o
+*.d
+tool/tool
