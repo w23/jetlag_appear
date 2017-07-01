@@ -5,7 +5,6 @@
 #include "atto/app.h"
 
 #include "Timeline.h"
-#include "Video.h"
 #include "Audio.h"
 
 class Intro {
@@ -20,7 +19,6 @@ class Intro {
 	FileString timeline_src_;
 	Timeline timeline_;
 
-	Video video_;
 	Audio audio_;
 
 	float midi_[4];

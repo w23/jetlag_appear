@@ -19,8 +19,8 @@ all: run_tool
 %.oo: %.cc
 	$(COMPILE.cc) -c $< -o $@
 
-TOOL_CSRC = atto/src/app_linux.c atto/src/app_x11.c tool/syntmash.c tool/Automation.c tool/seqgui.c
-TOOL_CCSRC = tool/tool.cc tool/Video.cc tool/Audio.cc tool/Intro.cc tool/Timeline.cc
+TOOL_CSRC = atto/src/app_linux.c atto/src/app_x11.c tool/syntmash.c tool/Automation.c tool/seqgui.c tool/video.c tool/fileres.c
+TOOL_CCSRC = tool/tool.cc tool/Audio.cc tool/Intro.cc tool/Timeline.cc
 TOOL_OBJS = $(TOOL_CSRC:.c=.o) $(TOOL_CCSRC:.cc=.oo)
 TOOL_DEPS = $(TOOL_CSRC:.c=.d) $(TOOL_CCSRC:.cc=.dd)
 
@@ -35,4 +35,4 @@ clean:
 run_tool: tool/tool
 	tool/tool -m ''
 
-.PHONY: all clean run_tool depend
+.PHONY: all clean run_tool

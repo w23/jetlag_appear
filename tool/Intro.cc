@@ -1,4 +1,6 @@
 #include "seqgui.h"
+#include "video.h"
+#include "fileres.h"
 #include "Intro.h"
 
 Intro::Intro(int width, int height)
@@ -12,9 +14,10 @@ Intro::Intro(int width, int height)
 	, mouse(aVec3ff(0))
 	, timeline_src_("timeline.seq")
 	, timeline_(timeline_src_, 44100, 120)
-	, video_(width, height)
 	, audio_(44100, "")
 {
+	resourcesInit();
+	video_init(width, height);
 #if 0
 	float samples[440];
 	audio_.synthesize(samples, 110);
@@ -32,6 +35,8 @@ void Intro::audio(float *samples, int nsamples) {
 }
 
 void Intro::paint(ATimeUs ts) {
+	resourcesUpdate();
+
 	if (!paused_) {
 		const ATimeUs delta = ts - last_frame_time_;
 		time_ += delta;
@@ -45,8 +50,10 @@ void Intro::paint(ATimeUs ts) {
 	bool need_redraw = !paused_ || (midi_changed_ | time_adjusted_);
 	need_redraw |= timeline_.update();
 
-	video_.paint(timeline_, now, need_redraw);
+	const Timeline::Sample tsample = timeline_.sample(now);
+	video_paint(&tsample.frame, need_redraw);
 
+#if 0
 	{
 		glUseProgram(0);
 		glEnable(GL_BLEND);
@@ -61,6 +68,7 @@ void Intro::paint(ATimeUs ts) {
 		glDisable(GL_BLEND);
 		glLoadIdentity();
 	}
+#endif
 
 	midi_changed_ = false;
 	time_adjusted_ = false;
@@ -94,6 +102,9 @@ void Intro::key(ATimeUs ts, AKey key) {
 
 void Intro::pointer(int dx, int dy, unsigned buttons, unsigned btn_ch) {
 	(void)(dx); (void)(dy);
+#if 1
+	(void)buttons; (void)btn_ch;
+#else
 	Timeline::WriteLock lock(timeline_);
 	GuiEventPointer ptr;
 	ptr.x = a_app_state->pointer.x;
@@ -103,4 +114,5 @@ void Intro::pointer(int dx, int dy, unsigned buttons, unsigned btn_ch) {
 	do {
 		guiEventPointer(&lock.automation(), ptr);
 	} while (!lock.unlock());
+#endif
 }

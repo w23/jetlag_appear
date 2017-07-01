@@ -67,6 +67,11 @@ void Audio::synthesize(float *samples, int num_samples, const Timeline &timeline
 	ctx.state_size = COUNTOF(state_);
 
 	for (int i = 0; i < num_samples; ++i, ++samples_) {
+#if 1
+		(void)ctx;
+		(void)timeline;
+		samples[i] = 0;
+#else
 		const Timeline::Sample sample = timeline.sample(samples_ / (float)samplerate_);
 		ctx.input = sample.frame.signal + SCORE_ENVELOPES * MAX_POINT_VALUES;
 		ctx.input_size = SAMPLE_SIGNALS - SCORE_ENVELOPES * MAX_POINT_VALUES;
@@ -76,6 +81,7 @@ void Audio::synthesize(float *samples, int num_samples, const Timeline &timeline
 			samples[i] = stack[0];
 		} else
 			abort();
+#endif
 	}
 
 	time_ = samples_ / (float)samplerate_;
