@@ -132,18 +132,20 @@ void patGetSignal(const Pattern *p, float t, NoteSignal *sig_out) {
 	sig_out->time_since_last_on = last_note_on - PATTERN_TICKS - tick + fmodf(t, 1.f);
 }
 
-static void auto_getFrame(const Automation *a, sample_t sample, Frame *frame) {
-	memset(frame, 0, sizeof(*frame));
+static void writeSignal(const float *src, int count, int offset, Frame *frame) {
+	for (int i = 0; i < count && i + offset < frame->end; ++i) {
+		if (i + offset >= frame->start)
+			frame->signal[offset + i] = src[i];
+	}
+}
 
+static void auto_getFrame(const Automation *a, sample_t sample, Frame *frame) {
 	for (int i = 0; i < SCORE_ENVELOPES; ++i) {
 		const Envelope *e = a->env + i;
-		float *signal = frame->signal + i * MAX_POINT_VALUES;
 
 		Point p;
 		envGetValues(e, fmodf((float)sample / a->samples_per_tick, SCORE_TICKS), &p);
-
-		for (int j = 0; j < MAX_POINT_VALUES; ++j)
-			signal[j] = p.v[j];
+		writeSignal(p.v, MAX_POINT_VALUES, i * MAX_POINT_VALUES, frame);
 	}
 
 	const float pat_tick_time = fmodf((float)sample / a->samples_per_tick, PATTERN_TICKS);
@@ -152,14 +154,15 @@ static void auto_getFrame(const Automation *a, sample_t sample, Frame *frame) {
 		const Pattern *p = a->patterns + i;
 #define PATTERN_SIGNALS 3
 		const int sig_index = SCORE_ENVELOPES * MAX_POINT_VALUES + i * PATTERN_SIGNALS;
-		if (sig_index + PATTERN_SIGNALS >= SAMPLE_SIGNALS) break;
-		float *signal = frame->signal + sig_index;
 		
 		NoteSignal sig;
 		patGetSignal(p, pat_tick_time, &sig);
-		signal[0] = sig.gate;
-		signal[1] = sig.notenum / a->samplerate;
-		signal[2] = sig.time_since_last_on * a->seconds_per_tick;
+		const float real_signal[PATTERN_SIGNALS] = {
+				sig.gate,
+				sig.notenum / a->samplerate,
+				sig.time_since_last_on * a->seconds_per_tick
+			};
+		writeSignal(real_signal, PATTERN_SIGNALS, sig_index, frame);
 	}
 }
 

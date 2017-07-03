@@ -18,7 +18,7 @@ Intro::Intro(int width, int height)
 	resourcesInit();
 	timelineInit("timeline.seq", 44100, 120);
 	audioInit("", 44100);
-	video_init(width, height);
+	videoInit(width, height);
 
 #if 0
 	float samples[440];
@@ -38,6 +38,8 @@ void Intro::audio(float *samples, int nsamples) {
 	audioSynthesize(samples, nsamples, a);
 	timelineUnlock(&lock);
 }
+
+static float fbuffer[32];
 
 void Intro::paint(ATimeUs ts) {
 	resourcesUpdate();
@@ -59,9 +61,17 @@ void Intro::paint(ATimeUs ts) {
 	{
 		LFLock lock;
 		Frame frame;
+		frame.start = 0;
+		frame.end = 12;
+		frame.signal = fbuffer + 3;
+		fbuffer[2] = now;
 		const Automation *a = timelineLock(&lock);
 		automationGetSamples(a, now * 44100.f, now * 44100.f + 1, &frame);
-		video_paint(&frame, need_redraw);
+		frame.start = 0;
+		frame.end = 32;
+		frame.signal = fbuffer;
+		//for (int i = 0; i < frame.end; ++i) printf("%d=%f ", i, fbuffer[i]); printf("\n");
+		videoPaint(&frame, need_redraw);
 
 #if 0
 		glUseProgram(0);
@@ -83,9 +93,32 @@ void Intro::paint(ATimeUs ts) {
 	time_adjusted_ = false;
 }
 
+static struct {
+	int ctlid;
+	int signal;
+	float mul, add;
+} midi_map[] = {
+	-6, 13, 1.f, 0.f,
+	-5, 14, 1.f, 0.f,
+	2, 15, 1.f, 0.f,
+	3, 16, 1.f, 0.f,
+	9, 22, 1.f, 0.f,
+	10, 23, 1.f, 0.f,
+	11, 24, 1.f, 0.f,
+	12, 25, 1.f, 0.f,
+};
+
+#define COUNTOF(c) (sizeof(c)/sizeof(*(c)))
 void Intro::midiControl(int ctl, int value) {
-	if (ctl >= 0 && ctl < 4)
-		midi_[ctl] = value / 127.f;
+	//if (ctl >= 0 && ctl < 4)
+	//	midi_[ctl] = value / 127.f;
+	for (int i = 0; i < (int)COUNTOF(midi_map); ++i) {
+		if (midi_map[i].ctlid == ctl) {
+			fbuffer[midi_map[i].signal+2] = value / 127.f * midi_map[i].mul + midi_map[i].add;
+			break;
+		}
+	}
+
 	aAppDebugPrintf("%d -> %d\n", ctl, value);
 	midi_changed_ = true;
 }

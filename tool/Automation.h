@@ -82,10 +82,9 @@ void automationInit(Automation *a, int samplerate, int bpm);
 
 Envelope *automationGetEnvelope(Automation *a, int index);
 
-#define SAMPLE_SIGNALS 32
-
 typedef struct {
-	float signal[SAMPLE_SIGNALS];
+	float *signal;
+	int start, end;
 } Frame;
 
 typedef unsigned int sample_t;

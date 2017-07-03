@@ -1,42 +1,23 @@
-uniform sampler2D R;
-uniform vec3 V, C, A, D, P;
+uniform sampler2D S[8];
+uniform vec3 F[32];
 
+vec3 C = F[1], A = F[2], D = F[3], V = F[0];
 float t = V.z;
+
 
 const vec3 E = vec3(.0,.001,1.);
 const float PI = 3.141593;
 
-/*
-vec4 rnd(vec2 n) { return texture2D(R, n/P.xy); }
-float hash(float n) { return texture2D(R, vec2(n*17.,n*53.)/P.xy).x; }
-float hash(vec2 n) { return texture2D(R, n*17./P.xy).y; }
-float noise(vec2 v) { return texture2D(R, (v+.5)/P.xy).z; }
-float noise(float v) { return noise(vec2(v)); }
-*/
+const vec2 P = vec2(256.);
+vec4 rnd(vec2 n) { return texture2D(S[0], n/P); }
+float noise(float v) { return rnd(vec2(v)).w; }
+vec3 noise13(float v) { return rnd(vec2(v)).xyz; }
+float noise2(vec2 v) { return rnd(v).z; }
 
-float hash1(float v){return fract(sin(v)*43758.5); }
+//float hash1(float v){return fract(sin(v)*43758.5); }
 //float hash2(vec2 p){return fract(1e4*sin(17.*p.x+.1*p.y)*(.1+abs(sin(13.*p.y+p.x))));}
-float hash2(vec2 p){return fract(sin(17.*hash1(p.x)+54.*hash1(p.y)));}
+//float hash2(vec2 p){return fract(sin(17.*hash1(p.x)+54.*hash1(p.y)));}
 //float hash3(vec3 p){return hash2(vec2(hash2(p.xy), p.z));}
-float noise2(vec2 p){
-	vec2 pp=floor(p);p-=pp;
-	//p*=p*(3.-2.*p);
-	return mix(mix(hash2(pp), hash2(pp+E.zx), p.x), mix(hash2(pp+E.xz), hash2(pp+E.zz), p.x), p.y);
-}
-/*float noise3(vec3 p){
-	vec3 P=floor(p);p-=P;
-	p*=p*(3.-2.*p);
-	return mix(
-		mix(mix(hash3(P      ), hash3(P+E.zxx), p.x), mix(hash3(P+E.xzx), hash3(P+E.zzx), p.x), p.y),
-		mix(mix(hash3(P+E.xxz), hash3(P+E.zxz), p.x), mix(hash3(P+E.xzz), hash3(P+E.zzz), p.x), p.y), p.z);
-}
-*/
-float noise(float p){
-	float P = floor(p); p -= P;
-	//p*=p*(3.-2.*p);
-	return mix(hash1(P), hash1(P+1.), p);
-}
-vec3 noise13(float p) { return vec3(noise(p), noise(p+13.), noise(p+29.)); }
 
 float fbm(vec2 v) {
 	float r = 0.;
@@ -48,7 +29,6 @@ float fbm(vec2 v) {
 	}
 	return r;
 }
-
 
 //float box2(vec2 p, vec2 s) { p = abs(p) - s; return max(p.x, p.y); }
 float box3(vec3 p, vec3 s) { p = abs(p) - s; return max(p.x, max(p.y, p.z)); }
@@ -196,7 +176,7 @@ void main() {
 	if (mindex == 1) {
 		float type = smoothstep(.4,.6,fbm(p.xz*4.));
 		albedo = vec3(.07);
-		roughness = mix(1., .01, type);
+		roughness = mix(F[6].x, F[8].y, type);
 		metallic = mix(.01, .9, type);
 	} else if (mindex == 2) {
 		albedo = vec3(.56, .57, .58);
@@ -228,7 +208,7 @@ void main() {
 	color += pointlight(vec3(11., 6.,-11.), vec3(.7,.35,.15), metallic, roughness, albedo, p, ray, normal);
 	color += pointlight(vec3(-11., 6.,-11.), vec3(.3,.35,.75), metallic, roughness, albedo, p, ray, normal);
 	color += pointlight(vec3(-11., 6.,11.), vec3(.7,.35,.15), metallic, roughness, albedo, p, ray, normal);
-	color += pointlight(vec3(0., 10., 0.), vec3(10.), metallic, roughness, albedo, p, ray, normal);
+	color += pointlight(vec3(0., 10., 0.), vec3(F[5]), metallic, roughness, albedo, p, ray, normal);
 
 
 	gl_FragColor = vec4(color, tr.x);

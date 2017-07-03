@@ -78,6 +78,7 @@ static struct {
 	GLuint textures[Texture_MAX];
 	RenderPass pass[Pass_MAX];
 	/* TODO: rand seed ctrl; rand tex */
+	GLint texture_unit[Texture_MAX];
 } g;
 
 static void drawPass(const Frame *frame, GLuint prog, GLuint fb) {
@@ -85,15 +86,20 @@ static void drawPass(const Frame *frame, GLuint prog, GLuint fb) {
 	GL(BindFramebuffer(GL_FRAMEBUFFER, fb));
 	if (fb > 0) {
 		GL(Viewport(0, 0, g.width, g.height));
-		GL(Uniform3f(glGetUniformLocation(prog, "V"), g.width, g.height, 0));
+		//GL(Uniform3f(glGetUniformLocation(prog, "V"), g.width, g.height, 0));
+		frame->signal[0] = g.width;
+		frame->signal[1] = g.height;
 	} else {
 		GL(Viewport(0, 0, a_app_state->width, a_app_state->height));
-		GL(Uniform3f(glGetUniformLocation(prog, "V"), a_app_state->width, a_app_state->height, 0));
+		//GL(Uniform3f(glGetUniformLocation(prog, "V"), a_app_state->width, a_app_state->height, 0));
+		frame->signal[0] = a_app_state->width;
+		frame->signal[1] = a_app_state->height;
 	}
-	GL(Uniform1i(glGetUniformLocation(prog, "B"), 1));
-	GL(Uniform3f(glGetUniformLocation(prog, "C"), frame->signal[0], frame->signal[1], frame->signal[2]));
-	GL(Uniform3f(glGetUniformLocation(prog, "A"), frame->signal[3], frame->signal[4], frame->signal[5]));
-	GL(Uniform3f(glGetUniformLocation(prog, "D"), frame->signal[6], frame->signal[7], frame->signal[8]));
+	GL(Uniform1iv(glGetUniformLocation(prog, "S"), Texture_MAX, g.texture_unit));
+	GL(Uniform3fv(glGetUniformLocation(prog, "F"), frame->end / 3, frame->signal));
+	//GL(Uniform3f(glGetUniformLocation(prog, "C"), frame->signal[0], frame->signal[1], frame->signal[2]));
+	//GL(Uniform3f(glGetUniformLocation(prog, "A"), frame->signal[3], frame->signal[4], frame->signal[5]));
+	//GL(Uniform3f(glGetUniformLocation(prog, "D"), frame->signal[6], frame->signal[7], frame->signal[8]));
 	//GL(Uniform4f(glGetUniformLocation(prog, "M"), midi_[0], midi_[1], midi_[2], midi_[3]));
 
 	GL(Rects(-1,-1,1,1));
@@ -102,7 +108,7 @@ static void drawPass(const Frame *frame, GLuint prog, GLuint fb) {
 #define NOISE_SIZE 256
 static uint32_t noise_bytes[NOISE_SIZE * NOISE_SIZE];
 
-void video_init(int width, int height) {
+void videoInit(int width, int height) {
 	g.width = width;
 	g.height = height;
 
@@ -115,16 +121,18 @@ void video_init(int width, int height) {
 			noise_bytes[i] = (seed >> 32);
 		}
 
+		g.texture_unit[0] = 0;
 		GL(ActiveTexture(GL_TEXTURE0));
 		GL(BindTexture(GL_TEXTURE_2D, g.textures[0]));
 		GL(TexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, NOISE_SIZE, NOISE_SIZE, 0, GL_RGBA, GL_UNSIGNED_BYTE, noise_bytes));
 		GL(TexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR));
 		GL(TexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR));
-		GL(TexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_BORDER));
-		GL(TexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_BORDER));
+		GL(TexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT));
+		GL(TexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT));
 	}
 
 	for (int i = 1; i < MAX_TEXTURES; ++i) {
+		g.texture_unit[i] = i;
 		GL(ActiveTexture(GL_TEXTURE0 + i));
 		GL(BindTexture(GL_TEXTURE_2D, g.textures[i]));
 		GL(TexImage2D(GL_TEXTURE_2D, 0, GL_RGBA16F, width, height, 0, GL_RGBA, GL_FLOAT, 0));
@@ -145,7 +153,7 @@ void video_init(int width, int height) {
 	}
 }
 
-void video_paint(const Frame *frame, int force_redraw) {
+void videoPaint(const Frame *frame, int force_redraw) {
 	int need_redraw = force_redraw;
 
 	for (int i = 0; i < Pass_MAX; ++i)
