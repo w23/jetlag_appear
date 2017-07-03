@@ -10,7 +10,7 @@ typedef struct VolatileResource_t {
 } VolatileResource;
 
 VolatileResource *resourceOpenFile(const char *filename);
-void resourceClose(VolatileResource *handle); 
+void resourceClose(VolatileResource *handle);
 void resourcesInit();
 void resourcesUpdate();
 

@@ -1,5 +1,7 @@
 #include "seqgui.h"
 #include "video.h"
+#include "audio.h"
+#include "timeline.h"
 #include "fileres.h"
 #include "Intro.h"
 
@@ -12,12 +14,12 @@ Intro::Intro(int width, int height)
 	, loop_a_(0)
 	, loop_b_(time_end_)
 	, mouse(aVec3ff(0))
-	, timeline_src_("timeline.seq")
-	, timeline_(timeline_src_, 44100, 120)
-	, audio_(44100, "")
 {
 	resourcesInit();
+	timelineInit("timeline.seq", 44100, 120);
+	audioInit("", 44100);
 	video_init(width, height);
+
 #if 0
 	float samples[440];
 	audio_.synthesize(samples, 110);
@@ -31,7 +33,10 @@ Intro::Intro(int width, int height)
 }
 
 void Intro::audio(float *samples, int nsamples) {
-	audio_.synthesize(samples, nsamples, timeline_);
+	LFLock lock;
+	const Automation *a = timelineLock(&lock);
+	audioSynthesize(samples, nsamples, a);
+	timelineUnlock(&lock);
 }
 
 void Intro::paint(ATimeUs ts) {
@@ -45,16 +50,20 @@ void Intro::paint(ATimeUs ts) {
 	}
 	last_frame_time_ = ts;
 
-	const float now = audio_.time();//1e-6f * time_;
+	//const float now = audio_.time();//1e-6f * time_;
+	const float now = 1e-6f * time_;
 
 	bool need_redraw = !paused_ || (midi_changed_ | time_adjusted_);
-	need_redraw |= timeline_.update();
+	//need_redraw |= timeline_.update();
 
-	const Timeline::Sample tsample = timeline_.sample(now);
-	video_paint(&tsample.frame, need_redraw);
+	{
+		LFLock lock;
+		Frame frame;
+		const Automation *a = timelineLock(&lock);
+		automationGetSamples(a, now * 44100.f, now * 44100.f + 1, &frame);
+		video_paint(&frame, need_redraw);
 
 #if 0
-	{
 		glUseProgram(0);
 		glEnable(GL_BLEND);
 		glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
@@ -67,8 +76,8 @@ void Intro::paint(ATimeUs ts) {
 		}
 		glDisable(GL_BLEND);
 		glLoadIdentity();
-	}
 #endif
+	}
 
 	midi_changed_ = false;
 	time_adjusted_ = false;

@@ -1,17 +1,11 @@
-#include "Audio.h"
-#include "Timeline.h"
+#include "audio.h"
 #include "syntmash.h"
-
-#include <cstring>
-#include <cstdlib>
-#include <cstdio>
+#include <string.h>
 
 #define COUNTOF(c) (sizeof(c)/sizeof(*(c)))
-
 #define MACHINE_STACK 128
 
-namespace {
-const SymaOp test_program[] = {
+static const SymaOp test_program[] = {
 	{SYMA_OP_PUSH_STATE, 0, 0},
 	{SYMA_OP_PUSH_IN, 1, 0},
 	{SYMA_OP_ADD, 0, 0},
@@ -42,18 +36,24 @@ const SymaOp test_program[] = {
 	{SYMA_OP_PUSH_IN, 0, 0},
 	{SYMA_OP_MUL, 0, 0}
 };
+
+static struct {
+	int samplerate;
+	float state[2];
+	unsigned long samples;
+	float time;
+} g;
+
+void audioInit(const char *synth_src, int samplerate) {
+	(void)synth_src;
+	g.samplerate = samplerate;
+	g.samples = 0;
+	g.time = 0;
+	memset(g.state, 0, sizeof(g.state));
 }
 
-Audio::Audio(int samplerate, const char *audio_file)
-	: samplerate_(samplerate)
-	, samples_(0)
-{
-	(void)audio_file;
-	memset(state_, 0, sizeof(state_));
-}
-
-void Audio::synthesize(float *samples, int num_samples, const Timeline &timeline) {
-	float input[1] = { 440.f / samplerate_ };
+void audioSynthesize(float *samples, int num_samples, const Automation *a) {
+	float input[1] = { 440.f / g.samplerate };
 	float stack[16];
 
 	SymaRunContext ctx;
@@ -63,13 +63,13 @@ void Audio::synthesize(float *samples, int num_samples, const Timeline &timeline
 	ctx.stack = stack;
 	ctx.input_size = COUNTOF(input);
 	ctx.input = input;
-	ctx.state = state_;
-	ctx.state_size = COUNTOF(state_);
+	ctx.state = g.state;
+	ctx.state_size = COUNTOF(g.state);
 
-	for (int i = 0; i < num_samples; ++i, ++samples_) {
+	for (int i = 0; i < num_samples; ++i, ++g.samples) {
 #if 1
 		(void)ctx;
-		(void)timeline;
+		(void)a;
 		samples[i] = 0;
 #else
 		const Timeline::Sample sample = timeline.sample(samples_ / (float)samplerate_);
@@ -84,5 +84,5 @@ void Audio::synthesize(float *samples, int num_samples, const Timeline &timeline
 #endif
 	}
 
-	time_ = samples_ / (float)samplerate_;
+	g.time = g.samples / (float)g.samplerate;
 }

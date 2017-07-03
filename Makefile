@@ -32,9 +32,9 @@ TOOL_SRCS = \
 	tool/video.c \
 	tool/fileres.c \
 	tool/tool.cc \
-	tool/Audio.cc \
+	tool/audio.c \
 	tool/Intro.cc \
-	tool/Timeline.cc
+	tool/timeline.c
 TOOL_OBJS = $(TOOL_SRCS:%=$(OBJDIR)/%.o)
 TOOL_DEPS = $(TOOL_OBJS:%=%.d)
 
