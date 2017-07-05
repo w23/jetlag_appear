@@ -1,9 +1,10 @@
 uniform sampler2D S[8];
-uniform vec3 F[32];
-
-vec3 C = F[1], A = F[2], D = F[3], V = F[0];
-float t = V.z;
-
+uniform float F[32];
+vec3 V = vec3(F[0], F[1], F[2]),
+		 C = vec3(F[3], F[4], F[5]),
+		 A = vec3(F[6], F[7], F[8]),
+		 D = vec3(F[9], F[10], F[11]);
+float t = F[12] * 20.;
 
 const vec3 E = vec3(.0,.001,1.);
 const float PI = 3.141593;
@@ -11,6 +12,7 @@ const float PI = 3.141593;
 const vec2 P = vec2(256.);
 vec4 rnd(vec2 n) { return texture2D(S[0], n/P); }
 float noise(float v) { return rnd(vec2(v)).w; }
+vec2 noise12(float v) { return rnd(vec2(v)).wx; }
 vec3 noise13(float v) { return rnd(vec2(v)).xyz; }
 float noise2(vec2 v) { return rnd(v).z; }
 
@@ -25,7 +27,7 @@ float fbm(vec2 v) {
 	for (int i = 0; i < 5; ++i) {
 		r += noise2(v) * k;
 		k *= .5;
-		v *= 2.;
+		v *= 2.3;
 	}
 	return r;
 }
@@ -69,15 +71,25 @@ vec3 rep(vec3 p, vec3 x) {
 	return mod(p, x) - x*.5;
 }
 
+float floortype(vec2 p) {
+	return smoothstep(.05, .1, pow(fbm(p), 4.));
+}
+
 float bounds(vec3 p) {
-	return -box(p+vec3(0.,-20.,0.), vec3(20.));
+	float d = box(rep3(p, vec3(4.)), vec3(1.93));
+	d = max(d, -box(p+vec3(0., -20., 0.), vec3(19.9)));
+	float type = floortype(p.xz);
+	//d = mix(d, -box(p+vec3(0.,-20.,0.), vec3(20.)), type);
+	d = min(d, -box(p+vec3(0.,-20.,0.), vec3(20.)));
+	d -= .015 * floortype(p.xz);
+	return d;
 }
 
 float object(vec3 p) {
 	p -= vec3(0., 3., 0.);
 
 	float cd = dot(p, vec3(1.,0.,0.)*rotY(t));
-	const float cr = .4, cs = .02;
+	const float cr = .4, cs = .07;
 	float cut = abs(mod(cd,cr)-cr*.5)-cs;
 
 	//p.x += sin(p.y*2. + t);
@@ -143,15 +155,29 @@ vec3 pointlight(vec3 lightpos, vec3 lightcolor, float metallic, float roughness,
 	vec3 L = lightpos - p; float LL = dot(L,L), Ls = sqrt(LL);
 	L = normalize(L);
 
+#if 0
 	vec3 tr = trace(p + .02 * L, L, Ls);
-	if (tr.x + .2 < Ls ) return vec3(0.);
+	if (tr.x < Ls ) return vec3(0.);
+	float kao = 1.;//smoothstep(.00, .05, tr.y);
+#elif 1
+	float kao = 1.;
+	const int Nao = 15;
+	float ki = 1. / float(Nao);
+	for (int i = 0; i < Nao; ++i) {
+		float dist = .25 * ki * float(i);
+		vec3 p = p + (.03 + dist) * L;//normal;
+		kao -= ki * smoothstep(-.1, .1, dist - world(p));
+	}
+#else
+	const float kao = 1.;
+#endif
 
 	vec3 H = normalize(ray + L), F0 = mix(vec3(.04), albedo, metallic);
 	float HV = max(dot(H, ray), .0), NV = max(dot(normal, ray), .0), NL = max(dot(normal, L), 0.), NH = max(dot(normal, H), 0.);
 	vec3 F = F0 + (1. - F0) * pow(1. - HV, 5.);
 	float G = GeometrySchlickGGX(NV, roughness) * GeometrySchlickGGX(NL, roughness);
 	vec3 brdf = DistributionGGX(NH, roughness)* G * F / (4. * NV * NL + .001);
-	return 30. * (.7 + .3 * noise(t*20. + lightpos.x)) * ((vec3(1.) - F) * (1. - metallic)* albedo / PI + brdf) * NL * lightcolor / LL;
+	return /*30. * (.7 + .3 * noise(t*20. + lightpos.x)) */ kao * ((vec3(1.) - F) * (1. - metallic)* albedo / PI + brdf) * NL * lightcolor / LL;
 }
 
 void main() {
@@ -159,7 +185,7 @@ void main() {
 	uv.x *= V.x / V.y;
 
 
-	vec3 origin = C + .1 * noise13(t*3.);
+	vec3 origin = 10. * (vec3(F[27],F[28],F[29]) - .5);// + .1 * noise13(t*3.);
 	mat3 LAT = lookat(origin, A, E.xzx);
 	//origin += LAT * vec3(uv*.01, 0.);
 	vec3 ray = - LAT * normalize(vec3(uv, -D.y));
@@ -174,22 +200,22 @@ void main() {
 	vec3 normal = normalize(vec3(world(p+E.yxx),world(p+E.xyx),world(p+E.xxy))-w);
 
 	if (mindex == 1) {
-		float type = smoothstep(.4,.6,fbm(p.xz*4.));
+		//float type = smoothstep(.2, 0., p.y);
+		float type = floortype(p.xz);//smoothstep(.4,.6,fbm(p.xz*(8.*F[17])));
 		albedo = vec3(.07);
-		roughness = mix(F[6].x, F[8].y, type);
-		metallic = mix(.01, .9, type);
+		roughness = mix(.9, .1, type);
+		metallic = mix(0., .99, type);
 	} else if (mindex == 2) {
 		albedo = vec3(.56, .57, .58);
-		roughness = mix(.15, .5, step(box3(rep3(p, vec3(2.)), vec3(.6)), 0.));
-		metallic = 0.;
-
-		color = vec3(10.) * smoothstep(.99,.999,sin(t*4.*.4+(rotX(t*.4)*p).y*2.));
-		albedo = vec3(.56,.57,.58);
-		roughness = .01 + .5 * fbm(p.xy*10.);
-		metallic = .5 + fbm(p.zx*21.)*.5;
+		roughness = F[26];//mix(.15, .5, step(box3(rep3(p, vec3(2.)), vec3(.6)), 0.));
+		metallic = F[25];
+		//color = vec3(10.) * smoothstep(.96,.999,sin(t*4.*.4+(rotX(t*.4)*p).y*6.));
+		//albedo = vec3(.56,.57,.58);
+		//roughness = .01 + .5 * fbm(p.xy*10.);
+		//metallic = .5 + fbm(p.zx*21.)*.5;
 	} else if (mindex == 3) {
 		float stripe = step(0., sin(atan(p.x,p.z)*60.));
-		albedo = vec3(mix(1., .1, stripe));
+		albedo = vec3(mix(1., .0, stripe));
 		roughness = mix(.9, .2, stripe);
 		metallic = .1;
 	} else if (mindex == 4) {
@@ -204,11 +230,14 @@ void main() {
 
 
 	// vec3 pointlight(vec3 lightpos, vec3 lightcolor, float metallic, float roughness, vec3 albedo, vec3 p, vec3 ray, vec3 normal) {
+	/*
 	color += pointlight(vec3(11., 6.,11.), vec3(.7,.35,.45), metallic, roughness, albedo, p, ray, normal);
 	color += pointlight(vec3(11., 6.,-11.), vec3(.7,.35,.15), metallic, roughness, albedo, p, ray, normal);
 	color += pointlight(vec3(-11., 6.,-11.), vec3(.3,.35,.75), metallic, roughness, albedo, p, ray, normal);
 	color += pointlight(vec3(-11., 6.,11.), vec3(.7,.35,.15), metallic, roughness, albedo, p, ray, normal);
-	color += pointlight(vec3(0., 10., 0.), vec3(F[5]), metallic, roughness, albedo, p, ray, normal);
+	*/
+	color += pointlight(vec3(4., 4., 0.), 1000.*F[16]*vec3(F[13],F[14],F[15]), metallic, roughness, albedo, p, ray, normal);
+	color += pointlight(10.*(vec3(F[18], F[19], F[20]) - .5), 1000.*F[21]*vec3(F[22],F[23],F[24]), metallic, roughness, albedo, p, ray, normal);
 
 
 	gl_FragColor = vec4(color, tr.x);

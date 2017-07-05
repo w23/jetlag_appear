@@ -62,7 +62,7 @@ void Intro::paint(ATimeUs ts) {
 		LFLock lock;
 		Frame frame;
 		frame.start = 0;
-		frame.end = 12;
+		frame.end = 9;
 		frame.signal = fbuffer + 3;
 		fbuffer[2] = now;
 		const Automation *a = timelineLock(&lock);
@@ -98,14 +98,24 @@ static struct {
 	int signal;
 	float mul, add;
 } midi_map[] = {
-	-6, 13, 1.f, 0.f,
-	-5, 14, 1.f, 0.f,
-	2, 15, 1.f, 0.f,
-	3, 16, 1.f, 0.f,
-	9, 22, 1.f, 0.f,
-	10, 23, 1.f, 0.f,
-	11, 24, 1.f, 0.f,
-	12, 25, 1.f, 0.f,
+	-6, 12, 1.f, 0.f,
+	-5, 13, 1.f, 0.f,
+	2, 14, 1.f, 0.f,
+	3, 15, 1.f, 0.f,
+	4, 16, 1.f, 0.f,
+	5, 17, 1.f, 0.f,
+	6, 18, 1.f, 0.f,
+	7, 19, 1.f, 0.f,
+	8, 20, 1.f, 0.f,
+	9, 21, 1.f, 0.f,
+	10, 22, 1.f, 0.f,
+	11, 23, 1.f, 0.f,
+	12, 24, 1.f, 0.f,
+	13, 25, 1.f, 0.f,
+	14, 26, 1.f, 0.f,
+	15, 27, 1.f, 0.f,
+	17, 28, 1.f, 0.f,
+	18, 29, 1.f, 0.f,
 };
 
 #define COUNTOF(c) (sizeof(c)/sizeof(*(c)))
@@ -114,12 +124,12 @@ void Intro::midiControl(int ctl, int value) {
 	//	midi_[ctl] = value / 127.f;
 	for (int i = 0; i < (int)COUNTOF(midi_map); ++i) {
 		if (midi_map[i].ctlid == ctl) {
-			fbuffer[midi_map[i].signal+2] = value / 127.f * midi_map[i].mul + midi_map[i].add;
+			fbuffer[midi_map[i].signal] = value / 127.f * midi_map[i].mul + midi_map[i].add;
 			break;
 		}
 	}
 
-	aAppDebugPrintf("%d -> %d\n", ctl, value);
+	aAppDebugPrintf("%d -> %d", ctl, value);
 	midi_changed_ = true;
 }
 

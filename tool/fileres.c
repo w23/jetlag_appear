@@ -25,6 +25,8 @@ static void resourcePoll(ResourceEntry *e) {
 	if (!e->filename[0])
 		return;
 
+	e->public.updated = 0;
+
 	struct stat st;
 	stat(e->filename, &st);
 	if (st.st_mtim.tv_sec == e->mtime.tv_sec &&

@@ -96,7 +96,7 @@ static void drawPass(const Frame *frame, GLuint prog, GLuint fb) {
 		frame->signal[1] = a_app_state->height;
 	}
 	GL(Uniform1iv(glGetUniformLocation(prog, "S"), Texture_MAX, g.texture_unit));
-	GL(Uniform3fv(glGetUniformLocation(prog, "F"), frame->end / 3, frame->signal));
+	GL(Uniform1fv(glGetUniformLocation(prog, "F"), frame->end - frame->start, frame->signal));
 	//GL(Uniform3f(glGetUniformLocation(prog, "C"), frame->signal[0], frame->signal[1], frame->signal[2]));
 	//GL(Uniform3f(glGetUniformLocation(prog, "A"), frame->signal[3], frame->signal[4], frame->signal[5]));
 	//GL(Uniform3f(glGetUniformLocation(prog, "D"), frame->signal[6], frame->signal[7], frame->signal[8]));
