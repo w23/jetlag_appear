@@ -4,22 +4,54 @@
 #include <stdlib.h>
 
 void automationInit(Automation *a, int samplerate, int bpm) {
+	a->sequence_ = 0;
 	a->samplerate = samplerate;
 	a->bpm = bpm;
 	a->samples_per_bar = a->samplerate * 4 * 60 / a->bpm;
 	a->samples_per_tick = a->samples_per_bar / TICKS_PER_BAR;
 	a->seconds_per_tick = (float)a->samples_per_tick / a->samplerate;
-
-	for (int i = 0; i < SCORE_ENVELOPES; ++i) {
-		for (int j = 0; j < MAX_ENVELOPE_POINTS; ++j) {
-			a->env[i].points[j].time = -1;
-		}
-	}
+	a->bar_end = 1;
 
 	for (int i = 0; i < SCORE_PATTERNS; ++i) {
 		Pattern *p = a->patterns + i;
-		memset(p->notes, 0, sizeof(p->notes));
+		p->max_poly = 0;
+		p->num_events = 0;
+		p->last_index = 0;
 	}
+
+	for (int i = 0; i < SCORE_ROWS; ++i) {
+		a->rows[i].num_entries = 0;
+	}
+}
+
+void automationCursorInit(const Automation *a, Cursor *c) {
+	memset(c, 0, sizeof(*c));
+	c->auto_sequence = a->sequence_;
+
+	automationCursorAdvance(a, c, 0);
+}
+
+void automationCursorAdvance(const Automation *a, Cursor *c, sample_t s) {
+	if (a->sequence_ != c->auto_sequence) {
+		s += c->time;
+		automationCursorInit(a, c);
+	}
+
+	int bar = s / a->samples_per_bar;
+	if (bar >= a->bar_end) {
+		bar = a->bar_end - 1;
+		s = a->bar_end * a->samples_per_bar;
+	}
+
+	for (int i = 0; i < SCORE_ROWS; ++i) {
+		for (int j = c->row[i].last_entry; j < a->rows[i].num_entries; ++j) {
+			if (a->rows[i].entry[j].bar > 
+			const Pattern *p = a->patterns
+		}
+	}
+}
+
+void automationCursorSample(const Automation *a, Cursor *c, Frame *f) {
 }
 
 Envelope *automationGetEnvelope(Automation *a, int index) {

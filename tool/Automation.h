@@ -1,6 +1,5 @@
 #pragma once
 
-#define PATTERN_ENVELOPES 4
 #define SCORE_PATTERNS 8
 #define SCORE_LENGTH 8
 #define PATTERN_BARS 4
@@ -26,70 +25,103 @@ typedef struct {
 - tick_samples = bar_samples / 16
 */
 
-#define MAX_POINT_VALUES 4
-
 typedef struct {
 	int time;
-	float v[MAX_POINT_VALUES];
-} Point;
+	enum {
+		AEVT_NOTE_ON,
+		AEVT_NOTE_OFF,
+		AEVT_ENV_SET,
+		AEVT_ENV_PREDICT_LINEAR,
+	} type;
+	int lane;
+	unsigned index;
+	union {
+		struct {
+			int num;
+			float vel;
+		} note;
+		struct {
+			float value;
+			int delay;
+		} env;
+	} param;
+} PatternEvent;
 
-#define MAX_ENVELOPE_POINTS 64
+#define MAX_PATTERN_EVENTS 128
+#define PATTERN_SIGNALS 16
 
 typedef struct {
-	Point points[MAX_ENVELOPE_POINTS];
-} Envelope;
-
-void envGetValues(const Envelope *e, float time, Point *pout);
-void envKeypointCreate(Envelope *e, const Point *pin);
-int envKeypointGet(Envelope *e, int time, Point **pout);
-void envKeypointDelete(Envelope *e, Point *p);
-
-typedef struct {
-	unsigned int event : 1;
-	unsigned off : 1;
-	unsigned num : 8;
-} Note;
-
-typedef struct {
-	Note notes[PATTERN_TICKS];
+	int max_poly;
+	int num_events;
+	PatternEvent events[MAX_PATTERN_EVENTS];
+	unsigned last_index;
 } Pattern;
 
-typedef struct {
-	float notenum;
-	float gate;
-	float time_since_last_on;
-//	float adsr;
-} NoteSignal;
+/*
+int patternNoteAdd(Pattern *p, int time, int num, int length, float vel);
+int patternNoteDel(Pattern *p, unsigned index);
 
-void patGetSignal(const Pattern *p, float t, NoteSignal *sig_out);
+int patternEnvSet(Pattern *p, int lane, int time, float value);
+int patternEnvClear(Pattern *p, unsigned index);
+*/
+
 
 // 0: SAMPLERATE, BPM
 // 1: absolute time (sec)
 // 2: absolute samples (44100/sec)
 
-#define SCORE_ENVELOPES 4
+#define SCORE_ROWS 4
+#define ROW_MAX_ENTRIES 16
 
 typedef struct {
 	int samplerate, bpm;
 	int samples_per_bar, samples_per_tick;
 	float seconds_per_tick;
+	int bar_end;
 
-	Envelope env[SCORE_ENVELOPES];
 	Pattern patterns[SCORE_PATTERNS];
+	struct {
+		int num_entries;
+		struct {
+			int bar;
+			int pattern;
+		} entry[ROW_MAX_ENTRIES];
+	} rows[SCORE_ROWS];
+
+	unsigned sequence_;
 } Automation;
 
-void automationInit(Automation *a, int samplerate, int bpm);
+typedef unsigned int sample_t;
 
-Envelope *automationGetEnvelope(Automation *a, int index);
+typedef struct {
+	unsigned auto_sequence;
+	sample_t time;
+
+	struct {
+		int last_entry;
+		int last_pattern_event;
+		struct {
+			int on;
+			float phase;
+			float dphase;
+		} notes[PATTERN_SIGNALS];
+		struct {
+			int tick_start, tick_end;
+			float start, end;
+		} envs[PATTERN_SIGNALS];
+	} row[SCORE_ROWS];
+} Cursor;
+
+void automationInit(Automation *a, int samplerate, int bpm);
 
 typedef struct {
 	float *signal;
 	int start, end;
 } Frame;
 
-typedef unsigned int sample_t;
-
-void automationGetSamples(const Automation *a, sample_t start, sample_t end, Frame* frames);
+void automationCursorInit(const Automation *a, Cursor *c);
+void automationCursorAdvance(const Automation *a, Cursor *c, sample_t s);
+void automationCursorSample(const Automation *a, Cursor *c, Frame *f);
 
 #ifdef __cplusplus
 }
