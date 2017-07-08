@@ -7,6 +7,7 @@ CFLAGS += -Wall -Wextra -Werror -pedantic -Iatto -O0 -g
 CXXFLAGS += -std=c++11 $(CFLAGS)
 LIBS = -lX11 -lXfixes -lGL -lasound -lm -pthread
 OBJDIR ?= .obj
+MIDIDEV ?=
 
 DEPFLAGS = -MMD -MP
 COMPILE.c = $(CC) -std=gnu99 $(CFLAGS) $(DEPFLAGS) -MT $@ -MF $@.d
@@ -47,6 +48,6 @@ clean:
 	rm -f $(TOOL_OBJS) $(TOOL_DEPS) $(TOOL_EXE)
 
 run_tool: $(TOOL_EXE)
-	$(TOOL_EXE) -m ''
+	$(TOOL_EXE) -m $(MIDIDEV)
 
 .PHONY: all clean run_tool
