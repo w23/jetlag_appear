@@ -145,8 +145,10 @@ void Intro::key(ATimeUs ts, AKey key) {
 	(void)ts;
 	switch (key) {
 		case AK_Space: paused_ ^= 1; break;
+/*
 		case AK_Right: adjustTime(5000000); break;
 		case AK_Left: adjustTime(-5000000); break;
+*/
 		case AK_Esc: aAppTerminate(0);
 		default: break;
 	}
