@@ -1,15 +1,12 @@
 #pragma once
-#include "Automation.h"
-#include "lfmodel.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
 void timelineInit(const char *filename, int samplerate, int bpm);
-const Automation *timelineLock(LFLock *opaque_lock);
-void timelineUnlock(LFLock *opaque_lock);
-void timelinePaintData(const Automation *a);
+void timelinePaintUI();
+void timelineGetSignals(float *output, int signals, int count, int advance);
 
 typedef struct {
 	enum {

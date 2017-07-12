@@ -1,5 +1,6 @@
 #include "audio.h"
 #include "syntmash.h"
+#include "timeline.h"
 #include <string.h>
 
 #define COUNTOF(c) (sizeof(c)/sizeof(*(c)))
@@ -52,7 +53,7 @@ void audioInit(const char *synth_src, int samplerate) {
 	memset(g.state, 0, sizeof(g.state));
 }
 
-void audioSynthesize(float *samples, int num_samples, const Automation *a) {
+void audioSynthesize(float *samples, int num_samples) {
 	float input[1] = { 440.f / g.samplerate };
 	float stack[16];
 
@@ -69,7 +70,6 @@ void audioSynthesize(float *samples, int num_samples, const Automation *a) {
 	for (int i = 0; i < num_samples; ++i, ++g.samples) {
 #if 1
 		(void)ctx;
-		(void)a;
 		samples[i] = 0;
 #else
 		const Timeline::Sample sample = timeline.sample(samples_ / (float)samplerate_);

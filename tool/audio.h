@@ -1,13 +1,11 @@
 #pragma once
 
-#include "Automation.h"
-
 #ifdef __cplusplus
 extern "C" {
 #endif
 
 void audioInit(const char *synth_src, int samplerate);
-void audioSynthesize(float *samples, int num_samples, const Automation *a);
+void audioSynthesize(float *samples, int num_samples);
 
 #ifdef __cplusplus
 } /* extern "C" */

@@ -1,0 +1,44 @@
+bpm 120
+voices 4
+envelopes 12
+
+#loop 32.0 48.0
+
+pattern 0
+0:0
+	set 0 1
+	set 1 45
+	set 2 0
+	lin 2 1 0:1
+0:4
+	set 0 0
+0:8
+	set 0 1
+	set 1 43
+	set 2 0
+	lin 2 1 0:1
+0:12
+	set 0 0
+1:0
+	set 0 1
+	set 1 41
+	set 2 0
+	lin 2 1 0:1
+1:4
+	set 0 0
+1:8
+	set 0 1
+	set 1 36
+	set 2 0
+	lin 2 1 0:1
+1:12
+	set 0 0
+2:0
+	loop
+
+pattern 1
+0:0
+	set 0 0
+	set 1 0
+	set 2 0
+1:0

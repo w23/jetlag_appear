@@ -1,9 +1,10 @@
-#include "seqgui.h"
 #include "video.h"
 #include "audio.h"
 #include "timeline.h"
 #include "fileres.h"
+#include "common.h"
 #include "Intro.h"
+#include <cstring>
 
 Intro::Intro(int width, int height)
 	: paused_(0)
@@ -33,10 +34,7 @@ Intro::Intro(int width, int height)
 }
 
 void Intro::audio(float *samples, int nsamples) {
-	LFLock lock;
-	const Automation *a = timelineLock(&lock);
-	audioSynthesize(samples, nsamples, a);
-	timelineUnlock(&lock);
+	audioSynthesize(samples, nsamples);
 }
 
 static float fbuffer[32];
@@ -59,19 +57,12 @@ void Intro::paint(ATimeUs ts) {
 	//need_redraw |= timeline_.update();
 
 	{
-		LFLock lock;
-		Frame frame;
-		frame.start = 0;
-		frame.end = 9;
-		frame.signal = fbuffer + 3;
-		fbuffer[2] = now;
-		const Automation *a = timelineLock(&lock);
-		automationGetSamples(a, now * 44100.f, now * 44100.f + 1, &frame);
-		frame.start = 0;
-		frame.end = 32;
-		frame.signal = fbuffer;
+		float signals[64];
+		memset(signals, 0, sizeof(signals));
+		signals[2] = now;
+		timelineGetSignals(signals, COUNTOF(signals), 1, 0);
 		//for (int i = 0; i < frame.end; ++i) printf("%d=%f ", i, fbuffer[i]); printf("\n");
-		videoPaint(&frame, need_redraw);
+		videoPaint(signals, COUNTOF(signals), need_redraw);
 
 #if 0
 		glUseProgram(0);
@@ -118,7 +109,6 @@ static struct {
 	18, 29, 1.f, 0.f,
 };
 
-#define COUNTOF(c) (sizeof(c)/sizeof(*(c)))
 void Intro::midiControl(int ctl, int value) {
 	//if (ctl >= 0 && ctl < 4)
 	//	midi_[ctl] = value / 127.f;

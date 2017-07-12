@@ -1,8 +1,7 @@
 #include "video.h"
-#include "Automation.h"
 #include "fileres.h"
+#include "common.h"
 
-#include "atto/app.h"
 #define ATTO_GL_H_IMPLEMENT
 #include "atto/gl.h"
 
@@ -81,27 +80,22 @@ static struct {
 	GLint texture_unit[Texture_MAX];
 } g;
 
-static void drawPass(const Frame *frame, GLuint prog, GLuint fb) {
+static void drawPass(float *signals, int num_signals, GLuint prog, GLuint fb) {
 	GL(UseProgram(prog));
 	GL(BindFramebuffer(GL_FRAMEBUFFER, fb));
 	if (fb > 0) {
 		GL(Viewport(0, 0, g.width, g.height));
 		//GL(Uniform3f(glGetUniformLocation(prog, "V"), g.width, g.height, 0));
-		frame->signal[0] = g.width;
-		frame->signal[1] = g.height;
+		signals[0] = g.width;
+		signals[1] = g.height;
 	} else {
 		GL(Viewport(0, 0, a_app_state->width, a_app_state->height));
 		//GL(Uniform3f(glGetUniformLocation(prog, "V"), a_app_state->width, a_app_state->height, 0));
-		frame->signal[0] = a_app_state->width;
-		frame->signal[1] = a_app_state->height;
+		signals[0] = a_app_state->width;
+		signals[1] = a_app_state->height;
 	}
 	GL(Uniform1iv(glGetUniformLocation(prog, "S"), Texture_MAX, g.texture_unit));
-	GL(Uniform1fv(glGetUniformLocation(prog, "F"), frame->end - frame->start, frame->signal));
-	//GL(Uniform3f(glGetUniformLocation(prog, "C"), frame->signal[0], frame->signal[1], frame->signal[2]));
-	//GL(Uniform3f(glGetUniformLocation(prog, "A"), frame->signal[3], frame->signal[4], frame->signal[5]));
-	//GL(Uniform3f(glGetUniformLocation(prog, "D"), frame->signal[6], frame->signal[7], frame->signal[8]));
-	//GL(Uniform4f(glGetUniformLocation(prog, "M"), midi_[0], midi_[1], midi_[2], midi_[3]));
-
+	GL(Uniform1fv(glGetUniformLocation(prog, "F"), num_signals, signals));
 	GL(Rects(-1,-1,1,1));
 }
 
@@ -153,7 +147,7 @@ void videoInit(int width, int height) {
 	}
 }
 
-void videoPaint(const Frame *frame, int force_redraw) {
+void videoPaint(float *signals, int num_signals, int force_redraw) {
 	int need_redraw = force_redraw;
 
 	for (int i = 0; i < Pass_MAX; ++i)
@@ -161,7 +155,7 @@ void videoPaint(const Frame *frame, int force_redraw) {
 
 	if (need_redraw) {
 		for (int i = 0; i < Pass_MAX; ++i)
-			drawPass(frame, g.pass[i].program, g.pass[i].fb);
+			drawPass(signals, num_signals, g.pass[i].program, g.pass[i].fb);
 	}
 }
 

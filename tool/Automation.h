@@ -25,92 +25,84 @@ typedef struct {
 - tick_samples = bar_samples / 16
 */
 
-typedef struct {
-	int time;
+typedef struct PatternOp {
 	enum {
-		AEVT_NOTE_ON,
-		AEVT_NOTE_OFF,
-		AEVT_ENV_SET,
-		AEVT_ENV_PREDICT_LINEAR,
+		APOP_HALT,
+		APOP_WAIT,
+		APOP_LOOP,
+		APOP_ENV_SET,
+		APOP_ENV_LINEAR,
 	} type;
 	int lane;
-	unsigned index;
-	union {
-		struct {
-			int num;
-			float vel;
-		} note;
-		struct {
-			float value;
-			int delay;
-		} env;
-	} param;
-} PatternEvent;
+	float value;
+	int ticks;
+} PatternOp;
 
-#define MAX_PATTERN_EVENTS 128
-#define PATTERN_SIGNALS 16
+#define MAX_PATTERN_OPS 128
+#define MAX_PATTERN_ENVS 16
 
 typedef struct {
-	int max_poly;
-	int num_events;
-	PatternEvent events[MAX_PATTERN_EVENTS];
-	unsigned last_index;
+	PatternOp ops[MAX_PATTERN_OPS];
 } Pattern;
 
-/*
-int patternNoteAdd(Pattern *p, int time, int num, int length, float vel);
-int patternNoteDel(Pattern *p, unsigned index);
+typedef struct {
+	enum {
+		SCOP_HALT,
+		SCOP_WAIT,
+		SCOP_PATTERN_START,
+		SCOP_PATTERN_STOP,
+	} type;
+	int ticks;
+	int row;
+	int pattern;
+} ScoreOp;
 
-int patternEnvSet(Pattern *p, int lane, int time, float value);
-int patternEnvClear(Pattern *p, unsigned index);
-*/
-
-
-// 0: SAMPLERATE, BPM
-// 1: absolute time (sec)
-// 2: absolute samples (44100/sec)
-
-#define SCORE_ROWS 4
-#define ROW_MAX_ENTRIES 16
+#define MAX_SCORE_OPS 64
+#define MAX_SCORE_ROWS 4
+#define MAX_SCORE_PATTERNS 16
 
 typedef struct {
 	int samplerate, bpm;
 	int samples_per_bar, samples_per_tick;
 	float seconds_per_tick;
-	int bar_end;
 
-	Pattern patterns[SCORE_PATTERNS];
-	struct {
-		int num_entries;
-		struct {
-			int bar;
-			int pattern;
-		} entry[ROW_MAX_ENTRIES];
-	} rows[SCORE_ROWS];
+	int version;
 
-	unsigned sequence_;
+	int pattern_envs;
+	Pattern patterns[MAX_SCORE_PATTERNS];
+	ScoreOp sops[MAX_SCORE_OPS];
 } Automation;
 
 typedef unsigned int sample_t;
 
 typedef struct {
-	unsigned auto_sequence;
-	sample_t time;
+	enum {
+		EM_CONST,
+		EM_LINEAR,
+	} mode;
+	sample_t start;
+	float base, lcoeff;
+	float value;
+} EnvState;
 
-	struct {
-		int last_entry;
-		int last_pattern_event;
-		struct {
-			int on;
-			float phase;
-			float dphase;
-		} notes[PATTERN_SIGNALS];
-		struct {
-			int tick_start, tick_end;
-			float start, end;
-		} envs[PATTERN_SIGNALS];
-	} row[SCORE_ROWS];
-} Cursor;
+typedef struct {
+	int pattern;
+	int wait;
+	int pos;
+	sample_t start;
+	EnvState envs[MAX_PATTERN_ENVS];
+} RowState;
+
+typedef struct {
+	int data_version;
+
+	sample_t sample;
+
+	int scop_wait;
+	int scop_pos;
+
+	RowState row[MAX_SCORE_ROWS];
+} AutomCursor;
 
 void automationInit(Automation *a, int samplerate, int bpm);
 
@@ -119,10 +111,10 @@ typedef struct {
 	int start, end;
 } Frame;
 
-void automationCursorInit(const Automation *a, Cursor *c);
-void automationCursorAdvance(const Automation *a, Cursor *c, sample_t s);
-void automationCursorSample(const Automation *a, Cursor *c, Frame *f);
+void automationCursorInit(const Automation *a, AutomCursor *c);
+void automationCursorCompute(const Automation *a, AutomCursor *c, const Frame *f);
+void automationCursorComputeAndAdvance(const Automation *a, AutomCursor *c, sample_t delta, const Frame *f);
 
 #ifdef __cplusplus
-}
+} /* extern "C" */
 #endif

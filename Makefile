@@ -29,7 +29,6 @@ TOOL_SRCS = \
 	atto/src/app_x11.c \
 	tool/syntmash.c \
 	tool/Automation.c \
-	tool/seqgui.c \
 	tool/video.c \
 	tool/fileres.c \
 	tool/tool.cc \
