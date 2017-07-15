@@ -190,9 +190,9 @@ vec3 pointlight(vec3 lightpos, vec3 lightcolor, float metallic, float roughness,
 	const int Nao = 15;
 	float ki = 1. / float(Nao);
 	for (int i = 0; i < Nao; ++i) {
-		float dist = .35 * ki * float(i);
+		float dist = 2. * pow(ki * float(i), 1.3);
 		vec3 p = p + (.03 + dist) * L;//normal;
-		kao -= ki * smoothstep(-.1, .1, dist - world(p));
+		kao -= ki * smoothstep(-.05, .05, dist - world(p));
 	}
 #else
 	const float kao = 1.;
@@ -259,10 +259,12 @@ vec4 raycast(vec3 origin, vec3 ray, out vec3 p, out vec3 normal, out float rough
 	}
 
 	// vec3 pointlight(vec3 lightpos, vec3 lightcolor, float metallic, float roughness, vec3 albedo, vec3 p, vec3 ray, vec3 normal) {
+#if 0
 	color += pointlight(vec3(11., 6.,11.), 100.*vec3(.7,.35,.45), metallic, roughness, albedo, p, ray, normal);
 	color += pointlight(vec3(11., 6.,-11.),100.* vec3(.7,.35,.15), metallic, roughness, albedo, p, ray, normal);
 	color += pointlight(vec3(-11., 6.,-11.), 100.*vec3(.3,.35,.75), metallic, roughness, albedo, p, ray, normal);
 	color += pointlight(vec3(-11., 6.,11.), 100.*vec3(.7,.35,.15), metallic, roughness, albedo, p, ray, normal);
+#endif
 	//color += pointlight(vec3(4., 4., 0.), 1000.*F[16]*vec3(F[13],F[14],F[15]), metallic, roughness, albedo, p, ray, normal);
 	color += pointlight(vec3(2., 6. + 3.*sin(t), 0.), 100.*vec3(.85,.43,.56), metallic, roughness, albedo, p, ray, normal);
 	//color += pointlight(10.*(vec3(F[18], F[19], F[20]) - .5), 1000.*F[21]*vec3(F[22],F[23],F[24]), metallic, roughness, albedo, p, ray, normal);
