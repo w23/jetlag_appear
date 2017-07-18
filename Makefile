@@ -34,9 +34,8 @@ TOOL_SRCS = \
 	tool/seqgui.c \
 	tool/video.c \
 	tool/fileres.c \
-	tool/tool.cc \
+	tool/tool.c \
 	tool/audio.c \
-	tool/Intro.cc \
 	tool/timeline.c
 TOOL_OBJS = $(TOOL_SRCS:%=$(OBJDIR)/%.o)
 TOOL_DEPS = $(TOOL_OBJS:%=%.d)
