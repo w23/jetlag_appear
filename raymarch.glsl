@@ -175,10 +175,11 @@ vec3 pointlight(vec3 lightpos, vec3 lightcolor, float metallic, float roughness,
 	float ki = 1. / float(Nao);
 	for (int i = 1; i < Nao; ++i) {
 		float d = min(Ls, 2.) * float(i) * ki;
-		float cone = d * 2.;
 		vec3 p = p + d * L;
-		kao = min(kao, min(1., world(p)/cone));
+		float pass = min(1., world(p)/(d * 1.));
+		kao = min(kao, pass * pass);
 	}
+	//return vec3(kao);
 
 	vec3 H = normalize(ray + L), F0 = mix(vec3(.04), albedo, metallic);
 	float HV = max(dot(H, ray), .0), NV = max(dot(normal, ray), .0), NL = max(dot(normal, L), 0.), NH = max(dot(normal, H), 0.);
@@ -252,7 +253,7 @@ vec4 raycast(vec3 origin, vec3 ray, out vec3 p, out vec3 normal, out float rough
 	color += pointlight(vec3(-11., 6.,11.), 100.*vec3(.7,.35,.15), metallic, roughness, albedo, p, ray, normal);
 #endif
 	//color += pointlight(vec3(4., 4., 0.), 1000.*F[16]*vec3(F[13],F[14],F[15]), metallic, roughness, albedo, p, ray, normal);
-	color += pointlight(vec3(2., 6. + 3.*sin(t), 0.), 100.*vec3(.85,.43,.56), metallic, roughness, albedo, p, ray, normal);
+	color += pointlight(vec3(2., 1. + 6.*F[17], 0.), 100.*vec3(.85,.43,.56), metallic, roughness, albedo, p, ray, normal);
 	//color += pointlight(10.*(vec3(F[18], F[19], F[20]) - .5), 1000.*F[21]*vec3(F[22],F[23],F[24]), metallic, roughness, albedo, p, ray, normal);
 	color += pointlight(vec3(-1.,4.,2.), 100.*vec3(.14,.33,.23), metallic, roughness, albedo, p, ray, normal);
 
