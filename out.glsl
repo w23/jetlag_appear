@@ -1,5 +1,5 @@
 void main() {
-#define TEXTURE 4
+#define TEXTURE 6
 #if 0
 	gl_FragColor = texture2D(S[TEXTURE], gl_FragCoord.xy / V.xy);
 #else

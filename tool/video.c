@@ -26,6 +26,7 @@ typedef struct {
 enum {
 	Pass_Raymarch,
 	Pass_BlurReflection,
+	Pass_BlurReflection2,
 	Pass_Composite,
 	Pass_DofTap,
 	Pass_DofFill,
@@ -38,7 +39,9 @@ enum {
 	Texture_Noise,
 	Texture_RaymarchPrimary,
 	Texture_RaymarchReflection,
+	Texture_RaymarchReflectionColor,
 	Texture_RaymarchReflectionBlur,
+	Texture_RaymarchReflectionBlur2,
 	Texture_RaymarchCombined,
 	Texture_DofTapNear,
 	Texture_DofTapFar,
@@ -174,8 +177,9 @@ void videoInit(int width, int height) {
 		GLuint *tex = g.textures + 1;
 #define PASS(PASS, NTEX, FILENAME) \
 	passInit(g.pass + PASS, NTEX, tex, FILENAME); tex += NTEX
-		PASS(Pass_Raymarch, 2, "raymarch.glsl");
+		PASS(Pass_Raymarch, 3, "raymarch.glsl");
 		PASS(Pass_BlurReflection, 1, "blur_reflection.glsl");
+		PASS(Pass_BlurReflection2, 1, "blur_reflection2.glsl");
 		PASS(Pass_Composite, 1, "composite.glsl");
 		PASS(Pass_DofTap, 2, "dof_tap.glsl");
 		PASS(Pass_DofFill, 2, "dof_fill.glsl");

@@ -1,4 +1,4 @@
-out vec4 C0, C1;
+out vec4 C0, C1, C2;
 vec4 rnd(vec2 n) { return texture2DLod(S[0], (n-.5)/textureSize(S[0],0), 0); }
 float noise(float v) { return rnd(vec2(v)).w; }
 vec2 noise12(float v) { return rnd(vec2(v)).wx; }
@@ -196,13 +196,14 @@ vec3 pointlight(vec3 lightpos, vec3 lightcolor, float metallic, float roughness,
 	return /*30. * (.7 + .3 * noise(t*20. + lightpos.x)) */ kao * ((vec3(1.) - F) * (1. - metallic)* albedo / PI + brdf) * NL * lightcolor / LL;
 }
 
+vec3 color = E.xxx, albedo = E.zzz;
+float metallic = 0.;
+
 vec4 raycast(vec3 origin, vec3 ray, out vec3 p, out vec3 normal, out float roughness) {
 	vec3 tr = trace(origin, -ray);
 	p = origin - tr.x * ray;
 
-	vec3 color = E.xxx, albedo = E.zzz;
-	float metallic = 0.;
-	roughness = 0.;
+	color = E.xxx, albedo = E.zzz; metallic = roughness = 0.;
 
 	float w=world(p);
 	normal = normalize(vec3(world(p+E.yxx),world(p+E.xyx),world(p+E.xxy))-w);
@@ -277,8 +278,9 @@ void main() {
 	vec3 p, n;
 	float r1, r2;
 	C0 = raycast(origin, -ray, p, n, r1);
-	ray = reflect(ray, n);
-	C1 = raycast(p + ray + .02, -ray, p, n, r2);
+	vec3 ray2 = reflect(ray, n);
+	C2 = vec4(1.);//vec4(pointlight(p + ray2, E.zzz, metallic, r1, albedo, p, -ray, n), 0.);
+	C1 = raycast(p + ray2 + .02, -ray2, p, n, r2);
 	C1.w = r1;
 	//c2.w += c1.w;
 
