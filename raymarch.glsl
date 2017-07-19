@@ -1,4 +1,3 @@
-out vec4 C0, C1, C2;
 vec4 rnd(vec2 n) { return texture2DLod(S[0], (n-.5)/textureSize(S[0],0), 0); }
 float noise(float v) { return rnd(vec2(v)).w; }
 vec2 noise12(float v) { return rnd(vec2(v)).wx; }
@@ -171,29 +170,23 @@ vec3 pointlight(vec3 lightpos, vec3 lightcolor, float metallic, float roughness,
 	vec3 L = lightpos - p; float LL = dot(L,L), Ls = sqrt(LL);
 	L = normalize(L);
 
-#if 0
-	vec3 tr = trace(p + .02 * L, L);
-	if (tr.x < Ls ) return vec3(0.);
-	float kao = 1.;//smoothstep(.00, .05, tr.y);
-#elif 1
 	float kao = 1.;
 	const int Nao = 15;
 	float ki = 1. / float(Nao);
-	for (int i = 0; i < Nao; ++i) {
-		float dist = 2. * pow(ki * float(i), 1.3);
-		vec3 p = p + (.03 + dist) * L;//normal;
-		kao -= ki * smoothstep(-.05, .05, dist - world(p));
+	for (int i = 1; i < Nao; ++i) {
+		float d = min(Ls, 2.) * float(i) * ki;
+		float cone = d * 2.;
+		vec3 p = p + d * L;
+		kao = min(kao, min(1., world(p)/cone));
 	}
-#else
-	const float kao = 1.;
-#endif
 
 	vec3 H = normalize(ray + L), F0 = mix(vec3(.04), albedo, metallic);
 	float HV = max(dot(H, ray), .0), NV = max(dot(normal, ray), .0), NL = max(dot(normal, L), 0.), NH = max(dot(normal, H), 0.);
-	vec3 F = F0 + (1. - F0) * pow(1. - HV, 5.);
+	vec3 F = F0 + (1. - F0) * pow(1.01 - HV, 5.);
 	float G = GeometrySchlickGGX(NV, roughness) * GeometrySchlickGGX(NL, roughness);
-	vec3 brdf = DistributionGGX(NH, roughness)* G * F / (4. * NV * NL + .001);
-	return /*30. * (.7 + .3 * noise(t*20. + lightpos.x)) */ kao * ((vec3(1.) - F) * (1. - metallic)* albedo / PI + brdf) * NL * lightcolor / LL;
+	vec3 brdf = DistributionGGX(NH, roughness)* G * F / max(.001, 4. * NV * NL);
+	//return kao*vec3(1.);
+	return kao * ((vec3(1.) - F) * (1. - metallic)* albedo / PI + brdf) * NL * lightcolor / LL;
 }
 
 vec3 color = E.xxx, albedo = E.zzz;
@@ -277,11 +270,11 @@ void main() {
 
 	vec3 p, n;
 	float r1, r2;
-	C0 = raycast(origin, -ray, p, n, r1);
+	gl_FragData[0] = raycast(origin, -ray, p, n, r1);
 	vec3 ray2 = reflect(ray, n);
-	C2 = vec4(1.);//vec4(pointlight(p + ray2, E.zzz, metallic, r1, albedo, p, -ray, n), 0.);
-	C1 = raycast(p + ray2 + .02, -ray2, p, n, r2);
-	C1.w = r1;
+	gl_FragData[1] = raycast(p + ray2 + .02, -ray2, p, n, r2);
+	//gl_FragData[1].xyz *= pointlight(p + ray2, E.zzz, metallic, r1, albedo, p, -ray, n);
+	gl_FragData[1].w = r1;
 	//c2.w += c1.w;
 
 	//gl_FragColor = mix(c1, c2, pow(1.-r1,2.));
