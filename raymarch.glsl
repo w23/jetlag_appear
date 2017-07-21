@@ -139,7 +139,7 @@ float DistributionGGX(float NH, float r) {
 	r *= r; r *= r;
 	float denom = NH * NH * (r - 1.) + 1.;
 	denom = PI * denom * denom;
-	return r / denom;
+	return r / max(.001, denom);
 }
 float GeometrySchlickGGX(float NV, float r) {
 	r += 1.; r *= r / 8.;

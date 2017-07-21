@@ -9,6 +9,7 @@ vec3 V = vec3(F[0], F[1], F[2]),
 //float t = F[11];
 //float t = F[12] * 20.;
 float t = F[16]*10.;
+//float t = F[2];
 const vec3 E = vec3(.0,.01,1.);
 const float PI = 3.141593, PI2 = PI * 2.;
 #define T(s,c) texture2D(S[s], (c)/textureSize(S[s],0))

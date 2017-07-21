@@ -7,5 +7,6 @@ void main() {
 	gl_FragColor = texture2D(S[TEXTURE], gl_FragCoord.xy / V.xy);
 	//gl_FragColor = 1.*texture2D(S[TEXTURE], gl_FragCoord.xy / textureSize(S[TEXTURE],0)).wwww;
 #endif
+	//gl_FragColor.z += step(T(6,gl_FragCoord.xy).x,0.);
 
 }
