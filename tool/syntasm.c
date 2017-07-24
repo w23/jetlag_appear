@@ -34,7 +34,6 @@ void tokenizeLine(ParserContext *context) {
 		}
 
 		if (*p == '\n') {
-			++p;
 			context->status = Status_Parsed;
 			break;
 		}
