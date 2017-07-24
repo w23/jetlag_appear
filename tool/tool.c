@@ -85,6 +85,7 @@ static void midiCallback(void *userdata, const unsigned char *data, int bytes) {
 static void paint(ATimeUs ts, float dt) {
 	(void)dt;
 	resourcesUpdate();
+	audioCheckUpdate();
 
 	const float now = 1e-6f * ts;
 
@@ -168,7 +169,7 @@ void attoAppInit(struct AAppProctable *ptbl) {
 	timelineInit("timeline.seq", 44100, 120);
 	videoInit(width, height);
 
-	audioInit("", 44100);
+	audioInit("synth.src", 44100);
 	if (1 != audioOpen(NULL, audioCallback, midi_device, midiCallback))
 		aAppTerminate(-1);
 }

@@ -30,6 +30,7 @@ TOOL_SRCS = \
 	atto/src/app_linux.c \
 	atto/src/app_x11.c \
 	tool/syntmash.c \
+	tool/syntasm.c \
 	tool/Automation.c \
 	tool/seqgui.c \
 	tool/video.c \

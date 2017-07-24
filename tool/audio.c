@@ -1,64 +1,88 @@
 #include "audio.h"
 #include "syntmash.h"
+#include "syntasm.h"
+#include "fileres.h"
+#include "lfmodel.h"
+
 #include <string.h>
+#include <stdio.h>
 
 #define COUNTOF(c) (sizeof(c)/sizeof(*(c)))
 #define MACHINE_STACK 128
-
-static const SymaOp test_program[] = {
-	{SYMA_OP_PUSH_STATE, 0, 0},
-	{SYMA_OP_PUSH_IN, 1, 0},
-	{SYMA_OP_ADD, 0, 0},
-	{SYMA_OP_FRACT, 0, 0},
-	{SYMA_OP_DUP, 0, 0},
-	{SYMA_OP_POP_STATE, 0, 0},
-	//{SYMA_OP_PUSH, 0, .5f},
-
-	{SYMA_OP_PUSH_STATE, 1, 0},
-	{SYMA_OP_PUSH, 0, .5f / 44100.f},
-	{SYMA_OP_ADD, 0, 0},
-	{SYMA_OP_FRACT, 0, 0},
-	{SYMA_OP_DUP, 0, 0},
-	{SYMA_OP_POP_STATE, 1, 0},
-
-	{SYMA_OP_PSINE, 0, 0},
-	{SYMA_OP_PUSH, 0, 1.f},
-	{SYMA_OP_ADD, 0, 0},
-	{SYMA_OP_PUSH, 0, .5f},
-	{SYMA_OP_MUL, 0, 0},
-
-	{SYMA_OP_PUSH, 0, .1f},
-	{SYMA_OP_POW, 0, 0},
-
-	{SYMA_OP_POP, 0, 0,}, {SYMA_OP_PSINE, 0, 0},
-	//{SYMA_OP_PTRI, 0, 0},
-
-	{SYMA_OP_PUSH_IN, 0, 0},
-	{SYMA_OP_MUL, 0, 0}
-};
+#define MACHINE_STATE (1024 * 1024)
+#define MACHINE_PROGSIZE 1024
 
 static struct {
 	int samplerate;
-	float state[2];
 	unsigned long samples;
 	float time;
+	VolatileResource *source;
+	LFModel *lockedMachine;
+	unsigned last_sequence;
+	float state[MACHINE_STATE];
 } g;
 
+typedef struct {
+	unsigned sequence;
+	SymaRunContext ctx;
+	SymaOp program[MACHINE_PROGSIZE];
+} RuntimeData;
+
 void audioInit(const char *synth_src, int samplerate) {
-	(void)synth_src;
 	g.samplerate = samplerate;
 	g.samples = 0;
 	g.time = 0;
+	g.source = resourceOpenFile(synth_src);
+	RuntimeData data;
+	memset(&data, 0, sizeof(data));
+	g.lockedMachine = lfmCreate(3, sizeof(RuntimeData), &data, malloc);
+	g.last_sequence = 0;
 	memset(g.state, 0, sizeof(g.state));
 }
 
-void audioSynthesize(float *samples, int num_samples, const Automation *a) {
-	float input[1] = { 440.f / g.samplerate };
-	float stack[16];
+void audioCheckUpdate() {
+	if (!g.source->updated)
+		return;
 
+	printf("Compiling DSP firmware\n");
+
+	SymaOp program[MACHINE_PROGSIZE];
+	SymaRunContext context;
+	context.program = program;
+	context.program_size = COUNTOF(program);
+
+	if (!symasmCompile(&context, g.source->bytes))
+		return;
+
+	LFLock lock;
+	lfmModifyLock(g.lockedMachine, &lock);
+	const RuntimeData *old_runtime = lock.data_src;
+	RuntimeData *runtime = lock.data_dst;
+	runtime->sequence = old_runtime->sequence + 1;
+	
+	memcpy(runtime->program, program, context.program_size * sizeof(program[0]));
+	memcpy(&runtime->ctx, &context, sizeof(context));
+	runtime->ctx.program = runtime->program;
+	
+	if (!lfmModifyUnlock(g.lockedMachine, &lock))
+		abort();
+}
+
+void audioSynthesize(float *samples, int num_samples, const Automation *a) {
+	(void)a;
+	float input[1] = { 440.f / g.samplerate };
+	float stack[MACHINE_STACK];
 	SymaRunContext ctx;
-	ctx.program = test_program;
-	ctx.program_size = COUNTOF(test_program);
+
+	LFLock lock;
+	lfmReadLock(g.lockedMachine, &lock);
+	const RuntimeData *runtime = lock.data_src;
+	memcpy(&ctx, &runtime->ctx, sizeof(ctx));
+	if (runtime->sequence != g.last_sequence) {
+		memset(g.state, 0, sizeof(g.state));
+		g.last_sequence = runtime->sequence;
+	}
+
 	ctx.stack_size = COUNTOF(stack);
 	ctx.stack = stack;
 	ctx.input_size = COUNTOF(input);
@@ -66,23 +90,10 @@ void audioSynthesize(float *samples, int num_samples, const Automation *a) {
 	ctx.state = g.state;
 	ctx.state_size = COUNTOF(g.state);
 
-	for (int i = 0; i < num_samples; ++i, ++g.samples) {
-#if 1
-		(void)ctx;
-		(void)a;
-		samples[i] = 0;
-#else
-		const Timeline::Sample sample = timeline.sample(samples_ / (float)samplerate_);
-		ctx.input = sample.frame.signal + SCORE_ENVELOPES * MAX_POINT_VALUES;
-		ctx.input_size = SAMPLE_SIGNALS - SCORE_ENVELOPES * MAX_POINT_VALUES;
-		if (symaRun(&ctx) > 0) {
-//			printf("%f %f S ", state_[0], state_[1]);
-//			printf("%f %f %f %f %f\n", stack[4], stack[3], stack[2], stack[1], stack[0]);
-			samples[i] = stack[0];
-		} else
-			abort();
-#endif
-	}
+	for (int i = 0; i < num_samples; ++i, ++g.samples)
+		samples[i] = (symaRun(&ctx) > 0) ? stack[0] : 0;
+
+	lfmReadUnlock(g.lockedMachine, &lock);
 
 	g.time = g.samples / (float)g.samplerate;
 }
