@@ -9,9 +9,9 @@ void main() {
 	for (int i = 0; i < 81; i++) {
 		vec4 pix = T(5, gl_FragCoord.xy + rad * angle);
 
-		float A = .05;
+		float A = .04;
 		float D = fdist;
-		float F = .035 / tan(.7);
+		float F = .03 / tan(.7);
 		float P = pix.w;
 		float coc = abs(A * F / (P - F) * (P / D - 1.)) * V.x / .035;
 

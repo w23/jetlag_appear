@@ -147,6 +147,38 @@ float object2(vec3 p) {
 	return max(d, -cut);
 }
 
+float object3(vec3 p) {
+	p -= 3.*E.xzx;
+
+	float cd = dot(p, E.zxx*RY(t));
+	const float cr = .4, cs = .1;
+	float cut = abs(mod(cd,cr)-cr*.5)-cs;
+
+#if 0
+	float tt = F[2] * .3;
+	//p.xy = abs(p.yx); p *= RX(tt);
+	//p.xz = abs(p.zx); p *= RX(tt*.7);
+	p.zy = abs(p.yz); p *= RY(tt*1.1);
+	//p.zy = abs(p.yz); p *= RY(tt*1.1);
+#endif
+
+	float angle = floor(p.y+.5)*F[2]*.1;
+	p *= RY(angle);
+
+	float d = box(p, vec3(2.));
+	d = max(d, -box(p, vec3(1.8, 3., 1.8)));
+	//d = max(d, -box(rep3(p, vec3(1.)), vec3(9.,.2,9.)));
+
+	//float d = length(p) - 2. - .2*sin(2.*p.z*(1.+F[14]*10.)+2.*F[2]);
+	//d = max(d, -box(p, vec3(3.,.4,.4)));
+	//p *= RX(F[2]); 
+	//d = min(d, ring(p, 3., 3.2, .2)); 
+	//d = min(d, box(p, vec3(.3, 4., 1.)));
+
+	cut = 1.;
+	return max(d, -cut);
+}
+
 int mindex = 0;
 void PICK(inout float d, float dn, int mat) { if (dn<d) {d = dn; mindex = mat;} }
 
@@ -155,7 +187,7 @@ float world(vec3 p) {
 	PICK(w, ground(p), 1);
 	PICK(w, room(p), 3);// + 10. * E.zzz * (1./length(p))*sin(length(p)+F[2])), 3);
 	//PICK(w, dbgNoise(p), 3);
-	PICK(w, object2(p), 2);
+	PICK(w, object3(p), 2);
 	//PICK(w, grid(p), 3);
 	return w;
 }
@@ -172,16 +204,15 @@ float GeometrySchlickGGX(float NV, float r) {
 }
 
 vec3 trace(vec3 o, vec3 d) {
-	float l = 0., minw = 1e3;
+	float l = 0., w;
 	int i;
 	for (i = 0; i < 128; ++i) {
 		vec3 p = o+d*l;
-		float w = world(p);
-		l += w*.5;
-		minw = min(minw, w);
+		w = world(p);
+		l += w*.2;//mix(1.,.2,step(length(p),1.));
 		if (w < .002*l) break;
 	}
-	return vec3(l, minw, float(i));
+	return vec3(l, 0., float(i));
 }
 
 mat3 lookat(vec3 p, vec3 a, vec3 y) {
@@ -279,11 +310,12 @@ vec4 raycast(vec3 origin, vec3 ray, out vec3 p, out vec3 normal) {
 #endif
 	//color += pointlight(vec3(4., 4., 0.), 1000.*F[16]*vec3(F[13],F[14],F[15]), p, ray, normal);
 	//color += pointlight(vec3(2., 1. + 6.*F[17], 0.), 100.*vec3(.85,.43,.56), p, ray, normal);
-	//color += pointlight(10.*(vec3(F[18], F[19], F[20]) - .5), 1000.*F[21]*vec3(F[22],F[23],F[24]), p, ray, normal);
+	color += pointlight(10.*(vec3(F[18], F[19], F[20]) - .5), 1000.*F[21]*vec3(F[22],F[23],F[24]), p, ray, normal);
 
 	color += pointlight(vec3(-1.,4.,2.)*2., 100.*vec3(.14,.33,.23), p, ray, normal);
 	color += pointlight(vec3(2.,4.,-1.)*2., 100.*vec3(.14,.33,.23).zxy, p, ray, normal);
 	color += pointlight(7.*E.xzx, vec3(40.), p, ray, normal);
+	color += pointlight(vec3(0.,3.,0.), vec3(100.), p, ray, normal);
 
 	return vec4(color, tr.x);
 }
