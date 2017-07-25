@@ -69,6 +69,16 @@ int symaRun(SymaRunContext *context) {
 				stack[--sp] += v;
 				break;
 			}
+		case SYMA_OP_PADD: {
+				if (sp < 1) {
+					printf("Stack too shallow: %d\n", sp);
+					return 0;
+				}
+				const float v = stack[sp];
+				stack[--sp] += v;
+				stack[sp] = fmodf(stack[sp], 1.f);
+				break;
+			}
 		case SYMA_OP_MUL: {
 				if (sp < 1) {
 					printf("Stack too shallow: %d\n", sp);

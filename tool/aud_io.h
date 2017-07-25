@@ -1,5 +1,9 @@
 #pragma once
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 typedef void(*audio_callback_f)(void *userdata, float *samples, int nsamples);
 typedef void(*midi_callback_f)(void *userdata, const unsigned char *data, int bytes);
 int audioOpen(void *userdata, audio_callback_f acb, const char *dev, midi_callback_f mcb);
@@ -109,4 +113,8 @@ void audioClose() {
 #else
 #error NOT IMPLEMENTED
 #endif
+#endif
+
+#ifdef __cplusplus
+} /* extern "C" */
 #endif

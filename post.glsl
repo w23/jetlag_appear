@@ -1,36 +1,42 @@
-uniform sampler2D S[8];
-uniform float F[32];
-vec3 V = vec3(F[0], F[1], F[2]),
-		 C = vec3(F[3], F[4], F[5]),
-		 A = vec3(F[6], F[7], F[8]),
-		 D = vec3(F[9], F[10], F[11]);
-float t = F[11];
-
+vec4 mergeNearFar(vec2 p) {
+	p *= textureSize(S[6],0);
+#if 0
+	return T(5,p);
+#else
+	vec4 near = T(6,p), far = T(7,p);
+	return mix(near, far, far.w / (near.w + far.w));
+#endif
+}
 void main() {
-	vec2 uv = gl_FragCoord.xy / V.xy;
-	vec4 color = vec4(0.);
+	vec2 uv = gl_FragCoord.xy / textureSize(S[6], 0);
+	vec3 color = vec3(0.);
 
 #if 0
-	float rad = 0.;
-	vec2 pixel = .002 * vec2(V.y/V.x, 1.), angle = vec2(0.,1.1);
-	mat2 rot = mat2(cos(2.4),sin(2.4),-sin(2.4),cos(2.4));
-	for (int i = 0; i < 256; i++) {
-		vec4 sample = texture2D(S[1], uv + pixel * rad * angle);
-
-		//float CoC = abs(100. * .5 * (D.z - sample.w) / sample.w / (D.z - .5));
-		//gl_FragColor = vec4(fract(CoC), fract(CoC/10.), fract(CoC/100.), 0.);//min(1., CoC));
-		//gl_FragColor = vec4(CoC/10.);
-		//return;
-
-		if (abs(50. * (F[11] - sample.w) / sample.w / (F[11] - .5)) > rad)
-			color += vec4(sample.xyz, 1.);
-
-		rad += 1. / (rad + 1.);
-		angle *= rot;
-	}
+	color = mergeNearFar(uv).xyz;
+#else
+	uv -= .5;
+	float amount = .4;
+	color =
+		vec3(
+		mergeNearFar(.5+uv).r,
+		mergeNearFar(.5+uv*(1.+.05*amount)).g,
+		mergeNearFar(.5+uv*(1.+.1*amount)).b);
 #endif
 
-	color = texture2D(S[1], uv);
+	// FIXME: color.w has wrong semantics
+	//color.xyz = pow(color.xyz / (color.xyz + color.w), vec3(1./2.2));
+	color /= color + 1.;
+	color = pow(color, vec3(1./2.2));
 
-	gl_FragColor = vec4(pow(color.xyz / (color.xyz + color.w), vec3(1./2.2)), 1.);
+#if 1
+	// grain
+	//color.xyz -= .03*texture2D(S[0], uv+F[2]*vec2(600.,107.)).y;
+	color-= .03*T(0, gl_FragCoord.xy*.3+F[2]*vec2(623.,1107.)).y;
+
+	//color.xyz *= (1. - smoothstep(.5,.7,length(uv-.5)));
+	uv = 1. - 2. * abs(uv);
+	color*= min(1., 20.*uv.x*uv.y);
+#endif
+
+	gl_FragColor = vec4(color, 1.);
 }
