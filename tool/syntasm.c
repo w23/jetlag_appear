@@ -1,69 +1,8 @@
 #include "syntmash.h"
+#include "common.h"
 
 #include <stdlib.h>
-#include <stdio.h>
 #include <string.h>
-#include <ctype.h>
-
-#define MAX_TOKEN_LENGTH 16
-#define MAX_LINE_TOKENS 2
-
-typedef struct {
-	const char *line, *prev_line;
-	int line_number;
-	struct {
-		char str[MAX_TOKEN_LENGTH];
-	} token[MAX_LINE_TOKENS];
-	int tokens;
-	enum {
-		Status_Parsed,
-		Status_End,
-		Status_TokenTooLong,
-		Status_TooManyTokens,
-	} status;
-} ParserContext;
-
-void tokenizeLine(ParserContext *context) {
-	const char *p = context->line;
-	context->tokens = 0;
-	for (;;) {
-		while (*p && isspace(*p) && *p != '\n') ++p;
-		if (!*p) {
-			context->status = Status_End;
-			break;
-		}
-
-		if (*p == '\n') {
-			context->status = Status_Parsed;
-			break;
-		}
-
-		if (*p == ';') {
-			while (*p && *p != '\n') ++p;
-			context->status = Status_Parsed;
-			break;
-		}
-
-		const char *start = p;
-		while (*p && isgraph(*p)) ++p;
-		const int tok_len = p - start;
-		if (tok_len >= MAX_TOKEN_LENGTH) {
-			context->status = Status_TokenTooLong;
-			break;
-		}
-
-		if (context->tokens == MAX_LINE_TOKENS) {
-			context->status = Status_TokenTooLong;
-			break;
-		}
-
-		memcpy(context->token[context->tokens].str, start, tok_len);
-		context->token[context->tokens].str[tok_len] = '\0';
-		++context->tokens;
-	}
-	if (*p == '\n') ++p;
-	context->line = p;
-}
 
 static struct {
 	const char *name;
@@ -72,7 +11,7 @@ static struct {
 	enum {
 		ArgType_Float,
 		ArgType_Int,
-	} arg_type[MAX_LINE_TOKENS-1];
+	} arg_type[1];
 } opcode_table[] = {
 	{"push", SYMA_OP_PUSH, 1, {ArgType_Float}},
 	{"pop", SYMA_OP_POP, 0, {ArgType_Float}},
@@ -96,11 +35,11 @@ int symasmCompile(SymaRunContext *ctx_inout, const char *source) {
 	parser_context.line_number = 0;
 	SymaOp *op = (SymaOp*)ctx_inout->program;
 	for (;;) {
-		tokenizeLine(&parser_context);
+		parseLine(&parser_context);
 		if (parser_context.status == Status_End)
 			break;
 		if (parser_context.status != Status_Parsed) {
-			printf("Parsing error: %d at line %d\n",
+			MSG("Parsing error: %d at line %d",
 				parser_context.status, parser_context.line_number);
 			return 0;
 		}
@@ -108,18 +47,17 @@ int symasmCompile(SymaRunContext *ctx_inout, const char *source) {
 		if (parser_context.tokens < 1)
 			continue;
 
-#define COUNTOF(a) (sizeof(a)/sizeof(*(a)))
 		int token_found = 0;
 		for (unsigned long i = 0; i < COUNTOF(opcode_table); ++i)
 			if (0 == strcmp(parser_context.token[0].str, opcode_table[i].name)) {
 				const int args = parser_context.tokens - 1;
 				if (args != opcode_table[i].args) {
-					printf("Parsing error: incorrect number of args on line %d\n", parser_context.line_number);
+					MSG("Parsing error: incorrect number of args on line %d", parser_context.line_number);
 					return 0;
 				}
 
 				if (op - ctx_inout->program >= ctx_inout->program_size) {
-					printf("Parsing error: too many ops on line %d\n", parser_context.line_number);
+					MSG("Parsing error: too many ops on line %d", parser_context.line_number);
 					return 0;
 				}
 
@@ -142,7 +80,7 @@ int symasmCompile(SymaRunContext *ctx_inout, const char *source) {
 			}
 
 		if (!token_found) {
-			printf("Parsing error: invalid token %s at line %d\n",
+			MSG("Parsing error: invalid token %s at line %d",
 					parser_context.token[0].str, parser_context.line_number);
 			return 0;
 		}

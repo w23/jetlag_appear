@@ -52,6 +52,26 @@ typedef struct {
 } Event;
 void timelineEdit(const Event *event);
 
+#define PARSER_MAX_TOKEN_LENGTH 16
+#define PARSER_MAX_LINE_TOKENS 8
+
+typedef struct {
+	const char *line, *prev_line;
+	int line_number;
+	struct {
+		char str[PARSER_MAX_TOKEN_LENGTH];
+	} token[PARSER_MAX_LINE_TOKENS];
+	int tokens;
+	enum {
+		Status_Parsed,
+		Status_End,
+		Status_TokenTooLong,
+		Status_TooManyTokens,
+	} status;
+} ParserContext;
+
+void parseLine(ParserContext *context);
+
 #ifdef __cplusplus
 } /* extern "C" */
 #endif
