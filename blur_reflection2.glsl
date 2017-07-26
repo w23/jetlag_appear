@@ -4,7 +4,7 @@ void main() {
 	//gl_FragColor = vec4(z/100000.); return;
 	for(float y = -8.; y < 8.; ++y)
 		for(float x = -8.; x < 8.; ++x) {
-			vec4 s = T(3,vec2(x,y)+gl_FragCoord.xy);
+			vec4 s = T(3,2.*vec2(x,y)+gl_FragCoord.xy+.5);
 			//float sr = mod(s.w,128.)/127., sz = floor(s.w / 128.) / 127. * 100.;
 			//if (abs(r-sr) < .2 && abs(z-sz) < .1)
 				c += vec4(s.xyz, 1.);

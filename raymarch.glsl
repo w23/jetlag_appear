@@ -209,7 +209,7 @@ vec3 trace(vec3 o, vec3 d) {
 	for (i = 0; i < 128; ++i) {
 		vec3 p = o+d*l;
 		w = world(p);
-		l += w*.2;//mix(1.,.2,step(length(p),1.));
+		l += w;//*.2;//mix(1.,.2,step(length(p),1.));
 		if (w < .002*l) break;
 	}
 	return vec3(l, 0., float(i));

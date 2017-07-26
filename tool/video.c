@@ -27,7 +27,6 @@ enum {
 	Pass_BlurReflection2,
 	Pass_Composite,
 	Pass_DofTap,
-	Pass_DofFill,
 	Pass_MergeAndPost,
 	Pass_ToolOut,
 	Pass_MAX
@@ -42,8 +41,6 @@ enum {
 	Texture_RaymarchCombined,
 	Texture_DofTapNear,
 	Texture_DofTapFar,
-	Texture_DofFillNear,
-	Texture_DofFillFar,
 	Texture_Frame,
 	Texture_MAX
 };
@@ -172,7 +169,6 @@ void videoInit(int width, int height) {
 		PASS(Pass_BlurReflection2, 1, "blur_reflection2.glsl");
 		PASS(Pass_Composite, 1, "composite.glsl");
 		PASS(Pass_DofTap, 2, "dof_tap.glsl");
-		PASS(Pass_DofFill, 2, "dof_fill.glsl");
 		PASS(Pass_MergeAndPost, 1, "post.glsl");
 		PASS(Pass_ToolOut, 0, "out.glsl");
 #undef PASS
