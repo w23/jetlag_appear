@@ -1,6 +1,4 @@
-#include "fileres.h"
-
-#include "atto/app.h"
+#include "common.h"
 
 #include <sys/types.h>
 #include <sys/stat.h>
@@ -37,14 +35,14 @@ static void resourcePoll(ResourceEntry *e) {
 
 	int fd = open(e->filename, O_RDONLY);
 	if (fd < 0) {
-		aAppDebugPrintf("Cannot open file %s", e->filename);
+		MSG("Cannot open file %s", e->filename);
 		return;
 	}
 
 	void *bytes = calloc(1, st.st_size + 1);
 
 	if (read(fd, bytes, st.st_size) != st.st_size) {
-		aAppDebugPrintf("Cannot read file\n");
+		MSG("Cannot read file");
 		free(bytes);
 		return;
 	}
@@ -57,7 +55,7 @@ static void resourcePoll(ResourceEntry *e) {
 	e->public.size = st.st_size;
 	e->public.bytes = bytes;
 
-	aAppDebugPrintf("Reread file %s", e->filename);
+	MSG("Reread file %s", e->filename);
 }
 
 VolatileResource *resourceOpenFile(const char *filename) {
@@ -69,7 +67,7 @@ VolatileResource *resourceOpenFile(const char *filename) {
 			return &e->public;
 		}
 	}
-	ATTO_ASSERT("All resource slots busy");
+	ASSERT("All resource slots busy");
 	return 0;
 }
 

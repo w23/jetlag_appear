@@ -1,5 +1,3 @@
-#include "video.h"
-#include "fileres.h"
 #include "common.h"
 
 #include "atto/app.h"
@@ -52,6 +50,7 @@ enum {
 
 static struct {
 	int width, height;
+	int output_width, output_height;
 	GLuint textures[Texture_MAX];
 	RenderPass pass[Pass_MAX];
 	GLint texture_unit[Texture_MAX];
@@ -64,7 +63,7 @@ void passInit(RenderPass *pass, int ntex, const GLuint *tex, const char *src_fil
 		GL(GenFramebuffers(1, &pass->fb));
 		GL(BindFramebuffer(GL_FRAMEBUFFER, pass->fb)); 
 		for (int i = 0; i < ntex; ++i) {
-			aAppDebugPrintf("%s %p %d %d %d", src_file, pass, pass->fb, i, tex[i]);
+			MSG("%s %p %d %d %d", src_file, pass, pass->fb, i, tex[i]);
 			GL(FramebufferTexture2D(GL_FRAMEBUFFER,
 					GL_COLOR_ATTACHMENT0 + i, GL_TEXTURE_2D, tex[i], 0));
 		}
@@ -83,7 +82,7 @@ int passCheckAndUpdateProgram(RenderPass *pass) {
 	if (!pass->fragment_source->updated && !g.common_header->updated)
 		return 0;
 
-	aAppDebugPrintf("Loading for %s", pass->name);
+	MSG("Loading for %s", pass->name);
 
 	const char * const vertex[] = { fs_vtx_source, NULL };
 	const char * const fragment[] = { 
@@ -93,7 +92,7 @@ int passCheckAndUpdateProgram(RenderPass *pass) {
 	AGLProgram new_program = aGLProgramCreate(vertex, fragment);
 
 	if (new_program < 0) {
-		aAppDebugPrintf("shader error: %s\n", a_gl_error);
+		MSG("shader error: %s", a_gl_error);
 		return 0;
 	}
 
@@ -115,10 +114,10 @@ static void drawPass(float *signals, int num_signals, const RenderPass *pass) {
 		const GLuint bufs[] = { GL_COLOR_ATTACHMENT0, GL_COLOR_ATTACHMENT1, GL_COLOR_ATTACHMENT2 };
 		GL(DrawBuffers(pass->targets, bufs));
 	} else {
-		GL(Viewport(0, 0, a_app_state->width, a_app_state->height));
-		signals[0] = a_app_state->width;
-		signals[1] = a_app_state->height;
-		GL(Uniform3f(glGetUniformLocation(pass->program, "V"), a_app_state->width, a_app_state->height, 0));
+		GL(Viewport(0, 0, g.output_width, g.output_height));
+		signals[0] = g.output_width;
+		signals[1] = g.output_height;
+		GL(Uniform3f(glGetUniformLocation(pass->program, "V"), g.output_width, g.output_height, 0));
 	}
 	GL(Uniform1iv(glGetUniformLocation(pass->program, "S"), Texture_MAX, g.texture_unit));
 	GL(Uniform1fv(glGetUniformLocation(pass->program, "F"), num_signals, signals));
@@ -178,6 +177,11 @@ void videoInit(int width, int height) {
 		PASS(Pass_ToolOut, 0, "out.glsl");
 #undef PASS
 	}
+}
+
+void videoOutputResize(int width, int height) {
+	g.output_width = width;
+	g.output_height = height;
 }
 
 void videoPaint(float *signals, int num_signals, int force_redraw) {

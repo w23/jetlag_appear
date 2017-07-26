@@ -1,10 +1,10 @@
 #include "common.h"
+
 #include "seqgui.h"
 #include "Automation.h"
 #define LFM_IMPLEMENT
 #include "lfmodel.h"
-#include "timeline.h"
-#include "fileres.h"
+
 #include <stdio.h>
 #include <fcntl.h>
 #include <unistd.h>
@@ -34,7 +34,7 @@ void timelineInit(const char *filename, int samplerate, int bpm) {
 	LFLock lock;
 	lfmModifyLock(g.model, &lock);
 	memcpy(lock.data_dst, &a, sizeof(a));
-	ATTO_ASSERT(lfmModifyUnlock(g.model, &lock));
+	ASSERT(lfmModifyUnlock(g.model, &lock));
 }
 
 void timelineGetSignals(float *output, int signals, int count, int advance) {

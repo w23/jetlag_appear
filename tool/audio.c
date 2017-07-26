@@ -1,14 +1,12 @@
-#include "audio.h"
+#include "common.h"
+
 #include "syntmash.h"
-#include "timeline.h"
 #include "syntasm.h"
-#include "fileres.h"
 #include "lfmodel.h"
 
 #include <string.h>
 #include <stdio.h>
 
-#define COUNTOF(c) (sizeof(c)/sizeof(*(c)))
 #define MACHINE_STACK 128
 #define MACHINE_STATE (1024 * 1024)
 #define MACHINE_PROGSIZE 1024
@@ -45,7 +43,7 @@ void audioCheckUpdate() {
 	if (!g.source->updated)
 		return;
 
-	printf("Compiling DSP firmware\n");
+	MSG("Compiling DSP firmware");
 
 	SymaOp program[MACHINE_PROGSIZE];
 	SymaRunContext context;

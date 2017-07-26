@@ -1,8 +1,4 @@
-#include "video.h"
-#include "audio.h"
-#include "timeline.h"
-#include "fileres.h"
-#define COUNTOF(a) (sizeof(a)/sizeof(*(a)))
+#include "common.h"
 
 #include "atto/app.h"
 #define AUDIO_IMPLEMENT
@@ -51,7 +47,7 @@ static void midiControl(int ctl, int value) {
 		}
 	}
 
-	aAppDebugPrintf("%d -> %d", ctl, value);
+	MSG("%d -> %d", ctl, value);
 }
 
 static void audioCallback(void *userdata, float *samples, int nsamples) {
@@ -61,9 +57,6 @@ static void audioCallback(void *userdata, float *samples, int nsamples) {
 
 static void midiCallback(void *userdata, const unsigned char *data, int bytes) {
 	(void)userdata;
-	for (int i = 0; i < bytes; ++i)
-		printf("%02x ", data[i]);
-	printf("\n");
 
 	for (; bytes > 2; bytes -= 3, data += 3) {
 		//const int channel = data[0] & 0x0f;
@@ -75,6 +68,8 @@ static void midiCallback(void *userdata, const unsigned char *data, int bytes) {
 			case 0xb0:
 				midiControl(data[1] - 0x30, data[2]);
 				break;
+			default:
+				MSG("%02x %02x %02x", data[0], data[1], data[2]);
 		}
 	}
 }
@@ -87,12 +82,13 @@ static void paint(ATimeUs ts, float dt) {
 	const float now = 1e-6f * ts;
 
 	{
-		//for (int i = 0; i < frame.end; ++i) printf("%d=%f ", i, fbuffer[i]); printf("\n");
+		//for (int i = 0; i < frame.end; ++i) MSG("%d=%f ", i, fbuffer[i]);
 		//float signals[64];
 		//memset(signals, -1, sizeof(signals));
 		fbuffer[2] = now;
 		//timelineGetSignals(signals, COUNTOF(signals), 1, 0);
 		
+		videoOutputResize(a_app_state->width, a_app_state->height);
 		videoPaint(fbuffer, COUNTOF(fbuffer), 1);
 
 #if 0
