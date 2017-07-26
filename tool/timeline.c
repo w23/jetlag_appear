@@ -17,11 +17,22 @@ static struct {
 
 /*
 static void serialize(const char *file, const Automation *a);
-
-static void deserialize(const char *data, Automation *a) {
-	automationInit(a, g.samplerate, g.bpm);
-}
 */
+
+static int deserialize(const char *data, Automation *a) {
+	automationInit(a, g.samplerate, g.bpm);
+
+	ParserContext parser;
+	parser.line = data;
+	parser.prev_line = 0;
+	parser.line_number = 0;
+	for (;;) {
+		parseLine(&parser);
+
+		// TODO
+		return 0;
+	}
+}
 
 void timelineInit(const char *filename, int samplerate, int bpm) {
 	g.samplerate = samplerate;
@@ -35,6 +46,24 @@ void timelineInit(const char *filename, int samplerate, int bpm) {
 	lfmModifyLock(g.model, &lock);
 	memcpy(lock.data_dst, &a, sizeof(a));
 	ASSERT(lfmModifyUnlock(g.model, &lock));
+}
+
+void timelineCheckUpdate() {
+	if (!g.timeline_source->updated)
+		return;
+
+	Automation a;
+	if (!deserialize(g.timeline_source->bytes, &a))
+		return;
+
+	LFLock lock;
+	lfmModifyLock(g.model, &lock);
+	for (;;) {
+		a.version = ((const Automation*)lock.data_src)->version + 1;
+		memcpy(lock.data_dst, &a, sizeof(a));
+		if (lfmModifyUnlock(g.model, &lock))
+			break;
+	}
 }
 
 void timelineGetSignals(float *output, int signals, int count, int advance) {
