@@ -130,7 +130,7 @@ float object2(vec3 p) {
 	const float cr = .4, cs = .1;
 	float cut = abs(mod(cd,cr)-cr*.5)-cs;
 
-#if 1
+#if 0
 	float tt = F[2] * .3;
 	p.xy = abs(p.yx); p *= RX(tt);
 	p.xz = abs(p.zx); p *= RX(tt*.7);
@@ -142,8 +142,9 @@ float object2(vec3 p) {
 	//d = max(d, -box(p, vec3(3.,.4,.4)));
 	//p *= RX(F[2]); 
 	d = min(d, ring(p, 3., 3.2, .2)); 
-	d = min(d, box(p, vec3(.3, 4., 1.)));
+	//d = min(d, box(p, vec3(.3, 4., 1.)));
 
+	cut = 10.;
 	return max(d, -cut);
 }
 
@@ -187,20 +188,9 @@ float world(vec3 p) {
 	PICK(w, ground(p), 1);
 	PICK(w, room(p), 3);// + 10. * E.zzz * (1./length(p))*sin(length(p)+F[2])), 3);
 	//PICK(w, dbgNoise(p), 3);
-	PICK(w, object3(p), 2);
+	PICK(w, object2(p), 2);
 	//PICK(w, grid(p), 3);
 	return w;
-}
-
-float DistributionGGX(float NH, float r) {
-	r *= r; r *= r;
-	float denom = NH * NH * (r - 1.) + 1.;
-	denom = PI * denom * denom;
-	return r / max(.001, denom);
-}
-float GeometrySchlickGGX(float NV, float r) {
-	r += 1.; r *= r / 8.;
-	return NV / (NV * (1. - r) + r);
 }
 
 vec3 trace(vec3 o, vec3 d) {
@@ -225,6 +215,29 @@ mat3 lookat(vec3 p, vec3 a, vec3 y) {
 vec3 color, albedo;
 float metallic, roughness;
 
+float DistributionGGX(float NH, float r) {
+	r *= r; r *= r;
+	float denom = NH * NH * (r - 1.) + 1.;
+	denom = PI * denom * denom;
+	return r / max(1e-10, denom);
+}
+float GeometrySchlickGGX(float NV, float r) {
+	r += 1.; r *= r / 8.;
+	return NV / (NV * (1. - r) + r);
+}
+vec3 pbr(vec3 lightdir, vec3 ray, vec3 normal) {
+	roughness = max(.01, roughness);
+	vec3 H = normalize(ray + lightdir), F0 = mix(vec3(.04), albedo, metallic);
+	float HV = max(dot(H, ray), .0),
+				NV = max(dot(normal, ray), .0),
+				NL = max(dot(normal, lightdir), 0.),
+				NH = max(dot(normal, H), 0.);
+	vec3 F = F0 + (1. - F0) * pow(1.001 - HV, 5.);
+	float G = GeometrySchlickGGX(NV, roughness) * GeometrySchlickGGX(NL, roughness);
+	vec3 brdf = DistributionGGX(NH, roughness) * G * F / max(1e-10, 4. * NV * NL);
+	return ((vec3(1.) - F) * (1. - metallic) * albedo / PI + brdf) * NL;
+}
+
 vec3 pointlight(vec3 lightpos, vec3 lightcolor, vec3 p, vec3 ray, vec3 normal) {
 	vec3 L = lightpos - p; float LL = dot(L,L), Ls = sqrt(LL);
 	L = normalize(L);
@@ -238,15 +251,9 @@ vec3 pointlight(vec3 lightpos, vec3 lightcolor, vec3 p, vec3 ray, vec3 normal) {
 		float pass = min(1., world(p)/(d * 1.));
 		kao = min(kao, pass * pass);
 	}
-	//return vec3(kao);
 
-	vec3 H = normalize(ray + L), F0 = mix(vec3(.04), albedo, metallic);
-	float HV = max(dot(H, ray), .0), NV = max(dot(normal, ray), .0), NL = max(dot(normal, L), 0.), NH = max(dot(normal, H), 0.);
-	vec3 F = F0 + (1. - F0) * pow(1.01 - HV, 5.);
-	float G = GeometrySchlickGGX(NV, roughness) * GeometrySchlickGGX(NL, roughness);
-	vec3 brdf = DistributionGGX(NH, roughness)* G * F / max(.001, 4. * NV * NL);
-	//return kao*vec3(1.);
-	return kao * ((vec3(1.) - F) * (1. - metallic)* albedo / PI + brdf) * NL * lightcolor / LL;
+	//return vec3(kao);
+	return pbr(L, ray, normal) * lightcolor * kao / LL;
 }
 
 vec4 raycast(vec3 origin, vec3 ray, out vec3 p, out vec3 normal) {
@@ -332,13 +339,20 @@ void main() {
 	//origin += LAT * vec3(uv*.01, 0.);
 	vec3 ray = LAT * normalize(vec3(uv, -1.));//-D.y));
 
+	//gl_FragData[0] = vec4(ray,0.); return;
+
 	vec3 p, n;
 	gl_FragData[0] = raycast(origin, -ray, p, n);
 	float r1 = roughness;
 	vec3 ray2 = reflect(ray, n);
-	gl_FragData[1] = raycast(p + ray2 + .02, -ray2, p, n);
+	//p += ray2 * .02;
+	vec3 k = vec3(1.);//pbr(ray2, -ray, n);
+	//gl_FragData[1] = vec4(ray2/10., 0.); return;
+	//gl_FragData[1] = vec4(k, 0.); return;
+	gl_FragData[1] = vec4(k, 1.) * raycast(p + ray2 * .02, -ray2, p, n);
+	//gl_FragData[1].xyz /= max(.1,gl_FragData[1].w);
 	//gl_FragData[1].xyz *= pointlight(p + ray2, E.zzz, metallic, r1, albedo, p, -ray, n);
-	//gl_FragData[1].w = floor(r1*127.) + 128. * floor(gl_FragData[0].w/100.*127.);
+	//gl_FragData[1].w = floor(r1*31.) + 32. * floor(gl_FragData[0].w/100.*31.);
 	gl_FragData[1].w = r1;
 	//c2.w += c1.w;
 

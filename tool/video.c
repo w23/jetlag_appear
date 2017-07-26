@@ -36,6 +36,7 @@ enum {
 	Texture_Noise,
 	Texture_RaymarchPrimary,
 	Texture_RaymarchReflection,
+	//Texture_RaymarchReflectionMeta,
 	Texture_RaymarchReflectionBlur,
 	Texture_RaymarchReflectionBlur2,
 	Texture_RaymarchCombined,
