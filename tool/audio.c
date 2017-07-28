@@ -68,7 +68,7 @@ void audioCheckUpdate() {
 }
 
 void audioSynthesize(float *samples, int num_samples) {
-	float input[1] = { 440.f / g.samplerate };
+	float input[16] = { 440.f / g.samplerate };
 	float stack[MACHINE_STACK];
 	SymaRunContext ctx;
 
@@ -88,8 +88,10 @@ void audioSynthesize(float *samples, int num_samples) {
 	ctx.state = g.state;
 	ctx.state_size = COUNTOF(g.state);
 
-	for (int i = 0; i < num_samples; ++i, ++g.samples)
+	for (int i = 0; i < num_samples; ++i, ++g.samples) {
+		timelineGetSignals(input, COUNTOF(input), 1, 1);
 		samples[i] = (symaRun(&ctx) > 0) ? stack[0] : 0;
+	}
 
 	lfmReadUnlock(g.lockedMachine, &lock);
 

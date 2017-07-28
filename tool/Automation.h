@@ -3,9 +3,6 @@
 #define SCORE_PATTERNS 8
 #define SCORE_LENGTH 8
 #define PATTERN_BARS 4
-#define TICKS_PER_BAR 8
-#define PATTERN_TICKS (PATTERN_BARS * TICKS_PER_BAR)
-#define SCORE_TICKS (PATTERN_TICKS * SCORE_LENGTH)
 
 #ifdef __cplusplus
 extern "C" {
@@ -104,7 +101,7 @@ typedef struct {
 	RowState row[MAX_SCORE_ROWS];
 } AutomCursor;
 
-void automationInit(Automation *a, int samplerate, int bpm);
+void automationInit(Automation *a, int samplerate, int bpm, int ticks_per_bar);
 
 typedef struct {
 	float *signal;

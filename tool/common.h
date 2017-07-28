@@ -32,7 +32,8 @@ void audioInit(const char *synth_src, int samplerate);
 void audioSynthesize(float *samples, int num_samples);
 void audioCheckUpdate();
 
-void timelineInit(const char *filename, int samplerate, int bpm);
+void timelineInit(const char *filename, int samplerate);
+void timelineCheckUpdate();
 void timelinePaintUI();
 void timelineGetSignals(float *output, int signals, int count, int advance);
 

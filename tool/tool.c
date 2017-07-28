@@ -77,16 +77,17 @@ static void midiCallback(void *userdata, const unsigned char *data, int bytes) {
 static void paint(ATimeUs ts, float dt) {
 	(void)dt;
 	resourcesUpdate();
+	timelineCheckUpdate();
 	audioCheckUpdate();
 
 	const float now = 1e-6f * ts;
 
 	{
-		//for (int i = 0; i < frame.end; ++i) MSG("%d=%f ", i, fbuffer[i]);
-		//float signals[64];
-		//memset(signals, -1, sizeof(signals));
+		float signals[8];
+		memset(signals, -1, sizeof(signals));
 		fbuffer[2] = now;
-		//timelineGetSignals(signals, COUNTOF(signals), 1, 0);
+		timelineGetSignals(signals, COUNTOF(signals), 1, 0);
+		for (unsigned long i = 0; i < COUNTOF(signals); ++i) MSG("%d=%f ", i, fbuffer[i]);
 		
 		videoOutputResize(a_app_state->width, a_app_state->height);
 		videoPaint(fbuffer, COUNTOF(fbuffer), 1);
@@ -153,7 +154,7 @@ void attoAppInit(struct AAppProctable *ptbl) {
 	}
 
 	resourcesInit();
-	timelineInit("timeline.seq", 44100, 120);
+	timelineInit("timeline.txt", 44100);
 	videoInit(width, height);
 
 	audioInit("synth.src", 44100);

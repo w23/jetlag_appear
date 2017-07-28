@@ -4,18 +4,18 @@
 #include <stdlib.h>
 #include <assert.h>
 
-void automationInit(Automation *a, int samplerate, int bpm) {
+void automationInit(Automation *a, int samplerate, int bpm, int ticks_per_bar) {
 	memset(a, 0, sizeof(*a));
 
 	a->version = 0;
 	a->samplerate = samplerate;
 	a->bpm = bpm;
 	a->samples_per_bar = a->samplerate * 4 * 60 / a->bpm;
-	a->samples_per_tick = a->samples_per_bar / TICKS_PER_BAR;
+	a->samples_per_tick = a->samples_per_bar / ticks_per_bar;
 	a->seconds_per_tick = (float)a->samples_per_tick / a->samplerate;
 }
 
-void automationAutomCursorInit(const Automation *a, AutomCursor *c) {
+void automationCursorInit(const Automation *a, AutomCursor *c) {
 	memset(c, 0, sizeof(*c));
 	c->data_version = a->version;
 }
@@ -52,7 +52,7 @@ static void cursorScopAdvance(const Automation *a, AutomCursor *c, sample_t samp
 }
 
 static void cursorRowAdvance(const Automation *a, AutomCursor *c, int row, sample_t sample) {
-	assert(row > 0 && row < MAX_SCORE_ROWS);
+	assert(row >= 0 && row < MAX_SCORE_ROWS);
 	RowState *rs = c->row + row;
 	assert(rs->pattern >= 0 && rs->pattern < MAX_SCORE_PATTERNS);
 	assert(rs->wait == 0);
@@ -114,14 +114,14 @@ static void cursorComputeRowSignals(const Automation *a, AutomCursor *c, int row
 		writeSignal(envs, MAX_PATTERN_ENVS, row * a->pattern_envs, frame_idx, f);
 }
 
-void automationAutomCursorCompute(const Automation *a, AutomCursor *c, const Frame *f) {
+void automationCursorCompute(const Automation *a, AutomCursor *c, const Frame *f) {
 	for (int j = 0; j < MAX_SCORE_ROWS; ++j) {
 		if (c->row[j].pattern < 0) continue;
 		cursorComputeRowSignals(a, c, j, 0, f);
 	} // for all rows 
 }
 
-void automationAutomCursorComputeAndAdvance(const Automation *a, AutomCursor *c, sample_t duration, const Frame *f) {
+void automationCursorComputeAndAdvance(const Automation *a, AutomCursor *c, sample_t duration, const Frame *f) {
 	for (sample_t i = 0; i < duration; ++i, ++c->sample) {
 		if (c->scop_wait)
 			--c->scop_wait;
