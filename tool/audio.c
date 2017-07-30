@@ -89,7 +89,7 @@ void audioSynthesize(float *samples, int num_samples) {
 	ctx.state_size = COUNTOF(g.state);
 
 	for (int i = 0; i < num_samples; ++i, ++g.samples) {
-		timelineGetSignals(input, COUNTOF(input), 1, 1);
+		timelineComputeSignalsAndAdvance(input, COUNTOF(input), 1);
 		samples[i] = (symaRun(&ctx) > 0) ? stack[0] : 0;
 	}
 

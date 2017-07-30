@@ -2,7 +2,7 @@
 
 #define COUNTOF(a) (sizeof(a) / sizeof(*(a)))
 
-#define ASSERT(c)
+#define ASSERT(c) (void)(c)
 
 #define MSG(...) \
 	aAppDebugPrintf( __VA_ARGS__)
@@ -35,7 +35,8 @@ void audioCheckUpdate();
 void timelineInit(const char *filename, int samplerate);
 void timelineCheckUpdate();
 void timelinePaintUI();
-void timelineGetSignals(float *output, int signals, int count, int advance);
+void timelineGetLatestSignals(float *output, int signals);
+void timelineComputeSignalsAndAdvance(float *output, int signals, int count);
 
 typedef struct {
 	enum {

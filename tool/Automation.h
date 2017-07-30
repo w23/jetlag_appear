@@ -1,9 +1,5 @@
 #pragma once
 
-#define SCORE_PATTERNS 8
-#define SCORE_LENGTH 8
-#define PATTERN_BARS 4
-
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -22,95 +18,131 @@ typedef struct {
 - tick_samples = bar_samples / 16
 */
 
-typedef struct PatternOp {
+#define AM_MAX_PROGRAM_ARGS 4
+#define AM_MAX_PROGRAM_OPS 128
+#define AM_MAX_PROGRAMS 8
+#define AM_MAX_CURSOR_CORES 16
+#define AM_MAX_CURSOR_SIGNALS 32
+
+typedef enum {
+	AmOp_Halt,
+	AmOp_Wait,
+	AmOp_Loop,
+	AmOp_Signal_Set,
+	AmOp_Signal_Linear,
+	AmOp_Program_Start,
+	AmOp_Program_Stop,
+} AmOpType;
+
+typedef union {
+	float f;
+	int i;
+} AmValue;
+
+typedef struct {
 	enum {
-		APOP_HALT,
-		APOP_WAIT,
-		APOP_LOOP,
-		APOP_ENV_SET,
-		APOP_ENV_LINEAR,
+		AmArg_Immediate,
+		AmArg_Reference,
 	} type;
-	int lane;
-	float value;
-	int ticks;
-} PatternOp;
+	union {
+		int ref;
+		AmValue imm;
+	} value;
+} AmArgument;
 
-#define MAX_PATTERN_OPS 128
-#define MAX_PATTERN_ENVS 16
+static inline AmArgument amArgImmInt(int i) {
+	AmArgument arg;
+	arg.type = AmArg_Immediate;
+	arg.value.imm.i = i;
+	return arg;
+}
+
+static inline AmArgument amArgImmFloat(float f) {
+	AmArgument arg;
+	arg.type = AmArg_Immediate;
+	arg.value.imm.f = f;
+	return arg;
+}
+
+static inline AmArgument amArgRef(int ref) {
+	AmArgument arg;
+	arg.type = AmArg_Reference;
+	arg.value.ref = ref;
+	return arg;
+}
 
 typedef struct {
-	PatternOp ops[MAX_PATTERN_OPS];
-} Pattern;
+	AmOpType type;
+	union {
+		struct {
+			AmArgument ticks;
+		} wait;
+		struct {
+			AmArgument ticks;
+		} loop;
+		struct {
+			AmArgument signal;
+			AmArgument value;
+		} signal_set;
+		struct {
+			AmArgument signal;
+			AmArgument value;
+			AmArgument ticks;
+		} signal_linear;
+		struct {
+			AmArgument program;
+			AmArgument core;
+			AmArgument args[AM_MAX_PROGRAM_ARGS];
+		} program;
+	} a;
+} AmOp;
 
 typedef struct {
-	enum {
-		SCOP_HALT,
-		SCOP_WAIT,
-		SCOP_PATTERN_START,
-		SCOP_PATTERN_STOP,
-	} type;
-	int ticks;
-	int row;
-	int pattern;
-} ScoreOp;
-
-#define MAX_SCORE_OPS 64
-#define MAX_SCORE_ROWS 4
-#define MAX_SCORE_PATTERNS 16
+	int epilogue;
+	AmOp ops[AM_MAX_PROGRAM_OPS];
+} AmProgram;
 
 typedef struct {
+	int serial;
 	int samplerate, bpm;
 	int samples_per_bar, samples_per_tick;
-	float seconds_per_tick;
 
-	int version;
+	AmProgram programs[AM_MAX_PROGRAMS];
+} AmData;
 
-	int pattern_envs;
-	Pattern patterns[MAX_SCORE_PATTERNS];
-	ScoreOp sops[MAX_SCORE_OPS];
-} Automation;
-
-typedef unsigned int sample_t;
+typedef unsigned am_sample_t;
 
 typedef struct {
 	enum {
-		EM_CONST,
-		EM_LINEAR,
+		AmSignal_Const,
+		AmSignal_Linear,
 	} mode;
-	sample_t start;
+	am_sample_t start;
 	float base, lcoeff;
-	float value;
-} EnvState;
+} AmCursorSignalState;
 
 typedef struct {
-	int pattern;
-	int wait;
-	int pos;
-	sample_t start;
-	EnvState envs[MAX_PATTERN_ENVS];
-} RowState;
+	AmValue args[AM_MAX_PROGRAM_ARGS];
+	int program;
+	am_sample_t wait;
+	int next_op;
+	am_sample_t start;
+} AmCursorCoreState;
 
 typedef struct {
-	int data_version;
+	int data_serial;
 
-	sample_t sample;
+	am_sample_t sample;
 
-	int scop_wait;
-	int scop_pos;
+	AmCursorCoreState core[AM_MAX_CURSOR_CORES];
+	AmCursorSignalState signal[AM_MAX_CURSOR_SIGNALS];
+	float signal_values[AM_MAX_CURSOR_SIGNALS];
+} AmCursor;
 
-	RowState row[MAX_SCORE_ROWS];
-} AutomCursor;
+void amDataInit(AmData *a, int samplerate, int bpm, int ticks_per_bar);
 
-void automationInit(Automation *a, int samplerate, int bpm, int ticks_per_bar);
-
-typedef struct {
-	float *signal;
-	int start, end;
-} Frame;
-
-void automationCursorInit(const Automation *a, AutomCursor *c);
-void automationCursorCompute(const Automation *a, AutomCursor *c, const Frame *f);
-void automationCursorComputeAndAdvance(const Automation *a, AutomCursor *c, sample_t delta, const Frame *f);
+void amCursorInit(const AmData *a, AmCursor *c);
+void amCursorAdvance(const AmData *a, AmCursor *c, am_sample_t delta);
 
 #ifdef __cplusplus
 } /* extern "C" */

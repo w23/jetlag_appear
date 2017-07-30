@@ -86,8 +86,8 @@ static void paint(ATimeUs ts, float dt) {
 		float signals[8];
 		memset(signals, -1, sizeof(signals));
 		fbuffer[2] = now;
-		timelineGetSignals(signals, COUNTOF(signals), 1, 0);
-		for (unsigned long i = 0; i < COUNTOF(signals); ++i) MSG("%d=%f ", i, fbuffer[i]);
+		timelineGetLatestSignals(signals, COUNTOF(signals));
+		for (unsigned long i = 0; i < COUNTOF(signals); ++i) MSG("%d=%f ", i, signals[i]);
 		
 		videoOutputResize(a_app_state->width, a_app_state->height);
 		videoPaint(fbuffer, COUNTOF(fbuffer), 1);

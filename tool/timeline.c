@@ -1,6 +1,6 @@
 #include "common.h"
 
-#include "seqgui.h"
+//#include "seqgui.h"
 #include "Automation.h"
 #define LFM_IMPLEMENT
 #include "lfmodel.h"
@@ -11,13 +11,13 @@
 
 static struct {
 	int samplerate, bpm;
-	LFModel *locked_automation;
+	LFModel *locked_data;
 	LFModel *locked_cursor;
 	VolatileResource *timeline_source;
 } g;
 
 /*
-static void serialize(const char *file, const Automation *a);
+static void serialize(const char *file, const AmData *a);
 */
 
 static struct {
@@ -26,14 +26,12 @@ static struct {
 		Token_BPM,
 		Token_BarTicks,
 		Token_Loop,
-		Token_Pattern,
+		Token_Program,
 		Token_Time,
 		Token_Set,
 		Token_Lin,
-		Token_Score,
 		Token_PStart,
 		Token_PStop,
-		Token_End,
 		Token_PreviewLoop,
 	} type;
 	int args;
@@ -48,17 +46,15 @@ static struct {
 	{"lin", Token_Lin, 3, {ArgType_Int, ArgType_Float, ArgType_Time}},
 	{"t", Token_Time, 1, {ArgType_Time}},
 	{"loop", Token_Loop, 0, {0}},
-	{"pattern", Token_Pattern, 1, {ArgType_Int}},
-	{"pstart", Token_PStart, 1, {ArgType_Int}},
-	{"pend", Token_PStop, 1, {ArgType_Int}},
-	{"score", Token_Score, 0, {0}},
-	{"end", Token_End, 0, {0}},
+	{"program", Token_Program, 1, {ArgType_Int}},
+	{"pstart", Token_PStart, 2, {ArgType_Int, ArgType_Int}},
+	{"pend", Token_PStop, 2, {ArgType_Int, ArgType_Int}},
 	{"bpm", Token_BPM, 1, {ArgType_Int}},
 	{"bar_ticks", Token_BarTicks, 1, {ArgType_Int}},
 	{"preview_loop", Token_PreviewLoop, 2, {ArgType_Time, ArgType_Time}},
 };
 
-static int deserialize(const char *data, Automation *a) {
+static int deserialize(const char *data, AmData *a) {
 	ParserContext parser;
 	parser.line = data;
 	parser.prev_line = 0;
@@ -67,11 +63,10 @@ static int deserialize(const char *data, Automation *a) {
 	int bpm = 120;
 	int bar_ticks = 16;
 
-	int pattern_index = -1;
+	int program_index = -1;
 	int prev_tick = 0;
 	int wait_ticks = 0;
 	int op_index = 0;
-	int score = 0;
 
 	for (;;) {
 		parseLine(&parser);
@@ -144,21 +139,17 @@ static int deserialize(const char *data, Automation *a) {
 				// TODO
 				break;
 
-			case Token_Pattern:
-				if (score) {
-					MSG("Already in score");
-					return 0;
-				}
-				if (pattern_index == -1)
-					automationInit(a, g.samplerate, bpm, bar_ticks);
+			case Token_Program:
+				if (program_index == -1)
+					amDataInit(a, g.samplerate, bpm, bar_ticks);
 
-				pattern_index = argv[0].i;
-				if (pattern_index < 0 || pattern_index >= MAX_SCORE_PATTERNS) {
-					MSG("Pattern index %d is invalid", pattern_index);
+				program_index = argv[0].i;
+				if (program_index < 0 || program_index >= AM_MAX_PROGRAMS) {
+					MSG("Program index %d is invalid", program_index);
 					return 0;
 				}
-				for (int j = 0; j < MAX_PATTERN_OPS; ++j)
-					a->patterns[pattern_index].ops[j].type = APOP_HALT;
+				for (int j = 0; j < AM_MAX_PROGRAM_OPS; ++j)
+					a->programs[program_index].ops[j].type = AmOp_Halt;
 				prev_tick = wait_ticks = 0;
 				op_index = 0;
 				break;
@@ -171,95 +162,61 @@ static int deserialize(const char *data, Automation *a) {
 			case Token_Lin:
 			case Token_Set:
 			case Token_Loop:
-				if (pattern_index == -1) {
-					MSG("set is a pattern operation");
+			case Token_PStart:
+			case Token_PStop: {
+				if (program_index == -1) {
+					MSG("set is a program operation");
 					return 0;
 				}
 
-				if (op_index >= MAX_PATTERN_OPS) {
-					MSG("too many ops for pattern %d", pattern_index);
+				if (op_index >= AM_MAX_PROGRAM_OPS) {
+					MSG("too many ops for program %d", program_index);
 					return 0;
 				}
 
 				if (wait_ticks != 0) {
-					PatternOp *op = a->patterns[pattern_index].ops + op_index;
-					op->type = APOP_WAIT;
-					op->ticks = wait_ticks;
+					AmOp *op = a->programs[program_index].ops + op_index;
+					op->type = AmOp_Wait;
+					op->a.wait.ticks = amArgImmInt(wait_ticks);
 					wait_ticks = 0;
 					++op_index;
 				}
 
-				if (op_index >= MAX_PATTERN_OPS) {
-					MSG("too many ops for pattern %d", pattern_index);
+				if (op_index >= AM_MAX_PROGRAM_OPS) {
+					MSG("too many ops for program %d", program_index);
 					return 0;
 				}
 
-				PatternOp *op = a->patterns[pattern_index].ops + op_index;
+				AmOp *op = a->programs[program_index].ops + op_index;
 
 				if (tokens[itok].type == Token_Set) {
-					op->type = APOP_ENV_SET;
-					op->lane = argv[0].i;
-					op->value = argv[1].f;
+					op->type = AmOp_Signal_Set;
+					op->a.signal_set.signal = amArgImmInt(argv[0].i);
+					op->a.signal_set.value = amArgImmFloat(argv[1].f);
 				} else if (tokens[itok].type == Token_Lin) {
-					op->type = APOP_ENV_LINEAR;
-					op->lane = argv[0].i;
-					op->value = argv[1].f;
-					op->ticks = argv[2].ticks;
+					op->type = AmOp_Signal_Linear;
+					op->a.signal_linear.signal = amArgImmInt(argv[0].i);
+					op->a.signal_linear.value = amArgImmFloat(argv[1].f);
+					op->a.signal_linear.ticks = amArgImmInt(argv[2].ticks);
 				} else if (tokens[itok].type == Token_Loop) {
-					op->type = APOP_LOOP;
-				}
-
-				++op_index;
-				break;
-
-			case Token_Score:
-				score = 1;
-				pattern_index = -1;
-				prev_tick = wait_ticks = 0;
-				op_index = 0;
-				break;
-
-			case Token_PStart:
-			case Token_PStop:
-			case Token_End: {
-				if (!score) {
-					MSG("score scope expected");
-					return 0;
-				}
-
-				if (op_index >= MAX_SCORE_OPS) {
-					MSG("too many ops for score");
-					return 0;
-				}
-
-				if (wait_ticks != 0) {
-					ScoreOp *op = a->sops + op_index;
-					op->type = SCOP_WAIT;
-					op->ticks = wait_ticks;
-					wait_ticks = 0;
-					++op_index;
-				}
-
-				if (op_index >= MAX_SCORE_OPS) {
-					MSG("too many ops for score");
-					return 0;
-				}
-
-				ScoreOp *op = a->sops + op_index;
-				if (tokens[itok].type == Token_PStart) {
-					op->type = SCOP_PATTERN_START;
-					op->row = op->pattern = argv[0].i;
+					op->type = AmOp_Loop;
+					op->a.loop.ticks = amArgImmInt(0);
+				} else if (tokens[itok].type == Token_PStart) {
+					op->type = AmOp_Program_Start;
+					op->a.program.program = amArgImmInt(argv[0].i);
+					op->a.program.core = amArgImmInt(argv[1].i);
+					// TODO op->a.program.args
 				} else if (tokens[itok].type == Token_PStop) {
-					op->type = SCOP_PATTERN_STOP;
-					op->row = op->pattern = argv[0].i;
-				} else if (tokens[itok].type == Token_End) {
-					op->type = SCOP_HALT;
+					op->type = AmOp_Program_Stop;
+					op->a.program.program = amArgImmInt(argv[0].i);
+					op->a.program.core = amArgImmInt(argv[1].i);
+					// TODO op->a.program.args
 				}
 
 				++op_index;
 				break;
 			}
-		}
+		} // switch (token type)
 	} // for(;;)
 
 	MSG("Timeline updated");
@@ -268,19 +225,19 @@ static int deserialize(const char *data, Automation *a) {
 
 void timelineInit(const char *filename, int samplerate) {
 	g.samplerate = samplerate;
-	g.locked_automation = lfmCreate(4, sizeof(Automation), NULL, malloc);
-	g.locked_cursor = lfmCreate(4, sizeof(AutomCursor), NULL, malloc);
+	g.locked_data = lfmCreate(4, sizeof(AmData), NULL, malloc);
+	g.locked_cursor = lfmCreate(4, sizeof(AmCursor), NULL, malloc);
 	g.timeline_source = resourceOpenFile(filename);
 
-	Automation a;
-	automationInit(&a, samplerate, 120, 16);
+	AmData a;
+	amDataInit(&a, samplerate, 120, 16);
 	LFLock lock;
-	lfmModifyLock(g.locked_automation, &lock);
+	lfmModifyLock(g.locked_data, &lock);
 	memcpy(lock.data_dst, &a, sizeof(a));
-	ASSERT(lfmModifyUnlock(g.locked_automation, &lock));
+	ASSERT(lfmModifyUnlock(g.locked_data, &lock));
 
-	AutomCursor c;
-	automationCursorInit(&a, &c);
+	AmCursor c;
+	amCursorInit(&a, &c);
 	lfmModifyLock(g.locked_cursor, &lock);
 	memcpy(lock.data_dst, &c, sizeof(c));
 	ASSERT(lfmModifyUnlock(g.locked_cursor, &lock));
@@ -290,63 +247,67 @@ void timelineCheckUpdate() {
 	if (!g.timeline_source->updated)
 		return;
 
-	Automation a;
+	AmData a;
 	if (!deserialize(g.timeline_source->bytes, &a))
 		return;
 
 	LFLock lock;
-	lfmModifyLock(g.locked_automation, &lock);
+	lfmModifyLock(g.locked_data, &lock);
 	for (;;) {
-		a.version = ((const Automation*)lock.data_src)->version + 1;
+		a.serial = ((const AmData*)lock.data_src)->serial + 1;
 		memcpy(lock.data_dst, &a, sizeof(a));
-		if (lfmModifyUnlock(g.locked_automation, &lock))
+		if (lfmModifyUnlock(g.locked_data, &lock))
 			break;
 	}
 }
 
-void timelineGetSignals(float *output, int signals, int count, int advance) {
-	LFLock automation_lock;
-	lfmReadLock(g.locked_automation, &automation_lock);
-	{
-		LFLock cursor_lock;
-		Frame f;
-		f.signal = output;
-		f.start = 0;
-		f.end = signals;
-		if (advance) {
-			lfmModifyLock(g.locked_cursor, &cursor_lock);
-			memcpy(cursor_lock.data_dst, cursor_lock.data_src, sizeof(AutomCursor));
-			automationCursorComputeAndAdvance(automation_lock.data_src, cursor_lock.data_dst, count, &f);
-			ASSERT(lfmModifyUnlock(g.locked_cursor, &cursor_lock));
-		} else {
-			AutomCursor c;
-			lfmReadLock(g.locked_cursor, &cursor_lock);
-			memcpy(&c, cursor_lock.data_src, sizeof(c));
-			ASSERT(lfmReadUnlock(g.locked_cursor, &cursor_lock));
-			automationCursorCompute(automation_lock.data_src, &c, &f);
+static void copyCursorSignals(const AmCursor *cur, float *output, int signals) {
+	signals = signals < AM_MAX_CURSOR_SIGNALS ? signals : AM_MAX_CURSOR_SIGNALS;
+	memcpy(output, cur->signal_values, sizeof(*output) * signals);
+}
+
+void timelineComputeSignalsAndAdvance(float *output, int signals, int count) {
+	LFLock data_lock, cursor_lock;
+	lfmReadLock(g.locked_data, &data_lock);
+	lfmModifyLock(g.locked_cursor, &cursor_lock);
+	memcpy(cursor_lock.data_dst, cursor_lock.data_src, sizeof(AmCursor));
+	if (output) {
+		for (int i = 0; i < count; ++i) {
+			amCursorAdvance(data_lock.data_src, cursor_lock.data_dst, 1);
+			copyCursorSignals(cursor_lock.data_dst, output, signals);
+			output += signals;
 		}
-	}
-	lfmReadUnlock(g.locked_automation, &automation_lock);
+	} else
+		amCursorAdvance(data_lock.data_src, cursor_lock.data_dst, count);
+	ASSERT(lfmModifyUnlock(g.locked_cursor, &cursor_lock));
+	lfmReadUnlock(g.locked_data, &data_lock);
+}
+
+void timelineGetLatestSignals(float *output, int signals) {
+	LFLock cursor_lock;
+	lfmReadLock(g.locked_cursor, &cursor_lock);
+	copyCursorSignals(cursor_lock.data_src, output, signals);
+	lfmReadUnlock(g.locked_cursor, &cursor_lock);
 }
 
 void timelinePaintUI() {
 #if 0
 	GuiTransform transform = {0, 0, 1};
-	guiPaintAutomation(a, 0 /*FIXME now*/, transform);
+	guiPaintAmData(a, 0 /*FIXME now*/, transform);
 #endif
 }
 
 void timelineEdit(const Event *event) {
 	LFLock lock;
-	lfmModifyLock(g.locked_automation, &lock);
+	lfmModifyLock(g.locked_data, &lock);
 	for (;;) {
-		memcpy(lock.data_dst, lock.data_src, sizeof(Automation));
+		memcpy(lock.data_dst, lock.data_src, sizeof(AmData));
 
 		// TODO
 		(void)event;
 
-		if (lfmModifyUnlock(g.locked_automation, &lock))
+		if (lfmModifyUnlock(g.locked_data, &lock))
 			break;
-		lfmModifyRetry(g.locked_automation, &lock);
+		lfmModifyRetry(g.locked_data, &lock);
 	}
 }

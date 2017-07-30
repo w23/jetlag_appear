@@ -1,142 +1,161 @@
 #include "Automation.h"
+#include "common.h"
 #include <math.h>
 #include <memory.h>
 #include <stdlib.h>
-#include <assert.h>
 
-void automationInit(Automation *a, int samplerate, int bpm, int ticks_per_bar) {
+#define MAX_CORE_OPS_PER_STEP 64
+
+void amDataInit(AmData *a, int samplerate, int bpm, int ticks_per_bar) {
 	memset(a, 0, sizeof(*a));
 
-	a->version = 0;
+	a->serial = 0;
 	a->samplerate = samplerate;
 	a->bpm = bpm;
 	a->samples_per_bar = a->samplerate * 4 * 60 / a->bpm;
 	a->samples_per_tick = a->samples_per_bar / ticks_per_bar;
-	a->seconds_per_tick = (float)a->samples_per_tick / a->samplerate;
+
+	for (int i = 0; i < AM_MAX_PROGRAMS; ++i)
+		a->programs[i].epilogue = -1;
 }
 
-void automationCursorInit(const Automation *a, AutomCursor *c) {
+void amCursorInit(const AmData *a, AmCursor *c) {
 	memset(c, 0, sizeof(*c));
-	c->data_version = a->version;
-}
+	c->data_serial = a->serial;
 
-static void writeSignal(const float *src, int count, int offset, int index, const Frame *frame) {
-	for (int i = 0; i < count && i + offset < frame->end; ++i) {
-		if (i + offset >= frame->start)
-			frame->signal[offset + i + index * (frame->end - frame->start)] = src[i];
+	c->core[0].program = 0;
+	for (int i = 1; i < AM_MAX_CURSOR_CORES; ++i) {
+		AmCursorCoreState *core = c->core + i;
+		core->program = -1;
 	}
 }
 
-static void cursorScopAdvance(const Automation *a, AutomCursor *c, sample_t sample) {
-	for (;c->scop_pos < MAX_SCORE_OPS; ++c->scop_pos) {
-		const ScoreOp *op = a->sops + c->scop_pos;
+static AmValue arg(AmArgument arg, const AmCursorCoreState *core) {
+	switch(arg.type) {
+		case AmArg_Immediate:
+			return arg.value.imm;
+		case AmArg_Reference:
+			return core->args[arg.value.ref % AM_MAX_PROGRAM_ARGS];
+	}
+	ASSERT(!"Invalid type");
+	AmValue value;
+	value.i = 31337;
+	return value;
+}
+
+static void cursorSignalCompute(AmCursor *c, int signal_index) {
+	ASSERT(signal_index >= 0);
+	ASSERT(signal_index < AM_MAX_CURSOR_SIGNALS);
+
+	const AmCursorSignalState *state = c->signal + signal_index;
+	switch(state->mode) {
+		case AmSignal_Const:
+			c->signal_values[signal_index] = state->base;
+			break;
+		case AmSignal_Linear:
+			c->signal_values[signal_index] = state->base + (c->sample - state->start) * state->lcoeff;
+			break;
+	}
+}
+
+static int cursorCoreStep(const AmData *a, AmCursor *c, int core_index) {
+	ASSERT(core_index >= 0);
+	ASSERT(core_index < AM_MAX_CURSOR_CORES);
+	AmCursorCoreState *core = c->core + core_index;
+	if (core->program < 0)
+		return 1;
+	ASSERT(core->program < AM_MAX_PROGRAMS);
+
+	int finalizing = 0;
+	for (int i = 0; i < MAX_CORE_OPS_PER_STEP; ++i, ++core->next_op) {
+		if (core->wait > 0) {
+			--core->wait;
+			return 1;
+		}
+		core->next_op = core->next_op % AM_MAX_PROGRAM_OPS;
+
+		const AmProgram *program = a->programs + core->program;
+		const AmOp *op = program->ops + core->next_op;
 		switch (op->type) {
-			case SCOP_HALT:
-				return;
-			case SCOP_WAIT:
-				c->scop_wait = op->ticks * a->samples_per_tick;
-				return;
-			case SCOP_PATTERN_START:
-				if (op->row < 0 || op->row >= MAX_SCORE_ROWS) break;
-				memset(c->row + op->row, 0, sizeof(c->row[0]));
-				c->row[op->row].pattern = op->pattern;
-				c->row[op->row].start = sample;
+			case AmOp_Halt:
+				if (finalizing || program->epilogue < 0) {
+					core->program = -1;
+					return 1;
+				} 
+				finalizing = 1;
+				core->next_op = program->epilogue - 1;
 				break;
-			case SCOP_PATTERN_STOP:
-				if (op->row < 0 || op->row >= MAX_SCORE_ROWS) break;
-				memset(c->row + op->row, 0, sizeof(c->row[0]));
-				c->row[op->row].pattern = -1;
+			case AmOp_Wait:
+				core->wait = arg(op->a.wait.ticks, core).i * a->samples_per_tick;
 				break;
-		}
-	}
-}
-
-static void cursorRowAdvance(const Automation *a, AutomCursor *c, int row, sample_t sample) {
-	assert(row >= 0 && row < MAX_SCORE_ROWS);
-	RowState *rs = c->row + row;
-	assert(rs->pattern >= 0 && rs->pattern < MAX_SCORE_PATTERNS);
-	assert(rs->wait == 0);
-
-	const Pattern *pattern = a->patterns + rs->pattern;
-
-	for (int i = 0; i < MAX_PATTERN_OPS; ++i) {
-		const PatternOp *op = pattern->ops + rs->pos;
-		switch (op->type) {
-			case APOP_HALT:
-				return;
-			case APOP_WAIT:
-				rs->wait = op->ticks * a->samples_per_tick;
-				return;
-			case APOP_LOOP:
-				rs->pos = 0;
-				continue;
-			case APOP_ENV_SET:
-				if (op->lane < 0 || op->lane >= MAX_PATTERN_ENVS)
-					break;
-				{
-					EnvState *es = rs->envs + op->lane;
-					es->mode = EM_CONST;
-					es->base = es->value = op->value;
+			case AmOp_Loop:
+				core->next_op = arg(op->a.loop.ticks, core).i - 1;
+				break;
+			case AmOp_Signal_Set:
+			case AmOp_Signal_Linear: {
+				const int signal = arg(op->a.signal_set.signal, core).i;
+				if (signal < 0 || signal >= AM_MAX_CURSOR_SIGNALS) {
+					MSG("Signal %d is out-of-bounds (0, %d)", signal, AM_MAX_CURSOR_SIGNALS);
+					return 0;
 				}
-				break;
-			case APOP_ENV_LINEAR:
-				if (op->lane < 0 || op->lane >= MAX_PATTERN_ENVS)
-					break;
-				{
-					EnvState *es = rs->envs + op->lane;
-					es->mode = EM_LINEAR;
-					es->base = es->value;
-					es->start = sample;
-					es->lcoeff = (op->value - es->base) / (op->ticks * a->samples_per_tick);
+				cursorSignalCompute(c, signal); // compute possibly outdated signal
+				AmCursorSignalState *state = c->signal + signal;
+				state->start = c->sample;
+				if (op->type == AmOp_Signal_Set) {
+					state->mode = AmSignal_Const;
+					state->base = arg(op->a.signal_set.value, core).f;
+				} else {
+					state->mode = AmSignal_Linear;
+					state->base = c->signal_values[signal];
+					state->lcoeff = (arg(op->a.signal_linear.value, core).f - state->base)
+						/ (arg(op->a.signal_linear.ticks, core).i * a->samples_per_tick);
 				}
+				cursorSignalCompute(c, signal); // update to current expected value
 				break;
-		}
-		++rs->pos;
+			} /* case AmOp_Signal_ */
+
+			case AmOp_Program_Start:
+			case AmOp_Program_Stop: {
+				const int program_index = arg(op->a.program.program, core).i;
+				const int core_index = arg(op->a.program.core, core).i;
+
+				if (program_index < 0 || program_index >= AM_MAX_PROGRAMS) {
+					MSG("Invalid program index %d", program_index);
+					return 0;
+				}
+				if (core_index < 0 || core_index >= AM_MAX_CURSOR_CORES) {
+					MSG("Invalid core index %d", core_index);
+					return 0;
+				}
+
+				AmCursorCoreState *target_core = c->core + core_index;
+				target_core->program = program_index;
+				target_core->wait = 0;
+				target_core->next_op = (target_core != core) ? 0 : -1;
+				target_core->start = c->sample;
+
+				for (int j = 0; j < AM_MAX_PROGRAM_ARGS; ++j)
+					target_core->args[j] = arg(op->a.program.args[j], core);
+				break;
+			} /* AmOp_Program_ */
+		} /* switch(op->type) */
+	} /* for core ops */
+
+	MSG("Core %d reached max ops per step", core_index);
+	return 0;
+} /* cursorCoreStep() */
+
+void amCursorAdvance(const AmData *a, AmCursor *c, am_sample_t duration) {
+	if (a->serial != c->data_serial) {
+		duration += c->sample;
+		amCursorInit(a, c);
 	}
 
-	assert(!"too many instr");
-}
+	for (am_sample_t i = 0; i < duration; ++i, ++c->sample) {
+		for (int j = 0; j < AM_MAX_CURSOR_CORES; ++j)
+			cursorCoreStep(a, c, j);
 
-static void cursorComputeRowSignals(const Automation *a, AutomCursor *c, int row, int frame_idx, const Frame *f) {
-	float envs[MAX_PATTERN_ENVS];
-	for (int k = 0; k < MAX_PATTERN_ENVS; ++k) {
-		envs[k] = 0;
-		EnvState *es = c->row[row].envs + k;
-		switch (es->mode) {
-			case EM_CONST:
-				es->value = envs[k] = es->base;
-				break;
-			case EM_LINEAR:
-				es->value = envs[k] = es->base + (c->sample - es->start) * es->lcoeff;
-		}
-	} // for all envs
-	if (f)
-		writeSignal(envs, MAX_PATTERN_ENVS, row * a->pattern_envs, frame_idx, f);
-}
-
-void automationCursorCompute(const Automation *a, AutomCursor *c, const Frame *f) {
-	for (int j = 0; j < MAX_SCORE_ROWS; ++j) {
-		if (c->row[j].pattern < 0) continue;
-		cursorComputeRowSignals(a, c, j, 0, f);
-	} // for all rows 
-}
-
-void automationCursorComputeAndAdvance(const Automation *a, AutomCursor *c, sample_t duration, const Frame *f) {
-	for (sample_t i = 0; i < duration; ++i, ++c->sample) {
-		if (c->scop_wait)
-			--c->scop_wait;
-		else
-			cursorScopAdvance(a, c, c->sample);
-
-		for (int j = 0; j < MAX_SCORE_ROWS; ++j) {
-			if (c->row[j].pattern < 0) continue;
-
-			if (c->row[j].wait)
-				--c->row[j].wait;
-			else
-				cursorRowAdvance(a, c, j, c->sample);
-
-			cursorComputeRowSignals(a, c, j, i, f);
-		} // for all rows 
+		for (int j = 0; j < AM_MAX_CURSOR_SIGNALS; ++j)
+			cursorSignalCompute(c, j);
 	} // for samples
 }
