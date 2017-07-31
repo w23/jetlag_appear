@@ -58,15 +58,14 @@ int lfmModifyUnlock(LFModel *model, LFLock *lock);
 
 #if defined(LFM_IMPLEMENT)
 
-#define LFM_MAX_THREADS 8
-
+#if defined(__GNUC__)
 #if 1
 #define MEMORY_BARRIER() __atomic_thread_fence(__ATOMIC_SEQ_CST)
 #define ATOMIC_FETCH(value) __atomic_load_n(&(value), __ATOMIC_SEQ_CST)
 #define ATOMIC_ADD_AND_FETCH(value, add) __atomic_add_fetch(&(value), add, __ATOMIC_SEQ_CST)
 #define ATOMIC_CAS(value, expect, replace) \
 	__atomic_compare_exchange_n(&(value), &(expect), replace, 0, __ATOMIC_SEQ_CST, __ATOMIC_SEQ_CST)
-#else
+#else /* old */
 #define MEMORY_BARRIER() __sync_synchronize()
 static inline int sync_fetch_int(int *ptr) { __sync_synchronize(); return *ptr; }
 static inline unsigned sync_fetch_unsigned(unsigned *ptr) { __sync_synchronize(); return *ptr; }
@@ -74,6 +73,23 @@ static inline unsigned sync_fetch_unsigned(unsigned *ptr) { __sync_synchronize()
 #define ATOMIC_ADD_AND_FETCH(value, add) __sync_add_and_fetch(&(value), add)
 #define ATOMIC_FETCH(value) ATOMIC_ADD_AND_FETCH(value, 0)
 #define ATOMIC_CAS(value, expect, new_value) __sync_val_compare_and_swap(&(value), expect, new_value)
+#endif
+#elif defined(_MSC_VER)
+#define WIN32_LEAN_AND_MEAN
+#define NOMINMAX
+#define NOMSG
+#include <windows.h>
+#define MEMORY_BARRIER() MemoryBarrier()
+#define ATOMIC_FETCH(value) InterlockedOr(&(value), 0)
+static inline long __atomic_add_fetch(long volatile *value, long add) {
+	for (;;) {
+		const long expect = ATOMIC_FETCH(*value);
+		if (expect == InterlockedCompareExchange(value, expect + add, expect))
+			return expect + add;
+	}
+}
+#define ATOMIC_ADD_AND_FETCH(value, add) __atomic_add_fetch(&(value), add)
+#define ATOMIC_CAS(value, expect, replace) (expect == InterlockedCompareExchange(&(value), replace, expect))
 #endif
 
 #define ALIGNED_SIZE(size, alignment) ((alignment) * (((size) + (alignment) - 1) / (alignment)))
@@ -83,9 +99,6 @@ static inline LFSlot *lfm_GetSlot(const LFModel *model, unsigned index) {
 }
 
 LFModel *lfmCreate(int max_threads, int data_size, const void *initial_data, void *(*alloc)(size_t size)) {
-	if (max_threads >= LFM_MAX_THREADS)
-		return NULL;
-
 	// It is possible that all max_threads will try to write new data, and then the
 	// last one will wait for someone to free a slot
 	// TODO: increase number of slot?
@@ -142,13 +155,13 @@ void lfmModifyLock(LFModel *model, LFLock *lock) {
 int lfmModifyUnlock(LFModel *model, LFLock *lock) {
 	lfmReadUnlock(model, lock);
 
-	LFSlot *slot_src = lfm_GetSlot(model, lock->_.src % LFM_MAX_THREADS);
+	LFSlot *slot_src = lfm_GetSlot(model, lock->_.src % model->max_threads);
 	LFSlot *slot_dst = lfm_GetSlot(model, lock->_.dst);
 
 	ATOMIC_ADD_AND_FETCH(slot_dst->state, model->max_threads * 2);
 
-	const unsigned sequence = lock->_.src / LFM_MAX_THREADS;
-	const unsigned new_active = lock->_.dst + (sequence + 1) * LFM_MAX_THREADS;
+	const unsigned sequence = lock->_.src / model->max_threads;
+	const unsigned new_active = lock->_.dst + (sequence + 1) * model->max_threads;
 	unsigned old_active = lock->_.src;
 	if (!ATOMIC_CAS(model->seq_active, old_active, new_active)) {
 		ATOMIC_ADD_AND_FETCH(slot_dst->state, - model->max_threads * 2);
@@ -167,7 +180,7 @@ int lfmModifyUnlock(LFModel *model, LFLock *lock) {
 void lfmReadLock(LFModel *model, LFLock *lock) {
 	FOREVER() {
 		const unsigned seq_active = ATOMIC_FETCH(model->seq_active);
-		LFSlot *const slot = lfm_GetSlot(model, seq_active % LFM_MAX_THREADS);
+		LFSlot *const slot = lfm_GetSlot(model, seq_active % model->max_threads);
 		const int state = ATOMIC_ADD_AND_FETCH(slot->state, 1);
 		if (state > model->max_threads && seq_active == ATOMIC_FETCH(model->seq_active)) {
 			lock->_.src = seq_active;
@@ -181,7 +194,7 @@ void lfmReadLock(LFModel *model, LFLock *lock) {
 
 void lfmReadUnlock(LFModel *model, LFLock *lock) {
 	(void)(model);
-	LFSlot *slot = lfm_GetSlot(model, lock->_.src % LFM_MAX_THREADS);
+	LFSlot *slot = lfm_GetSlot(model, lock->_.src % model->max_threads);
 	ATOMIC_ADD_AND_FETCH(slot->state, -1);
 }
 
@@ -189,9 +202,39 @@ void lfmReadUnlock(LFModel *model, LFLock *lock) {
 
 #if defined(LFM_RUN_TEST)
 
-#include <pthread.h>
 #include <stdlib.h>
+
+#if defined(__linux__)
+#include <pthread.h>
 #include <alloca.h>
+
+typedef pthread_t ThreadHandle;
+
+static void threadStart(ThreadHandle* handle, void (*func)(void*), void *arg) {
+	pthread_create(threads + i, NULL, writeLoop, info);
+}
+
+static void threadWait(ThreadHandle handle) {
+	pthread_joib(handle, NULL);
+}
+
+#elif defined(_WIN32)
+#define WIN32_LEAN_AND_MEAN
+#include <windows.h>
+
+#define alloca _alloca
+
+typedef HANDLE ThreadHandle;
+
+static void threadStart(ThreadHandle* handle, void (*func)(void*), void *arg) {
+	*handle = CreateThread(NULL, 0, (LPTHREAD_START_ROUTINE)func, arg, 0, 0);
+}
+
+static void threadWait(ThreadHandle handle) {
+	WaitForSingleObject(handle, INFINITE);
+}
+#endif
+
 
 struct test_info_t {
 	int readers, writers;
@@ -305,14 +348,14 @@ static void runTest(struct test_info_t *info) {
 		exit(-1);
 	}
 
-	pthread_t *threads = (pthread_t*)alloca(num_threads * sizeof(pthread_t));
-	for (int i = 0; i < info->writers; ++i) pthread_create(threads + i, NULL, writeLoop, info);
-	for (int i = 0; i < info->readers; ++i)	pthread_create(threads + info->writers + i, NULL, readLoop, info);
+	ThreadHandle *threads = (ThreadHandle*)alloca(num_threads * sizeof(ThreadHandle));
+	for (int i = 0; i < info->writers; ++i) threadStart(threads + i, writeLoop, info);
+	for (int i = 0; i < info->readers; ++i)	threadStart(threads + info->writers + i, readLoop, info);
 
 	///
 
 	for (int i = 0; i < num_threads; ++i)
-		pthread_join(threads[i], NULL);
+		threadWait(threads[i]);
 
 	free(info->model);
 	printf("DONE\n");

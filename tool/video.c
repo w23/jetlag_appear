@@ -102,20 +102,21 @@ int passCheckAndUpdateProgram(RenderPass *pass) {
 }
 
 static void drawPass(float *signals, int num_signals, const RenderPass *pass) {
+	if (pass->program < 1)
+		return;
+
 	GL(UseProgram(pass->program));
 	GL(BindFramebuffer(GL_FRAMEBUFFER, pass->fb));
 	if (pass->fb > 0) {
 		GL(Viewport(0, 0, g.width, g.height));
-		signals[0] = g.width;
-		signals[1] = g.height;
-		GL(Uniform3f(glGetUniformLocation(pass->program, "V"), g.width, g.height, 0));
+		signals[0] = (float)g.width;
+		signals[1] = (float)g.height;
 		const GLuint bufs[] = { GL_COLOR_ATTACHMENT0, GL_COLOR_ATTACHMENT1, GL_COLOR_ATTACHMENT2 };
 		GL(DrawBuffers(pass->targets, bufs));
 	} else {
 		GL(Viewport(0, 0, g.output_width, g.output_height));
-		signals[0] = g.output_width;
-		signals[1] = g.output_height;
-		GL(Uniform3f(glGetUniformLocation(pass->program, "V"), g.output_width, g.output_height, 0));
+		signals[0] = (float)g.output_width;
+		signals[1] = (float)g.output_height;
 	}
 	GL(Uniform1iv(glGetUniformLocation(pass->program, "S"), Texture_MAX, g.texture_unit));
 	GL(Uniform1fv(glGetUniformLocation(pass->program, "F"), num_signals, signals));
@@ -126,6 +127,8 @@ static void drawPass(float *signals, int num_signals, const RenderPass *pass) {
 static uint32_t noise_bytes[NOISE_SIZE * NOISE_SIZE];
 
 void videoInit(int width, int height) {
+	aGLInit();
+
 	g.width = width;
 	g.height = height;
 

@@ -5,7 +5,6 @@
 #include "lfmodel.h"
 
 #include <string.h>
-#include <stdio.h>
 
 #define MACHINE_STACK 128
 #define MACHINE_STATE (1024 * 1024)

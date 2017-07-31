@@ -4,11 +4,8 @@
 #define AUDIO_IMPLEMENT
 #include "aud_io.h"
 
-#include <stdlib.h>
-#include <sys/types.h>
-#include <sys/stat.h>
-#include <fcntl.h>
-#include <unistd.h>
+#include <stdlib.h> // atoi
+#include <string.h>
 
 static float fbuffer[32];
 
@@ -87,7 +84,7 @@ static void paint(ATimeUs ts, float dt) {
 		memset(signals, -1, sizeof(signals));
 		fbuffer[2] = now;
 		timelineGetLatestSignals(signals, COUNTOF(signals));
-		for (unsigned long i = 0; i < COUNTOF(signals); ++i) MSG("%d=%f ", i, signals[i]);
+		//for (unsigned long i = 0; i < COUNTOF(signals); ++i) MSG("%d=%f ", i, signals[i]);
 		
 		videoOutputResize(a_app_state->width, a_app_state->height);
 		videoPaint(fbuffer, COUNTOF(fbuffer), 1);

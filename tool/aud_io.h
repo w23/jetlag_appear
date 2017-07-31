@@ -18,12 +18,6 @@ void audioClose();
 #include <time.h>
 #include <stdint.h>
 
-uint64_t timeNow() {
-	struct timespec ts;
-	clock_gettime(CLOCK_MONOTONIC_RAW, &ts);
-	return ts.tv_sec * 1000000ull + ts.tv_nsec / 1000ull;
-}
-
 static struct {
 	snd_pcm_t *pcm;
 	snd_rawmidi_t *midi;
@@ -110,10 +104,15 @@ void audioClose() {
 	snd_pcm_close(audio_.pcm);
 	// TODO Close midi
 }
+#elif defined(_WIN32)
+int audioOpen(void *userdata, audio_callback_f acb, const char *dev, midi_callback_f mcb) { return 1;  }
+void audioClose() {}
+
 #else
 #error NOT IMPLEMENTED
 #endif
-#endif
+
+#endif /* if defined(AUDIO_IMPLEMENT) */
 
 #ifdef __cplusplus
 } /* extern "C" */

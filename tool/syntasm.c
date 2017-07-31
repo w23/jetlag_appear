@@ -67,7 +67,7 @@ int symasmCompile(SymaRunContext *ctx_inout, const char *source) {
 							op->immi = strtol(parser_context.token[1].str, 0, 10);
 							break;
 						case ArgType_Float:
-							op->immf = strtod(parser_context.token[1].str, 0);
+							op->immf = (float)strtod(parser_context.token[1].str, 0);
 							break;
 					}
 				}

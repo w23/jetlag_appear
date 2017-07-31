@@ -6,8 +6,6 @@
 #include "lfmodel.h"
 
 #include <stdio.h>
-#include <fcntl.h>
-#include <unistd.h>
 
 static struct {
 	int samplerate, bpm;
@@ -112,7 +110,7 @@ static int deserialize(const char *data, AmData *a) {
 					argv[j].i = strtol(arg, 0, 10);
 					break;
 				case ArgType_Float:
-					argv[j].f = strtod(arg, 0);
+					argv[j].f = (float)strtod(arg, 0);
 					break;
 				case ArgType_Time: {
 					int bar, tick;

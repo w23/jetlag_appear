@@ -1,5 +1,7 @@
 #pragma once
 
+#include <stdint.h>
+
 #define COUNTOF(a) (sizeof(a) / sizeof(*(a)))
 
 #define ASSERT(c) (void)(c)

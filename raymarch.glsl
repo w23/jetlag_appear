@@ -5,7 +5,7 @@ vec3 noise13(float v) { return rnd(vec2(v)).xyz; }
 float noise2s(vec2 v) { vec2 V = floor(v); v-=V;
 	v*=v*(3.-2.*v);
 	return rnd(V + v).z; }
-float noise2(vec2 v) { return rnd(v).z; }
+float noise21(vec2 v) { return rnd(v).z; }
 vec2 noise22(vec2 v) { return rnd(v).wx; }
 float noise31(vec3 v) { return .5 * (rnd(v.yz).x+rnd(v.xy).x); }
 
@@ -18,7 +18,7 @@ float fbm(vec2 v) {
 	float r = 0.;
 	float k = .5;
 	for (int i = 0; i < 5; ++i) {
-		r += noise2(v) * k;
+		r += noise21(v) * k;
 		k *= .5;
 		v *= 2.3;
 	}
@@ -47,8 +47,8 @@ float tor(vec3 p, vec2 s) {
 vec3 rep(vec3 p, vec3 x) { return mod(p, x) - x*.5; }
 
 float groundHeight(vec3 p) {
-	//return /*.01 * (1.-pow(noise2(p.xz*50.),3.)) + */ .05 * (noise2(p.xz*.5) - .5);
-	return .05 * (1.-pow(noise2(p.xz*20.),3.)) + .3 * (noise2(p.xz*.6) - .3);
+	//return /*.01 * (1.-pow(noise21(p.xz*50.),3.)) + */ .05 * (noise21(p.xz*.5) - .5);
+	return .05 * (1.-pow(noise21(p.xz*20.),3.)) + .3 * (noise21(p.xz*.6) - .3);
 }
 
 float ground(vec3 p) {
@@ -299,7 +299,7 @@ vec4 raycast(vec3 origin, vec3 ray, out vec3 p, out vec3 normal) {
 #endif
 	} else if (mindex == 4) {
 		albedo = vec3(.56, .57, .58);
-		roughness = .2 + .6 * pow(noise2(p.xz*4.+40.),4.);
+		roughness = .2 + .6 * pow(noise21(p.xz*4.+40.),4.);
 		metallic = .8;
 	} else if (mindex == 5) {
 		albedo = vec3(1., 0., 0.);
