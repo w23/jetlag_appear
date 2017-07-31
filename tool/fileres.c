@@ -15,7 +15,7 @@ typedef struct timespec FrFileTime;
 
 static FrFileTime readFileTime(const char *filename) {
 	struct stat st;
-	stat(e->filename, &st);
+	stat(filename, &st);
 	return st.st_mtim;
 }
 
@@ -43,7 +43,7 @@ static int readFileContents(const char *filename, VolatileResource *res) {
 	close(fd);
 
 	if (res->bytes)
-		free(res->bytes);
+		free((void*)res->bytes);
 
 	res->size = st.st_size;
 	res->bytes = bytes;
