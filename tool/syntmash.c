@@ -119,6 +119,29 @@ int symaRun(SymaRunContext *context) {
 			const float v = stack[sp-1], p = stack[sp];
 			stack[--sp] = powf(v, p);
 			break;
+		case SYMA_OP_PADDST:
+			if (sp < 0) {
+				printf("Stack too shallow: %d\n", sp);
+				return 0;
+			}
+			if (op->immi < 0 || op->immi >= context->state_size) {
+				printf("State out-of-bounds: %d (%d)\n", op->immi, context->state_size);
+				return 0;
+			}
+			float *const phase = context->state + op->immi;
+			stack[sp] = *phase = fmodf(*phase + stack[sp], 1.f);
+			break;
+		case SYMA_OP_MTODP:
+			if (sp < 0) {
+				printf("Stack too shallow: %d\n", sp);
+				return 0;
+			}
+			stack[sp] = powf(2.f, (stack[sp] - 57.f) / 12.f) * 440.f / context->samplerate;
+			break;
+		case SYMA_OP_NOISE:
+			CHECK_STACK_OVERFLOW(1);
+			stack[++sp] = (rng(&context->rng) / (float)UINT32_MAX) * 2.f - 1.f;
+			break;
 		default:
 			printf("Invalid opcode: %d\n", op->opcode);
 			return 0;

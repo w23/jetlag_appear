@@ -66,7 +66,6 @@ static int cursorCoreStep(const AmData *a, AmCursor *c, int core_index) {
 		return 1;
 	ASSERT(core->program < AM_MAX_PROGRAMS);
 
-	int finalizing = 0;
 	for (int i = 0; i < MAX_CORE_OPS_PER_STEP; ++i, ++core->next_op) {
 		if (core->wait > 0) {
 			--core->wait;
@@ -78,11 +77,11 @@ static int cursorCoreStep(const AmData *a, AmCursor *c, int core_index) {
 		const AmOp *op = program->ops + core->next_op;
 		switch (op->type) {
 			case AmOp_Halt:
-				if (finalizing || program->epilogue < 0) {
+				if (core->finalizing || program->epilogue < 0) {
 					core->program = -1;
 					return 1;
 				} 
-				finalizing = 1;
+				core->finalizing = 1;
 				core->next_op = program->epilogue - 1;
 				break;
 			case AmOp_Wait:
@@ -129,10 +128,27 @@ static int cursorCoreStep(const AmData *a, AmCursor *c, int core_index) {
 				}
 
 				AmCursorCoreState *target_core = c->core + core_index;
-				target_core->program = program_index;
-				target_core->wait = 0;
-				target_core->next_op = (target_core != core) ? 0 : -1;
-				target_core->start = c->sample;
+				if (op->type == AmOp_Program_Start) {
+					target_core->program = program_index;
+					target_core->wait = 0;
+					target_core->next_op = (target_core != core) ? 0 : -1;
+					target_core->start = c->sample;
+					target_core->finalizing = 0;
+				} else /* Stop */ {
+					const int epilogue = a->programs[program_index].epilogue;
+					if (epilogue >= 0 ) {
+						// TODO should we kill the core?
+						if (!target_core->finalizing) {
+							target_core->wait = 0;
+							target_core->next_op = (target_core != core) ? epilogue : epilogue - 1;
+							target_core->finalizing = 1;
+						}
+					} else {
+						target_core->program = -1;
+						if (target_core == core)
+							return 1;
+					}
+				}
 
 				for (int j = 0; j < AM_MAX_PROGRAM_ARGS; ++j)
 					target_core->args[j] = arg(op->a.program.args[j], core);

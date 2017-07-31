@@ -33,6 +33,7 @@ void audioInit(const char *synth_src, int samplerate) {
 	g.source = resourceOpenFile(synth_src);
 	RuntimeData data;
 	memset(&data, 0, sizeof(data));
+	data.ctx.samplerate = g.samplerate;
 	g.lockedMachine = lfmCreate(3, sizeof(RuntimeData), &data, malloc);
 	g.last_sequence = 0;
 	memset(g.state, 0, sizeof(g.state));
@@ -86,6 +87,8 @@ void audioSynthesize(float *samples, int num_samples) {
 	ctx.input = input;
 	ctx.state = g.state;
 	ctx.state_size = COUNTOF(g.state);
+	ctx.samplerate = g.samplerate;
+	ctx.rng = g.samples;
 
 	for (int i = 0; i < num_samples; ++i, ++g.samples) {
 		timelineComputeSignalsAndAdvance(input, COUNTOF(input), 1);

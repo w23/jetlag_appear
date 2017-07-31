@@ -76,6 +76,11 @@ typedef struct {
 
 void parseLine(ParserContext *context);
 
+static inline uint32_t rng(uint64_t *state) {
+	*state = 1442695040888963407ull + (*state) * 6364136223846793005ull;
+	return (*state) >> 32;
+}
+
 #ifdef __cplusplus
 } /* extern "C" */
 #endif

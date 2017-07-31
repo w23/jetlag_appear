@@ -26,6 +26,9 @@ static struct {
 	{"ptri", SYMA_OP_PTRI, 0, {ArgType_Float}},
 	{"fract", SYMA_OP_FRACT, 0, {ArgType_Float}},
 	{"pow", SYMA_OP_POW, 0, {ArgType_Float}},
+	{"paddst", SYMA_OP_PADDST, 1, {ArgType_Int}},
+	{"mtodp", SYMA_OP_MTODP, 0, {ArgType_Int}},
+	{"noise", SYMA_OP_NOISE, 0, {ArgType_Int}},
 };
 
 int symasmCompile(SymaRunContext *ctx_inout, const char *source) {

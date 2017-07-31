@@ -106,6 +106,7 @@ typedef struct {
 	int serial;
 	int samplerate, bpm;
 	int samples_per_bar, samples_per_tick;
+	int sample_start, sample_end;
 
 	AmProgram programs[AM_MAX_PROGRAMS];
 } AmData;
@@ -127,6 +128,7 @@ typedef struct {
 	am_sample_t wait;
 	int next_op;
 	am_sample_t start;
+	int finalizing;
 } AmCursorCoreState;
 
 typedef struct {
