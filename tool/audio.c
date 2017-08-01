@@ -20,6 +20,8 @@ static struct {
 	float state[MACHINE_STATE];
 } g;
 
+DiagSignals diag_signals;
+
 typedef struct {
 	unsigned sequence;
 	SymaRunContext ctx;
@@ -37,6 +39,7 @@ void audioInit(const char *synth_src, int samplerate) {
 	g.lockedMachine = lfmCreate(3, sizeof(RuntimeData), &data, malloc);
 	g.last_sequence = 0;
 	memset(g.state, 0, sizeof(g.state));
+	memset(&diag_signals, 0, sizeof(diag_signals));
 }
 
 void audioCheckUpdate() {
@@ -58,11 +61,11 @@ void audioCheckUpdate() {
 	const RuntimeData *old_runtime = lock.data_src;
 	RuntimeData *runtime = lock.data_dst;
 	runtime->sequence = old_runtime->sequence + 1;
-	
+
 	memcpy(runtime->program, program, context.program_size * sizeof(program[0]));
 	memcpy(&runtime->ctx, &context, sizeof(context));
 	runtime->ctx.program = runtime->program;
-	
+
 	if (!lfmModifyUnlock(g.lockedMachine, &lock))
 		abort();
 }
@@ -92,8 +95,10 @@ void audioSynthesize(float *samples, int num_samples) {
 
 	for (int i = 0; i < num_samples; ++i, ++g.samples) {
 		timelineComputeSignalsAndAdvance(input, COUNTOF(input), 1);
-		samples[i] = (symaRun(&ctx) > 0) ? stack[0] : 0;
+		diag_signals.signal[0].f[diag_signals.writepos] = samples[i] = (symaRun(&ctx) > 0) ? stack[0] : 0;
+		diag_signals.writepos = (diag_signals.writepos + 1) % MAX_DIAG_SAMPLES;
 	}
+	MEMORY_BARRIER();
 
 	lfmReadUnlock(g.lockedMachine, &lock);
 

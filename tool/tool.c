@@ -85,7 +85,7 @@ static void paint(ATimeUs ts, float dt) {
 		fbuffer[2] = now;
 		timelineGetLatestSignals(signals, COUNTOF(signals));
 		//for (unsigned long i = 0; i < COUNTOF(signals); ++i) MSG("%d=%f ", i, signals[i]);
-		
+
 		videoOutputResize(a_app_state->width, a_app_state->height);
 		videoPaint(fbuffer, COUNTOF(fbuffer), 1);
 
@@ -139,7 +139,7 @@ void attoAppInit(struct AAppProctable *ptbl) {
 	ptbl->close = appClose;
 
 	int width = 1280, height = 720;
-	const char* midi_device = "default";
+	const char* midi_device = "";
 	for (int iarg = 1; iarg < a_app_state->argc; ++iarg) {
 		const char *argv = a_app_state->argv[iarg];
 		if (strcmp(argv, "-w") == 0)

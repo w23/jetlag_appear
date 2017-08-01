@@ -61,18 +61,18 @@ int lfmModifyUnlock(LFModel *model, LFLock *lock);
 #if defined(__GNUC__)
 #if 1
 #define MEMORY_BARRIER() __atomic_thread_fence(__ATOMIC_SEQ_CST)
-#define ATOMIC_FETCH(value) __atomic_load_n(&(value), __ATOMIC_SEQ_CST)
-#define ATOMIC_ADD_AND_FETCH(value, add) __atomic_add_fetch(&(value), add, __ATOMIC_SEQ_CST)
-#define ATOMIC_CAS(value, expect, replace) \
+#define LFM_ATOMIC_FETCH(value) __atomic_load_n(&(value), __ATOMIC_SEQ_CST)
+#define LFM_ATOMIC_ADD_AND_FETCH(value, add) __atomic_add_fetch(&(value), add, __ATOMIC_SEQ_CST)
+#define LFM_ATOMIC_CAS(value, expect, replace) \
 	__atomic_compare_exchange_n(&(value), &(expect), replace, 0, __ATOMIC_SEQ_CST, __ATOMIC_SEQ_CST)
 #else /* old */
 #define MEMORY_BARRIER() __sync_synchronize()
 static inline int sync_fetch_int(int *ptr) { __sync_synchronize(); return *ptr; }
 static inline unsigned sync_fetch_unsigned(unsigned *ptr) { __sync_synchronize(); return *ptr; }
-//#define ATOMIC_FETCH(value) sync_fetch_unsigned(&(value))
-#define ATOMIC_ADD_AND_FETCH(value, add) __sync_add_and_fetch(&(value), add)
-#define ATOMIC_FETCH(value) ATOMIC_ADD_AND_FETCH(value, 0)
-#define ATOMIC_CAS(value, expect, new_value) __sync_val_compare_and_swap(&(value), expect, new_value)
+//#define LFM_ATOMIC_FETCH(value) sync_fetch_unsigned(&(value))
+#define LFM_ATOMIC_ADD_AND_FETCH(value, add) __sync_add_and_fetch(&(value), add)
+#define LFM_ATOMIC_FETCH(value) LFM_ATOMIC_ADD_AND_FETCH(value, 0)
+#define LFM_ATOMIC_CAS(value, expect, new_value) __sync_val_compare_and_swap(&(value), expect, new_value)
 #endif
 #elif defined(_MSC_VER)
 #define WIN32_LEAN_AND_MEAN
@@ -80,16 +80,16 @@ static inline unsigned sync_fetch_unsigned(unsigned *ptr) { __sync_synchronize()
 #define NOMSG
 #include <windows.h>
 #define MEMORY_BARRIER() MemoryBarrier()
-#define ATOMIC_FETCH(value) InterlockedOr(&(value), 0)
+#define LFM_ATOMIC_FETCH(value) InterlockedOr(&(value), 0)
 static inline long __atomic_add_fetch(long volatile *value, long add) {
 	for (;;) {
-		const long expect = ATOMIC_FETCH(*value);
+		const long expect = LFM_ATOMIC_FETCH(*value);
 		if (expect == InterlockedCompareExchange(value, expect + add, expect))
 			return expect + add;
 	}
 }
-#define ATOMIC_ADD_AND_FETCH(value, add) __atomic_add_fetch(&(value), add)
-#define ATOMIC_CAS(value, expect, replace) (expect == InterlockedCompareExchange(&(value), replace, expect))
+#define LFM_ATOMIC_ADD_AND_FETCH(value, add) __atomic_add_fetch(&(value), add)
+#define LFM_ATOMIC_CAS(value, expect, replace) (expect == InterlockedCompareExchange(&(value), replace, expect))
 #endif
 
 #define ALIGNED_SIZE(size, alignment) ((alignment) * (((size) + (alignment) - 1) / (alignment)))
@@ -139,10 +139,10 @@ static inline int doAbort() { printf("exceeded max amount of retries\n"); abort(
 void lfmModifyLock(LFModel *model, LFLock *lock) {
 	LFSlot *slot = NULL;
 	FOREVER() {
-		const unsigned slot_index = (ATOMIC_ADD_AND_FETCH(model->next_free, 1) % model->max_threads);
+		const unsigned slot_index = (LFM_ATOMIC_ADD_AND_FETCH(model->next_free, 1) % model->max_threads);
 		slot = lfm_GetSlot(model, slot_index);
 		int state = 0;
-		if (ATOMIC_CAS(slot->state, state, -model->max_threads)) {
+		if (LFM_ATOMIC_CAS(slot->state, state, -model->max_threads)) {
 			lock->data_dst = slot->data;
 			lock->_.dst = slot_index;
 			lfmReadLock(model, lock);
@@ -158,36 +158,36 @@ int lfmModifyUnlock(LFModel *model, LFLock *lock) {
 	LFSlot *slot_src = lfm_GetSlot(model, lock->_.src % model->max_threads);
 	LFSlot *slot_dst = lfm_GetSlot(model, lock->_.dst);
 
-	ATOMIC_ADD_AND_FETCH(slot_dst->state, model->max_threads * 2);
+	LFM_ATOMIC_ADD_AND_FETCH(slot_dst->state, model->max_threads * 2);
 
 	const unsigned sequence = lock->_.src / model->max_threads;
 	const unsigned new_active = lock->_.dst + (sequence + 1) * model->max_threads;
 	unsigned old_active = lock->_.src;
-	if (!ATOMIC_CAS(model->seq_active, old_active, new_active)) {
-		ATOMIC_ADD_AND_FETCH(slot_dst->state, - model->max_threads * 2);
+	if (!LFM_ATOMIC_CAS(model->seq_active, old_active, new_active)) {
+		LFM_ATOMIC_ADD_AND_FETCH(slot_dst->state, - model->max_threads * 2);
 		return 0;
 	}
 
 /// FIXME at this point both old and new slots are in "occupied" state
 // this might be a problem when the system is under high load
-//	ATOMIC_ADD_AND_FETCH(model->sequence, 1);
+//	LFM_ATOMIC_ADD_AND_FETCH(model->sequence, 1);
 
-	ATOMIC_ADD_AND_FETCH(slot_src->state, - model->max_threads);
+	LFM_ATOMIC_ADD_AND_FETCH(slot_src->state, - model->max_threads);
 
 	return 1;
 }
 
 void lfmReadLock(LFModel *model, LFLock *lock) {
 	FOREVER() {
-		const unsigned seq_active = ATOMIC_FETCH(model->seq_active);
+		const unsigned seq_active = LFM_ATOMIC_FETCH(model->seq_active);
 		LFSlot *const slot = lfm_GetSlot(model, seq_active % model->max_threads);
-		const int state = ATOMIC_ADD_AND_FETCH(slot->state, 1);
-		if (state > model->max_threads && seq_active == ATOMIC_FETCH(model->seq_active)) {
+		const int state = LFM_ATOMIC_ADD_AND_FETCH(slot->state, 1);
+		if (state > model->max_threads && seq_active == LFM_ATOMIC_FETCH(model->seq_active)) {
 			lock->_.src = seq_active;
 			lock->data_src = slot->data;
 			break;
 		}
-		ATOMIC_ADD_AND_FETCH(slot->state, -1);
+		LFM_ATOMIC_ADD_AND_FETCH(slot->state, -1);
 		// TODO add random wait?
 	}
 }
@@ -195,7 +195,7 @@ void lfmReadLock(LFModel *model, LFLock *lock) {
 void lfmReadUnlock(LFModel *model, LFLock *lock) {
 	(void)(model);
 	LFSlot *slot = lfm_GetSlot(model, lock->_.src % model->max_threads);
-	ATOMIC_ADD_AND_FETCH(slot->state, -1);
+	LFM_ATOMIC_ADD_AND_FETCH(slot->state, -1);
 }
 
 #endif // defined(LFM_IMPLEMENT)

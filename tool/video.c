@@ -126,8 +126,70 @@ static void drawPass(float *signals, int num_signals, const RenderPass *pass) {
 #define NOISE_SIZE 256
 static uint32_t noise_bytes[NOISE_SIZE * NOISE_SIZE];
 
+#define MAX_GRAPH_SAMPLES 1024
+static struct {
+	AGLAttribute attribs[2];
+	AGLProgramUniform uniforms[4];
+	AGLDrawSource source;
+	float x[MAX_GRAPH_SAMPLES];
+} graph;
+
+static void graphInit() {
+	for (int i = 0; i < MAX_GRAPH_SAMPLES; ++i)
+		graph.x[i] = (float)i;
+	graph.attribs[0].name = "x";
+	graph.attribs[0].buffer = 0;
+	graph.attribs[0].size = 1;
+	graph.attribs[0].type = GL_FLOAT;
+	graph.attribs[0].normalized = 0;
+	graph.attribs[0].stride = 0;
+	graph.attribs[0].ptr = graph.x;
+	graph.attribs[1].name = "y";
+	graph.attribs[1].buffer = 0;
+	graph.attribs[1].size = 1;
+	graph.attribs[1].type = GL_FLOAT;
+	graph.attribs[1].normalized = 0;
+	graph.uniforms[0].name = "x_off";
+	graph.uniforms[0].type = AGLAT_Float;
+	graph.uniforms[0].count = 1;
+	graph.uniforms[1].name = "x_scale";
+	graph.uniforms[1].type = AGLAT_Float;
+	graph.uniforms[1].count = 1;
+	graph.uniforms[2].name = "y_off";
+	graph.uniforms[2].type = AGLAT_Float;
+	graph.uniforms[2].count = 1;
+	graph.uniforms[3].name = "y_scale";
+	graph.uniforms[3].type = AGLAT_Float;
+	graph.uniforms[3].count = 1;
+	graph.source.primitive.first = 0;
+	graph.source.primitive.mode = GL_LINE_STRIP;
+	graph.source.primitive.cull_mode = AGLCM_Disable;
+	graph.source.primitive.index.buffer = 0;
+	graph.source.primitive.index.data.ptr = 0;
+	graph.source.primitive.index.type = 0;
+	graph.source.primitive.front_face = AGLFF_CounterClockwise;
+	graph.source.attribs.p = graph.attribs;
+	graph.source.attribs.n = COUNTOF(graph.attribs);
+	graph.source.uniforms.p = graph.uniforms;
+	graph.source.uniforms.n = COUNTOF(graph.uniforms);
+	graph.source.program = aGLProgramCreateSimple(
+		"uniform float x_off, x_scale, y_off, y_scale;\n"
+		"attribute float x, y;\n"
+		"void main() {\n"
+			"gl_Position= vec4(x * x_scale + x_off, y * y_scale + y_off, 0, 1.);\n"
+		"}",
+		"void main() { gl_FragColor = vec4(1.); }");
+	if (graph.source.program < 0) {
+		MSG("graph program compile failed: %s", a_gl_error);
+		abort();
+	}
+	aGLUniformLocate(graph.source.program, graph.uniforms, COUNTOF(graph.uniforms));
+	aGLAttributeLocate(graph.source.program, graph.attribs, COUNTOF(graph.attribs));
+}
+
 void videoInit(int width, int height) {
 	aGLInit();
+	graphInit();
 
 	g.width = width;
 	g.height = height;
@@ -184,15 +246,56 @@ void videoOutputResize(int width, int height) {
 	g.output_height = height;
 }
 
+static void paintGraph(const float *values, int count, float x_off, float x_scale, float y_off, float y_scale) {
+	graph.attribs[1].stride = 0;
+	graph.attribs[1].ptr = values;
+	graph.source.primitive.count = count;
+	graph.uniforms[0].value.pf = &x_off;
+	graph.uniforms[1].value.pf = &x_scale;
+	graph.uniforms[2].value.pf = &y_off;
+	graph.uniforms[3].value.pf = &y_scale;
+
+	AGLDrawMerge merge;
+	merge.depth.mode = AGLDM_Disabled;
+	merge.blend.enable = 0;
+
+	AGLDrawTarget target;
+	target.framebuffer = 0;
+	target.viewport.x = target.viewport.y = 0;
+	target.viewport.w = g.output_width;
+	target.viewport.h = g.output_height;
+
+	aGLDraw(&graph.source, &merge, &target);
+}
+
 void videoPaint(float *signals, int num_signals, int force_redraw) {
 	int need_redraw = force_redraw;
 
 	for (int i = 0; i < Pass_MAX; ++i)
 		need_redraw |= passCheckAndUpdateProgram(g.pass + i);
 
-	if (need_redraw) {
+	if (need_redraw)
 		for (int i = 0; i < Pass_MAX; ++i)
 			drawPass(signals, num_signals, g.pass + i);
+	else
+			drawPass(signals, num_signals, g.pass + Pass_MAX - 1);
+
+	const int samples = 2000;
+	const float kx = 2.f / (samples - 1);
+	MEMORY_BARRIER();
+	const int pos = diag_signals.writepos;
+	for (int i = 0; i < MAX_DIAG_SIGNALS; ++i) {
+		const float h = 2.f / MAX_DIAG_SIGNALS;
+		const float y_off = 1.f - h * i - h * .5f;
+		for (int j = 0; j < samples;) {
+			const int left = samples - j;
+			const int begin = (pos + MAX_DIAG_SAMPLES - left) % MAX_DIAG_SAMPLES;
+			const int end = begin + left < MAX_DIAG_SAMPLES ? begin + left : MAX_DIAG_SAMPLES;
+			const int length = end - begin > MAX_GRAPH_SAMPLES ? MAX_GRAPH_SAMPLES : end - begin;
+
+			paintGraph(diag_signals.signal[i].f + begin, length, -1.f + j * kx, kx, y_off, h * .5);
+			j += length;
+		}
 	}
 }
 

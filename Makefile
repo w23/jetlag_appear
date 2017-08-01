@@ -52,4 +52,7 @@ clean:
 run_tool: $(TOOL_EXE)
 	$(TOOL_EXE) -w $(WIDTH) -h $(HEIGHT) -m $(MIDIDEV)
 
-.PHONY: all clean run_tool
+debug_tool: $(TOOL_EXE)
+	gdb --args $(TOOL_EXE) -w $(WIDTH) -h $(HEIGHT) -m $(MIDIDEV)
+
+.PHONY: all clean run_tool debug_tool
