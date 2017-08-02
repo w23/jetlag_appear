@@ -49,4 +49,9 @@
     <CustomBuild Include="raymarch.glsl" />
     <CustomBuild Include="timeline.seq" />
   </ItemGroup>
+  <ItemGroup>
+    <MASM Include="yo24.asm">
+      <Filter>Файлы исходного кода</Filter>
+    </MASM>
+  </ItemGroup>
 </Project>

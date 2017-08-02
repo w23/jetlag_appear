@@ -12,6 +12,7 @@
     </ClCompile>
     <Link>
       <IgnoreAllDefaultLibraries>true</IgnoreAllDefaultLibraries>
+      <EntryPointSymbol>entrypoint</EntryPointSymbol>
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup />
