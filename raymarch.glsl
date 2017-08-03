@@ -239,8 +239,8 @@ vec3 pointlight(vec3 lightpos, vec3 lightcolor, vec3 p, vec3 ray, vec3 normal) {
 	float ki = 1. / float(Nao);
 	for (int i = 1; i < Nao; ++i) {
 		float d = min(Ls, 2.) * float(i) * ki;
-		vec3 p = p + d * L;
-		float pass = min(1., world(p)/(d * 1.));
+		vec3 pp = p + d * L;
+		float pass = min(1., world(pp)/(d * 1.));
 		kao = min(kao, pass * pass);
 	}
 
@@ -318,14 +318,15 @@ vec4 raycast(vec3 origin, vec3 ray, out vec3 p, out vec3 normal) {
 }
 
 void main() {
-	vec2 V = textureSize(S[1], 0);
-	vec2 uv = gl_FragCoord.xy / V.xy * 2. - 1.;
+	vec2 V = Z(1);
+	vec2 uv = X / V * 2. - 1.;
 	uv.x *= V.x / V.y;
 
 	//gl_FragData[0] = vec4(F[27], F[28], F[29], 0.); return;
 
-	vec3 origin = 30. * (vec3(F[27],F[28]+.501,F[29]) - .5);// + .1 * noise13(t*3.);
-	mat3 LAT = lookat(origin, A, E.xzx);
+	//vec3 origin = 30. * (vec3(F[27],F[28]+.501,F[29]) - .5);// + .1 * noise13(t*3.);
+	vec3 origin = vec3(5.);// + .1 * noise13(t*3.);
+	mat3 LAT = lookat(origin, vec3(0.,3.,0.), E.xzx);
 	//origin += LAT * vec3(uv*.01, 0.);
 	vec3 ray = LAT * normalize(vec3(uv, -1.));//-D.y));
 

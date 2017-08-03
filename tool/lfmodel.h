@@ -81,14 +81,14 @@ static inline unsigned sync_fetch_unsigned(unsigned *ptr) { __sync_synchronize()
 #include <windows.h>
 #define MEMORY_BARRIER() MemoryBarrier()
 #define LFM_ATOMIC_FETCH(value) InterlockedOr(&(value), 0)
-static inline long __atomic_add_fetch(long volatile *value, long add) {
+static inline long __lfm_atomic_add_fetch(long volatile *value, long add) {
 	for (;;) {
 		const long expect = LFM_ATOMIC_FETCH(*value);
 		if (expect == InterlockedCompareExchange(value, expect + add, expect))
 			return expect + add;
 	}
 }
-#define LFM_ATOMIC_ADD_AND_FETCH(value, add) __atomic_add_fetch(&(value), add)
+#define LFM_ATOMIC_ADD_AND_FETCH(value, add) __lfm_atomic_add_fetch(&(value), add)
 #define LFM_ATOMIC_CAS(value, expect, replace) (expect == InterlockedCompareExchange(&(value), replace, expect))
 #endif
 

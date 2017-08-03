@@ -30,6 +30,24 @@
     <ClInclude Include="timeline.h">
       <Filter>Заголовочные файлы</Filter>
     </ClInclude>
+    <ClInclude Include="blur_reflection.h">
+      <Filter>Заголовочные файлы</Filter>
+    </ClInclude>
+    <ClInclude Include="blur_reflection2.h">
+      <Filter>Заголовочные файлы</Filter>
+    </ClInclude>
+    <ClInclude Include="composite.h">
+      <Filter>Заголовочные файлы</Filter>
+    </ClInclude>
+    <ClInclude Include="dof_tap.h">
+      <Filter>Заголовочные файлы</Filter>
+    </ClInclude>
+    <ClInclude Include="header.h">
+      <Filter>Заголовочные файлы</Filter>
+    </ClInclude>
+    <ClInclude Include="header_fixed.h">
+      <Filter>Заголовочные файлы</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <None Include="music\4klang.inc">
@@ -45,9 +63,42 @@
     <Object Include="music\4klang.obj" />
   </ItemGroup>
   <ItemGroup>
-    <CustomBuild Include="post.glsl" />
-    <CustomBuild Include="raymarch.glsl" />
     <CustomBuild Include="timeline.seq" />
+    <CustomBuild Include="*.glsl" />
+    <CustomBuild Include="*.glsl" />
+    <CustomBuild Include="*.glsl" />
+    <CustomBuild Include="*.glsl" />
+    <CustomBuild Include="*.glsl" />
+    <CustomBuild Include="*.glsl" />
+    <CustomBuild Include="*.glsl" />
+    <CustomBuild Include="*.glsl" />
+    <CustomBuild Include="*.glsl" />
+    <CustomBuild Include="*.glsl" />
+    <CustomBuild Include="*.glsl" />
+    <CustomBuild Include="*.glsl" />
+    <CustomBuild Include="*.glsl" />
+    <CustomBuild Include="*.glsl" />
+    <CustomBuild Include="*.glsl" />
+    <CustomBuild Include="*.glsl" />
+    <CustomBuild Include="*.glsl" />
+    <CustomBuild Include="*.glsl" />
+    <CustomBuild Include="*.glsl" />
+    <CustomBuild Include="*.glsl" />
+    <CustomBuild Include="*.glsl" />
+    <CustomBuild Include="*.glsl" />
+    <CustomBuild Include="*.glsl" />
+    <CustomBuild Include="*.glsl" />
+    <CustomBuild Include="*.glsl" />
+    <CustomBuild Include="*.glsl" />
+    <CustomBuild Include="*.glsl" />
+    <CustomBuild Include="*.glsl" />
+    <CustomBuild Include="*.glsl" />
+    <CustomBuild Include="*.glsl" />
+    <CustomBuild Include="*.glsl" />
+    <CustomBuild Include="*.glsl" />
+    <CustomBuild Include="*.glsl" />
+    <CustomBuild Include="*.glsl" />
+    <CustomBuild Include="*.glsl" />
   </ItemGroup>
   <ItemGroup>
     <MASM Include="yo24.asm">

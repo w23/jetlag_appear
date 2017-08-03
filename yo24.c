@@ -24,6 +24,7 @@
 #include <mmsystem.h>
 #include <mmreg.h>
 #include <GL/gl.h>
+
 #if defined(CAPTURE)
 #include <stdio.h>
 #ifdef __linux__
@@ -42,8 +43,10 @@ int _fltused = 1;
 #define oglFramebufferTexture2D gl.FramebufferTexture2D
 #define oglUseProgram gl.UseProgram
 #define oglGetUniformLocation gl.GetUniformLocation
-#define oglUniform1i gl.Uniform1i
-#define oglUniform3f gl.Uniform3f
+#define oglUniform1iv gl.Uniform1iv
+#define oglUniform1fv gl.Uniform1fv
+#define oglDrawBuffers gl.DrawBuffers
+#define oglActiveTexture gl.ActiveTexture
 
 #elif defined(__linux__)
 #define GL_GLEXT_PROTOTYPES
@@ -64,6 +67,7 @@ int _fltused = 1;
 
 #include "glext.h"
 
+#ifdef OLD_4KLANG
 //#include "music/4klang.h"
 #define SAMPLE_RATE 44100
 #define BPM 92.000000
@@ -78,6 +82,7 @@ int _fltused = 1;
 #define FLOAT_32BIT
 #define SAMPLE_TYPE float
 #define INTRO_LENGTH (1000ull * MAX_SAMPLES / SAMPLE_RATE)
+#endif
 
 #ifdef CAPTURE
 #ifndef CAPTURE_FRAMERATE
@@ -94,9 +99,25 @@ int _fltused = 1;
 #pragma data_seg(".raymarch.glsl")
 #include "raymarch.h"
 
+#pragma data_seg(".blur_reflection.glsl")
+#include "blur_reflection.h"
+
+#pragma data_seg(".blur_reflection2.glsl")
+#include "blur_reflection2.h"
+
+#pragma data_seg(".composite.glsl")
+#include "composite.h"
+
+#pragma data_seg(".dof_tap.glsl")
+#include "dof_tap.h"
+
+#pragma data_seg(".header.glsl")
+#include "header_fixed.h"
+
 #pragma data_seg(".post.glsl")
 #include "post.h"
 
+#ifdef OLD_TIMELINE
 #pragma data_seg(".timeline.h")
 #include "timeline.h"
 
@@ -129,6 +150,7 @@ static __forceinline void timelineUpdate(float time) {
 	}
 	//printf("\n");
 }
+#endif
 
 #ifdef NO_CREATESHADERPROGRAMV
 FUNCLIST_DO(PFNGLCREATESHADERPROC, CreateShader) \
@@ -143,11 +165,13 @@ FUNCLIST_DO(PFNGLLINKPROGRAMPROC, LinkProgram)
   FUNCLIST_DO(PFNGLCREATESHADERPROGRAMVPROC, CreateShaderProgramv) \
   FUNCLIST_DO(PFNGLUSEPROGRAMPROC, UseProgram) \
   FUNCLIST_DO(PFNGLGETUNIFORMLOCATIONPROC, GetUniformLocation) \
-  FUNCLIST_DO(PFNGLUNIFORM1IPROC, Uniform1i) \
-  FUNCLIST_DO(PFNGLUNIFORM3FPROC, Uniform3f) \
+  FUNCLIST_DO(PFNGLUNIFORM1IVPROC, Uniform1iv) \
+  FUNCLIST_DO(PFNGLUNIFORM1FVPROC, Uniform1fv) \
   FUNCLIST_DO(PFNGLGENFRAMEBUFFERSPROC, GenFramebuffers) \
   FUNCLIST_DO(PFNGLBINDFRAMEBUFFERPROC, BindFramebuffer) \
-  FUNCLIST_DO(PFNGLFRAMEBUFFERTEXTURE2DPROC, FramebufferTexture2D)
+  FUNCLIST_DO(PFNGLFRAMEBUFFERTEXTURE2DPROC, FramebufferTexture2D) \
+  FUNCLIST_DO(PFNGLDRAWBUFFERSPROC, DrawBuffers) \
+  FUNCLIST_DO(PFNGLACTIVETEXTUREPROC, ActiveTexture)
 #ifndef DEBUG
 #define FUNCLIST_DBG
 #else
@@ -159,10 +183,36 @@ FUNCLIST_DO(PFNGLLINKPROGRAMPROC, LinkProgram)
 
 #define FUNCLISTS FUNCLIST FUNCLIST_DBG
 
+#ifdef OLD_4KLANG
 static SAMPLE_TYPE lpSoundBuffer[MAX_SAMPLES * 2];
-static int p_ray, p_dof;
-enum { FbTex_Ray, FbTex_COUNT };
-static GLuint tex[FbTex_COUNT], fb[FbTex_COUNT];
+#endif
+
+enum {
+	Pass_Raymarch,
+	Pass_ReflectBlur1, Pass_ReflectBlur2, Pass_ReflectCombine,
+	Pass_DofTap, Pass_Post,
+	Pass_COUNT
+};
+
+enum {
+	Tex_Random,
+	Tex_RaymarchPrimary, Tex_RaymarchReflect,
+	Tex_ReflectBlur1, Tex_ReflectBlur2,
+	Tex_Combined,
+	Tex_DofNear, Tex_DofFar,
+	Tex_COUNT
+};
+
+const static GLuint samplers[Tex_COUNT] = {
+	0, 1, 2, 3, 4, 5, 6, 7
+};
+const static GLuint draw_buffers[2] = {
+	GL_COLOR_ATTACHMENT0, GL_COLOR_ATTACHMENT1
+};
+
+static GLuint program[Pass_COUNT];
+static GLuint texture[Tex_COUNT];
+static GLuint fb[Pass_COUNT - 1];
 
 #ifdef CAPTURE
 static GLubyte backbufferData[XRES*YRES * 3];
@@ -202,6 +252,7 @@ static const DEVMODE screenSettings = { {0},
 	#endif
 	};
 
+#ifdef OLD_4KLANG
 #pragma data_seg(".wavefmt")
 static const WAVEFORMATEX WaveFMT =
 {
@@ -230,14 +281,48 @@ static MMTIME MMTime =
 	TIME_SAMPLES, 0
 };
 */
+#endif // OLD_4KLANG
 #endif /* _WIN32 */
 
+#ifndef _DEBUG
+#define GLCHECK()
+#else
+static const char *a__GlPrintError(int error) {
+	const char *errstr = "UNKNOWN";
+	switch (error) {
+	case GL_INVALID_ENUM: errstr = "GL_INVALID_ENUM"; break;
+	case GL_INVALID_VALUE: errstr = "GL_INVALID_VALUE"; break;
+	case GL_INVALID_OPERATION: errstr = "GL_INVALID_OPERATION"; break;
+#ifdef GL_STACK_OVERFLOW
+	case GL_STACK_OVERFLOW: errstr = "GL_STACK_OVERFLOW"; break;
+#endif
+#ifdef GL_STACK_UNDERFLOW
+	case GL_STACK_UNDERFLOW: errstr = "GL_STACK_UNDERFLOW"; break;
+#endif
+	case GL_OUT_OF_MEMORY: errstr = "GL_OUT_OF_MEMORY"; break;
+#ifdef GL_TABLE_TOO_LARGE
+	case GL_TABLE_TOO_LARGE: errstr = "GL_TABLE_TOO_LARGE"; break;
+#endif
+	case 1286: errstr = "INVALID FRAMEBUFFER"; break;
+	};
+	return errstr;
+}
+static void GLCHECK() {
+	const int glerror = glGetError(); 
+	if (glerror != GL_NO_ERROR) {
+		MessageBox(NULL, a__GlPrintError(glerror), "GLCHECK", 0);
+		ExitProcess(0);
+	};
+}
+#endif /* ATTO_GL_DEBUG */
+
 #pragma code_seg(".compileProgram")
-static __forceinline int compileProgram(const char *fragment) {
+static __forceinline GLuint compileProgram(const char *fragment) {
+	const char* sources[2] = { header_glsl, fragment };
 #ifdef NO_CREATESHADERPROGRAMV
 	const int pid = oglCreateProgram();
 	const int fsId = oglCreateShader(GL_FRAGMENT_SHADER);
-	oglShaderSource(fsId, 1, &fragment, 0);
+	oglShaderSource(fsId, 2, sources, 0);
 	oglCompileShader(fsId);
 
 #ifdef SHADER_DEBUG
@@ -258,7 +343,7 @@ static __forceinline int compileProgram(const char *fragment) {
 	oglLinkProgram(pid);
 
 #else
-	const int pid = oglCreateShaderProgramv(GL_FRAGMENT_SHADER, 1, &fragment);
+	const GLuint pid = oglCreateShaderProgramv(GL_FRAGMENT_SHADER, 2, sources);
 #endif
 
 #ifdef SHADER_DEBUG
@@ -279,27 +364,41 @@ static __forceinline int compileProgram(const char *fragment) {
 	return pid;
 }
 
-static __forceinline void initFbTex(int fb, int tex) {
+static __forceinline void initTexture(GLuint tex, int w, int h, int comp, int type, void *data) {
 	glBindTexture(GL_TEXTURE_2D, tex);
-	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA16F, XRES, YRES, 0, GL_RGBA, GL_FLOAT, 0);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+	GLCHECK();
+	glTexImage2D(GL_TEXTURE_2D, 0, comp, w, h, 0, GL_RGBA, type, data);
+	GLCHECK();
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
 	//glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-	//glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_BORDER);
-	//glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_BORDER);
-	oglBindFramebuffer(GL_FRAMEBUFFER, fb);
-	oglFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, tex, 0);
+	//glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
+	//glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
 }
 
-static void paint(int prog, int src_tex, int dst_fb, float time) {
+static __forceinline void initFb(GLuint fb, GLuint tex1, GLuint tex2) {
+	oglBindFramebuffer(GL_FRAMEBUFFER, fb);
+	GLCHECK();
+	oglFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, tex1, 0);
+	GLCHECK();
+	if (tex2 > 0)
+		oglFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT1, GL_TEXTURE_2D, tex2, 0);
+	GLCHECK();
+}
+
+#define NUM_SIGNALS 32
+float signals[NUM_SIGNALS] = { 1.f, 1.f, 1.f, 1.f, 1.f, 1.f, 1.f, 1.f, 1.f, 1.f };
+static void paint(GLuint prog, GLuint dst_fb, int out_bufs) {
 	oglUseProgram(prog);
-	glBindTexture(GL_TEXTURE_2D, src_tex);
+	GLCHECK();
+	//glBindTexture(GL_TEXTURE_2D, src_tex);
 	oglBindFramebuffer(GL_FRAMEBUFFER, dst_fb);
-	oglUniform1i(oglGetUniformLocation(prog, "B"), 0);
-	oglUniform3f(oglGetUniformLocation(prog, "V"), (float)XRES, (float)YRES, time);
-	oglUniform3f(oglGetUniformLocation(prog, "C"), TV[0], TV[1], TV[2]);
-	oglUniform3f(oglGetUniformLocation(prog, "A"), TV[3], TV[4], TV[5]);
-	oglUniform3f(oglGetUniformLocation(prog, "D"), TV[6], TV[7], TV[8]);
-	//int i; for (i = 0; i < 9; ++i) printf("%f ", TV[i]); printf("\n");
+	GLCHECK();
+	if (dst_fb) oglDrawBuffers(out_bufs, draw_buffers);
+	GLCHECK();
+	oglUniform1iv(oglGetUniformLocation(prog, "S"), Tex_COUNT, samplers);
+	glGetError();
+	oglUniform1fv(oglGetUniformLocation(prog, "F"), NUM_SIGNALS, signals);
+	glGetError();
 #if defined(CAPTURE) && defined(TILED)
 	{
 		int x, y;
@@ -316,24 +415,62 @@ static void paint(int prog, int src_tex, int dst_fb, float time) {
 #else
 	glRects(-1, -1, 1, 1);
 #endif
+	GLCHECK();
 }
 
+#define NOISE_SIZE 256
+static unsigned char noise_bytes[4 * NOISE_SIZE * NOISE_SIZE];
+
 static __forceinline void introInit() {
-	p_ray = compileProgram(raymarch_glsl);
-	p_dof = compileProgram(post_glsl);
-	//const int p_out = compileProgram(out_glsl);
+	unsigned seed = 0;
+	for (int i = 0; i < 4 * NOISE_SIZE * NOISE_SIZE; ++i) {
+		seed = 1013904223ul + seed * 1664525ul;
+		noise_bytes[i] = (seed >> 18);
+	}
 
-	glGenTextures(FbTex_COUNT, tex);
-	oglGenFramebuffers(FbTex_COUNT, fb);
+	glGenTextures(Tex_COUNT, texture);
+	GLCHECK();
+	oglGenFramebuffers(Pass_COUNT - 1, fb);
+	GLCHECK();
 
-	initFbTex(tex[FbTex_Ray], fb[FbTex_Ray]);
-	//initFbTex(tex[FbTex_Dof], fb[FbTex_Dof]);
+	initTexture(texture[Tex_Random], NOISE_SIZE, NOISE_SIZE, GL_RGBA, GL_UNSIGNED_BYTE, noise_bytes);
+	oglActiveTexture(GL_TEXTURE1);
+	initTexture(texture[Tex_RaymarchPrimary], XRES, YRES, GL_RGBA16F, GL_FLOAT, 0);
+	oglActiveTexture(GL_TEXTURE2);
+	initTexture(texture[Tex_RaymarchReflect], XRES, YRES, GL_RGBA16F, GL_FLOAT, 0);
+	oglActiveTexture(GL_TEXTURE3);
+	initTexture(texture[Tex_ReflectBlur1], XRES, YRES, GL_RGBA16F, GL_FLOAT, 0);
+	oglActiveTexture(GL_TEXTURE4);
+	initTexture(texture[Tex_ReflectBlur2], XRES, YRES, GL_RGBA16F, GL_FLOAT, 0);
+	oglActiveTexture(GL_TEXTURE5);
+	initTexture(texture[Tex_Combined], XRES, YRES, GL_RGBA16F, GL_FLOAT, 0);
+	oglActiveTexture(GL_TEXTURE6);
+	initTexture(texture[Tex_DofNear], XRES, YRES, GL_RGBA16F, GL_FLOAT, 0);
+	oglActiveTexture(GL_TEXTURE7);
+	initTexture(texture[Tex_DofFar], XRES, YRES, GL_RGBA16F, GL_FLOAT, 0);
+
+	initFb(fb[Pass_Raymarch], texture[Tex_RaymarchPrimary], texture[Tex_RaymarchReflect]);
+	initFb(fb[Pass_ReflectBlur1], texture[Tex_ReflectBlur1], 0);
+	initFb(fb[Pass_ReflectBlur2], texture[Tex_ReflectBlur2], 0);
+	initFb(fb[Pass_ReflectCombine], texture[Tex_Combined], 0);
+	initFb(fb[Pass_DofTap], texture[Tex_DofNear], texture[Tex_DofFar]);
+
+	program[Pass_Raymarch] = compileProgram(raymarch_glsl);
+	program[Pass_ReflectBlur1] = compileProgram(blur_reflection_glsl);
+	program[Pass_ReflectBlur2] = compileProgram(blur_reflection2_glsl);
+	program[Pass_ReflectCombine] = compileProgram(composite_glsl);
+	program[Pass_DofTap] = compileProgram(dof_tap_glsl);
+	program[Pass_Post] = compileProgram(post_glsl);
 }
 
 static __forceinline void introPaint(float time) {
-	timelineUpdate(time);
-	paint(p_ray, 0, fb[FbTex_Ray], time);
-	paint(p_dof, tex[FbTex_Ray], 0, time);
+	//timelineUpdate(time);
+	paint(program[Pass_Raymarch], fb[Pass_Raymarch], 2);
+	paint(program[Pass_ReflectBlur1], fb[Pass_ReflectBlur1], 1);
+	paint(program[Pass_ReflectBlur2], fb[Pass_ReflectBlur2], 1);
+	paint(program[Pass_ReflectCombine], fb[Pass_ReflectCombine], 1);
+	paint(program[Pass_DofTap], fb[Pass_DofTap], 2);
+	paint(program[Pass_Post], 0, 1);
 }
 
 #ifdef _WIN32
@@ -394,6 +531,8 @@ void entrypoint(void) {
 #else
 		const int time = timeGetTime() - to;
 #endif
+		signals[2] = signals[12] = time / 1000.f;
+		signals[13] = .1f;
 		introPaint(time / 1000.f);
 		SwapBuffers(hDC);
 
@@ -405,7 +544,7 @@ void entrypoint(void) {
 
 		/* hide cursor properly */
 		PeekMessageA(0, 0, 0, 0, PM_REMOVE);
-		if (time > INTRO_LENGTH) break;
+		//if (time > INTRO_LENGTH) break;
 	} while (!GetAsyncKeyState(VK_ESCAPE));
 		// && MMTime.u.sample < MAX_SAMPLES);
 

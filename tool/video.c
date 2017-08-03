@@ -124,7 +124,7 @@ static void drawPass(float *signals, int num_signals, const RenderPass *pass) {
 }
 
 #define NOISE_SIZE 256
-static uint32_t noise_bytes[NOISE_SIZE * NOISE_SIZE];
+static uint8_t noise_bytes[NOISE_SIZE * NOISE_SIZE * 4];
 
 #define MAX_GRAPH_SAMPLES 1024
 static struct {
@@ -199,10 +199,11 @@ void videoInit(int width, int height) {
 	GL(GenTextures(Texture_MAX, g.textures));
 
 	{
-		uint64_t seed = 0;
-		for (int i = 0; i < NOISE_SIZE * NOISE_SIZE; ++i) {
-			seed = 1442695040888963407ull + seed * 6364136223846793005ull;
-			noise_bytes[i] = (seed >> 32);
+		uint32_t seed = 0;
+		for (int i = 0; i < NOISE_SIZE * NOISE_SIZE * 4; ++i) {
+			//seed = 1442695040888963407ull + seed * 6364136223846793005ull;
+			seed = 1013904223ul + seed * 1664525ul;
+			noise_bytes[i] = (seed >> 18);
 		}
 
 		g.texture_unit[0] = 0;

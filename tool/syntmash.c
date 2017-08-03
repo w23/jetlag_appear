@@ -202,12 +202,12 @@ int symaRun(SymaRunContext *context) {
 	
 		case SYMA_OP_STEPI:
 			CHECK_STACK_UNDERFLOW(0);
-			stack[sp] = stack[sp] < op->imm[0].f ? 0 : 1;
+			stack[sp] = stack[sp] < op->imm[0].f ? 0.f : 1.f;
 			break;
 
 		case SYMA_OP_RDIVI:
 			CHECK_STACK_UNDERFLOW(0);
-			if (fabs(stack[sp]) > 1e-9)
+			if (fabs(stack[sp]) > 1e-9f)
 				stack[sp] = op->imm[0].f / stack[sp];
 			else
 				stack[sp] = 0;

@@ -148,9 +148,16 @@
     </ClCompile>
     <Link />
     <ProjectReference />
+    <Link />
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClInclude Include="blur_reflection.h" />
+    <ClInclude Include="blur_reflection2.h" />
+    <ClInclude Include="composite.h" />
+    <ClInclude Include="dof_tap.h" />
     <ClInclude Include="glext.h" />
+    <ClInclude Include="header.h" />
+    <ClInclude Include="header_fixed.h" />
     <ClInclude Include="music\4klang.h" />
     <ClInclude Include="post.h" />
     <ClInclude Include="raymarch.h" />
@@ -158,51 +165,12 @@
   </ItemGroup>
   <ItemGroup>
     <None Include="music\4klang.inc" />
-    <CustomBuild Include="post.glsl">
+    <CustomBuild Include="*.glsl">
       <FileType>Document</FileType>
-      <Command Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">shader_minifier.exe -o %(Filename).h --preserve-externals %(Identity)</Command>
-      <Command Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">shader_minifier.exe -o %(Filename).h --preserve-externals %(Identity)</Command>
-      <Command Condition="'$(Configuration)|$(Platform)'=='ReleaseFastShaderDebug|Win32'">shader_minifier.exe -o %(Filename).h --preserve-externals %(Identity)</Command>
-      <Command Condition="'$(Configuration)|$(Platform)'=='ReleaseFast|Win32'">shader_minifier.exe -o %(Filename).h --preserve-externals %(Identity)</Command>
-      <Command Condition="'$(Configuration)|$(Platform)'=='Capture|Win32'">shader_minifier.exe -o %(Filename).h --preserve-externals %(Identity)</Command>
-      <Outputs Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">%(Filename).h</Outputs>
-      <Outputs Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">%(Filename).h</Outputs>
-      <Outputs Condition="'$(Configuration)|$(Platform)'=='ReleaseFastShaderDebug|Win32'">%(Filename).h</Outputs>
-      <Outputs Condition="'$(Configuration)|$(Platform)'=='ReleaseFast|Win32'">%(Filename).h</Outputs>
-      <Outputs Condition="'$(Configuration)|$(Platform)'=='Capture|Win32'">%(Filename).h</Outputs>
-      <Message Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">Minifying shader %(Identity) to %(Filename).h</Message>
-      <Message Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">Minifying shader %(Identity) to %(Filename).h</Message>
-      <Message Condition="'$(Configuration)|$(Platform)'=='ReleaseFastShaderDebug|Win32'">Minifying shader %(Identity) to %(Filename).h</Message>
-      <Message Condition="'$(Configuration)|$(Platform)'=='ReleaseFast|Win32'">Minifying shader %(Identity) to %(Filename).h</Message>
-      <Message Condition="'$(Configuration)|$(Platform)'=='Capture|Win32'">Minifying shader %(Identity) to %(Filename).h</Message>
-      <LinkObjects Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">false</LinkObjects>
-      <LinkObjects Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">false</LinkObjects>
-      <LinkObjects Condition="'$(Configuration)|$(Platform)'=='ReleaseFastShaderDebug|Win32'">false</LinkObjects>
-      <LinkObjects Condition="'$(Configuration)|$(Platform)'=='ReleaseFast|Win32'">false</LinkObjects>
-      <LinkObjects Condition="'$(Configuration)|$(Platform)'=='Capture|Win32'">false</LinkObjects>
-    </CustomBuild>
-    <CustomBuild Include="raymarch.glsl">
-      <FileType>Document</FileType>
-      <Command Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">shader_minifier.exe -o %(Filename).h --preserve-externals %(Identity)</Command>
-      <Command Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">shader_minifier.exe -o %(Filename).h --preserve-externals %(Identity)</Command>
-      <Command Condition="'$(Configuration)|$(Platform)'=='ReleaseFastShaderDebug|Win32'">shader_minifier.exe -o %(Filename).h --preserve-externals %(Identity)</Command>
-      <Command Condition="'$(Configuration)|$(Platform)'=='ReleaseFast|Win32'">shader_minifier.exe -o %(Filename).h --preserve-externals %(Identity)</Command>
-      <Command Condition="'$(Configuration)|$(Platform)'=='Capture|Win32'">shader_minifier.exe -o %(Filename).h --preserve-externals %(Identity)</Command>
-      <Outputs Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">%(Filename).h</Outputs>
-      <Outputs Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">%(Filename).h</Outputs>
-      <Outputs Condition="'$(Configuration)|$(Platform)'=='ReleaseFastShaderDebug|Win32'">%(Filename).h</Outputs>
-      <Outputs Condition="'$(Configuration)|$(Platform)'=='ReleaseFast|Win32'">%(Filename).h</Outputs>
-      <Outputs Condition="'$(Configuration)|$(Platform)'=='Capture|Win32'">%(Filename).h</Outputs>
-      <Message Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">Minifying shader %(Identity) to %(Filename).h</Message>
-      <Message Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">Minifying shader %(Identity) to %(Filename).h</Message>
-      <Message Condition="'$(Configuration)|$(Platform)'=='ReleaseFastShaderDebug|Win32'">Minifying shader %(Identity) to %(Filename).h</Message>
-      <Message Condition="'$(Configuration)|$(Platform)'=='ReleaseFast|Win32'">Minifying shader %(Identity) to %(Filename).h</Message>
-      <Message Condition="'$(Configuration)|$(Platform)'=='Capture|Win32'">Minifying shader %(Identity) to %(Filename).h</Message>
-      <LinkObjects Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">false</LinkObjects>
-      <LinkObjects Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">false</LinkObjects>
-      <LinkObjects Condition="'$(Configuration)|$(Platform)'=='ReleaseFastShaderDebug|Win32'">false</LinkObjects>
-      <LinkObjects Condition="'$(Configuration)|$(Platform)'=='ReleaseFast|Win32'">false</LinkObjects>
-      <LinkObjects Condition="'$(Configuration)|$(Platform)'=='Capture|Win32'">false</LinkObjects>
+      <Command>shader_minifier.exe -o %(Filename).h --preserve-externals --no-renaming-list S,F,t,E,PI,PI2,rt,zt,Z,T,Q,X,main %(Identity)</Command>
+      <Outputs>%(Filename).h</Outputs>
+      <Message>Minifying shader %(Identity) to %(Filename).h</Message>
+      <LinkObjects>false</LinkObjects>
     </CustomBuild>
     <CustomBuild Include="timeline.seq">
       <FileType>Document</FileType>

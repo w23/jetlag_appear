@@ -5,15 +5,15 @@ void main() {
 	vec4 near, far;
 	near = far = vec4(.0,.0,.0,.0001);
 	float fdist = 1. + F[13] * 50.;
-	float z = T(5,gl_FragCoord.xy).w;
+	float z = T(5,X).w;
 	for (int i = 0; i < 81; i++) {
-		vec4 pix = T(5, gl_FragCoord.xy + rad * angle);
+		vec4 pix = T(5, X + rad * angle);
 
 		float A = .04;
 		float D = fdist;
 		float F = .03 / tan(.7);
 		float P = pix.w;
-		float coc = abs(A * F / (P - F) * (P / D - 1.)) * V.x / .035;
+		float coc = abs(A * F / (P - F) * (P / D - 1.)) * Z(1).x / .035;
 
 		if (coc > rad) {
 		 	if (pix.w > fdist) {
