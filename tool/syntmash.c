@@ -6,12 +6,12 @@
 #define CHECK_STACK_OVERFLOW(n) \
 	if (sp + n >= context->stack_size) { \
 		printf("Stack overflow @%d, op %d (%d, %f)\n", \
-			pc, op->opcode, op->immi, op->immf); \
+			pc, op->opcode, op->imm[0].i, op->imm[0].f); \
 	}
 #define CHECK_STACK_UNDERFLOW(n) \
 	if (sp - n < 0) { \
 		printf("Stack underflow @%d, op %d (%d, %f)\n", \
-			pc, op->opcode, op->immi, op->immf); \
+			pc, op->opcode, op->imm[0].i, op->imm[0].f); \
 	}
 
 int symaRun(SymaRunContext *context) {
@@ -24,7 +24,7 @@ int symaRun(SymaRunContext *context) {
 		switch (op->opcode) {
 		case SYMA_OP_PUSH:
 			CHECK_STACK_OVERFLOW(1);
-			stack[++sp] = op->immf;
+			stack[++sp] = op->imm[0].f;
 			break;
 		case SYMA_OP_POP:
 			CHECK_STACK_UNDERFLOW(1);
@@ -32,27 +32,27 @@ int symaRun(SymaRunContext *context) {
 			break;
 		case SYMA_OP_PUSH_IN:
 			CHECK_STACK_OVERFLOW(1);
-			if (op->immi < 0 || op->immi >= context->input_size) {
-				printf("Input out-of-bounds: %d (%d)\n", op->immi, context->input_size);
+			if (op->imm[0].i < 0 || op->imm[0].i >= context->input_size) {
+				printf("Input out-of-bounds: %d (%d)\n", op->imm[0].i, context->input_size);
 				return 0;
 			}
-			stack[++sp] = context->input[op->immi];
+			stack[++sp] = context->input[op->imm[0].i];
 			break;
 		case SYMA_OP_PUSH_STATE:
 			CHECK_STACK_OVERFLOW(1);
-			if (op->immi < 0 || op->immi >= context->state_size) {
-				printf("State out-of-bounds: %d (%d)\n", op->immi, context->state_size);
+			if (op->imm[0].i < 0 || op->imm[0].i >= context->state_size) {
+				printf("State out-of-bounds: %d (%d)\n", op->imm[0].i, context->state_size);
 				return 0;
 			}
-			stack[++sp] = context->state[op->immi];
+			stack[++sp] = context->state[op->imm[0].i];
 			break;
 		case SYMA_OP_POP_STATE:
 			CHECK_STACK_UNDERFLOW(1);
-			if (op->immi < 0 || op->immi >= context->state_size) {
-				printf("State out-of-bounds: %d (%d)\n", op->immi, context->state_size);
+			if (op->imm[0].i < 0 || op->imm[0].i >= context->state_size) {
+				printf("State out-of-bounds: %d (%d)\n", op->imm[0].i, context->state_size);
 				return 0;
 			}
-			context->state[op->immi] = stack[sp--];
+			context->state[op->imm[0].i] = stack[sp--];
 			break;
 		case SYMA_OP_DUP: {
 				CHECK_STACK_OVERFLOW(1);
@@ -124,11 +124,11 @@ int symaRun(SymaRunContext *context) {
 				printf("Stack too shallow: %d\n", sp);
 				return 0;
 			}
-			if (op->immi < 0 || op->immi >= context->state_size) {
-				printf("State out-of-bounds: %d (%d)\n", op->immi, context->state_size);
+			if (op->imm[0].i < 0 || op->imm[0].i >= context->state_size) {
+				printf("State out-of-bounds: %d (%d)\n", op->imm[0].i, context->state_size);
 				return 0;
 			}
-			float *const phase = context->state + op->immi;
+			float *const phase = context->state + op->imm[0].i;
 			stack[sp] = *phase = fmodf(*phase + stack[sp], 1.f);
 			break;
 		case SYMA_OP_MTODP:
@@ -142,6 +142,76 @@ int symaRun(SymaRunContext *context) {
 			CHECK_STACK_OVERFLOW(1);
 			stack[++sp] = (rng(&context->rng) / (float)UINT32_MAX) * 2.f - 1.f;
 			break;
+
+		case SYMA_OP_MADD:
+			CHECK_STACK_UNDERFLOW(2);
+			stack[sp-2] = stack[sp] * stack[sp-1] + stack[sp-2];
+			sp -= 2;
+			break;
+
+		case SYMA_OP_MADDI:
+			CHECK_STACK_UNDERFLOW(0);
+			stack[sp] = stack[sp] * op->imm[0].f + op->imm[1].f;
+			break;
+
+		case SYMA_OP_DIV:
+			CHECK_STACK_UNDERFLOW(1);
+			if (fabs(stack[sp]) > 1e-9)
+				stack[sp-1] /= stack[sp];
+			else
+				stack[sp-1] = 0;
+			--sp;
+			break;
+
+		case SYMA_OP_PUSHDPFREQ:
+			CHECK_STACK_OVERFLOW(1);
+			stack[++sp] = op->imm[0].f / context->samplerate;
+			break;
+
+		case SYMA_OP_MIX:
+			CHECK_STACK_UNDERFLOW(2);
+			stack[sp-2] = stack[sp-1] * stack[sp] + stack[sp-2] * (1.f - stack[sp]);
+			sp -= 2;
+			break;
+
+		case SYMA_OP_CLAMP:
+			CHECK_STACK_UNDERFLOW(2);
+			if (stack[sp] < stack[sp-2])
+				stack[sp-2] = stack[sp];
+			else if (stack[sp] > stack[sp-1])
+				stack[sp-2] = stack[sp-1];
+			sp -= 2;
+			break;
+
+		case SYMA_OP_CLAMPI:
+			CHECK_STACK_UNDERFLOW(0);
+			if (stack[sp] < op->imm[0].f)
+				stack[sp] = op->imm[0].f;
+			else if (stack[sp] > op->imm[1].f)
+				stack[sp] = op->imm[1].f;
+			break;
+
+		case SYMA_OP_SWAP: {
+			CHECK_STACK_UNDERFLOW(1);
+			const float tmp = stack[sp];
+			stack[sp] = stack[sp-1];
+			stack[sp-1] = tmp;
+			break;
+		}
+	
+		case SYMA_OP_STEPI:
+			CHECK_STACK_UNDERFLOW(0);
+			stack[sp] = stack[sp] < op->imm[0].f ? 0 : 1;
+			break;
+
+		case SYMA_OP_RDIVI:
+			CHECK_STACK_UNDERFLOW(0);
+			if (fabs(stack[sp]) > 1e-9)
+				stack[sp] = op->imm[0].f / stack[sp];
+			else
+				stack[sp] = 0;
+			break;
+
 		default:
 			printf("Invalid opcode: %d\n", op->opcode);
 			return 0;

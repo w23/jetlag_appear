@@ -23,12 +23,26 @@ enum syma_opcode_t {
 	SYMA_OP_PADDST,
 	SYMA_OP_MTODP,
 	SYMA_OP_NOISE,
+	SYMA_OP_MADD,
+	SYMA_OP_MADDI,
+	SYMA_OP_DIV,
+	SYMA_OP_PUSHDPFREQ,
+	SYMA_OP_MIX,
+	SYMA_OP_CLAMP,
+	SYMA_OP_CLAMPI,
+	SYMA_OP_SWAP,
+	SYMA_OP_STEPI,
+	SYMA_OP_RDIVI,
 };
+
+#define SYMA_MAX_OP_IMM 4
 
 typedef struct {
 	enum syma_opcode_t opcode;
-	int immi;
-	float immf;
+	union {
+		int i;
+		float f;
+	} imm[SYMA_MAX_OP_IMM];
 } SymaOp;
 
 typedef struct {

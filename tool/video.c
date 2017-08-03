@@ -281,7 +281,7 @@ void videoPaint(float *signals, int num_signals, int force_redraw) {
 			drawPass(signals, num_signals, g.pass + Pass_MAX - 1);
 
 	const int samples = 2000;
-	const int diag_signals_count = MAX_DIAG_SIGNALS;
+	const int diag_signals_count = 4;//MAX_DIAG_SIGNALS;
 	const float h = 2.f / diag_signals_count;
 	const float kx = 2.f / (samples - 1);
 	MEMORY_BARRIER();

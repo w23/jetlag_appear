@@ -11,7 +11,7 @@ static struct {
 	enum {
 		ArgType_Float,
 		ArgType_Int,
-	} arg_type[1];
+	} arg_type[SYMA_MAX_OP_IMM];
 } opcode_table[] = {
 	{"push", SYMA_OP_PUSH, 1, {ArgType_Float}},
 	{"pop", SYMA_OP_POP, 0, {ArgType_Float}},
@@ -29,6 +29,16 @@ static struct {
 	{"paddst", SYMA_OP_PADDST, 1, {ArgType_Int}},
 	{"mtodp", SYMA_OP_MTODP, 0, {ArgType_Int}},
 	{"noise", SYMA_OP_NOISE, 0, {ArgType_Int}},
+	{"madd", SYMA_OP_MADD, 0, {0}},
+	{"maddi", SYMA_OP_MADDI, 2, {ArgType_Float, ArgType_Float}},
+	{"div", SYMA_OP_DIV, 0, {0}},
+	{"pushdpfreq", SYMA_OP_PUSHDPFREQ, 1, {ArgType_Float}},
+	{"mix", SYMA_OP_MIX, 0, {0}},
+	{"clamp", SYMA_OP_CLAMP, 0, {0}},
+	{"clampi", SYMA_OP_CLAMPI, 2, {ArgType_Float, ArgType_Float}},
+	{"swap", SYMA_OP_SWAP, 0, {0}},
+	{"stepi", SYMA_OP_STEPI, 1, {ArgType_Float}},
+	{"rdivi", SYMA_OP_RDIVI, 1, {ArgType_Float}},
 };
 
 int symasmCompile(SymaRunContext *ctx_inout, const char *source) {
@@ -64,13 +74,13 @@ int symasmCompile(SymaRunContext *ctx_inout, const char *source) {
 					return 0;
 				}
 
-				if (args == 1) {
-					switch (opcode_table[i].arg_type[0]) {
+				for (int j = 0; j < opcode_table[i].args; ++j) {
+					switch (opcode_table[i].arg_type[j]) {
 						case ArgType_Int:
-							op->immi = strtol(parser_context.token[1].str, 0, 10);
+							op->imm[j].i = strtol(parser_context.token[1+j].str, 0, 10);
 							break;
 						case ArgType_Float:
-							op->immf = (float)strtod(parser_context.token[1].str, 0);
+							op->imm[j].f = (float)strtod(parser_context.token[1+j].str, 0);
 							break;
 					}
 				}
