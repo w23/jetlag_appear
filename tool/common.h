@@ -86,6 +86,42 @@ typedef struct {
 
 void parseLine(ParserContext *context);
 
+#define PARSER_MAX_ARGS 16
+typedef enum {
+	PAF_None = 0,
+	PAF_Int = 1<<0,
+	PAF_Float = 1<<1,
+	PAF_String = 1<<2,
+	PAF_Var = 1<<3,
+} ParserArgTypeFlag;
+typedef struct {
+	ParserArgTypeFlag type;
+	const char *s;
+	int slen;
+	union {
+		int i;
+		float f;
+	} value;
+} ParserArg;
+
+typedef struct ParserLine {
+	const char *name;
+	int min_args, max_args;
+	struct {
+		unsigned type_flags;
+	} args[PARSER_MAX_ARGS];
+	int (*callback)(const struct ParserLine *, const ParserArg *args, int nargs, void *userdata);
+} ParserLine;
+
+typedef struct {
+	const char *next_line;
+	ParserLine *line_table;
+	int line_table_length;
+	void *userdata;
+} ParserTokenizer;
+
+int parserTokenizeLine(ParserTokenizer *tokenizer);
+
 static inline uint32_t rng(uint64_t *state) {
 	*state = 1442695040888963407ull + (*state) * 6364136223846793005ull;
 	return (*state) >> 32;

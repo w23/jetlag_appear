@@ -59,7 +59,7 @@ void passInit(RenderPass *pass, int ntex, const GLuint *tex, const char *src_fil
 	if (ntex > 0) {
 		pass->targets = ntex;
 		GL(GenFramebuffers(1, &pass->fb));
-		GL(BindFramebuffer(GL_FRAMEBUFFER, pass->fb)); 
+		GL(BindFramebuffer(GL_FRAMEBUFFER, pass->fb));
 		for (int i = 0; i < ntex; ++i) {
 			MSG("%s %p %d %d %d", src_file, pass, pass->fb, i, tex[i]);
 			GL(FramebufferTexture2D(GL_FRAMEBUFFER,
@@ -83,7 +83,7 @@ int passCheckAndUpdateProgram(RenderPass *pass) {
 	MSG("Loading for %s", pass->name);
 
 	const char * const vertex[] = { fs_vtx_source, NULL };
-	const char * const fragment[] = { 
+	const char * const fragment[] = {
 		g.common_header->bytes,
 		pass->fragment_source->bytes,
 		NULL };
@@ -281,11 +281,12 @@ void videoPaint(float *signals, int num_signals, int force_redraw) {
 			drawPass(signals, num_signals, g.pass + Pass_MAX - 1);
 
 	const int samples = 2000;
+	const int diag_signals_count = MAX_DIAG_SIGNALS;
+	const float h = 2.f / diag_signals_count;
 	const float kx = 2.f / (samples - 1);
 	MEMORY_BARRIER();
 	const int pos = diag_signals.writepos;
-	for (int i = 0; i < MAX_DIAG_SIGNALS; ++i) {
-		const float h = 2.f / MAX_DIAG_SIGNALS;
+	for (int i = 0; i < diag_signals_count; ++i) {
 		const float y_off = 1.f - h * i - h * .5f;
 		for (int j = 0; j < samples;) {
 			const int left = samples - j;

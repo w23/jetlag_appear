@@ -80,7 +80,7 @@ static int cursorCoreStep(const AmData *a, AmCursor *c, int core_index) {
 				if (core->finalizing || program->epilogue < 0) {
 					core->program = -1;
 					return 1;
-				} 
+				}
 				core->finalizing = 1;
 				core->next_op = program->epilogue - 1;
 				break;
@@ -161,17 +161,38 @@ static int cursorCoreStep(const AmData *a, AmCursor *c, int core_index) {
 	return 0;
 } /* cursorCoreStep() */
 
-void amCursorAdvance(const AmData *a, AmCursor *c, am_sample_t duration) {
-	if (a->serial != c->data_serial) {
-		duration += c->sample;
-		amCursorInit(a, c);
-	}
-
-	for (am_sample_t i = 0; i < duration; ++i, ++c->sample) {
+static void cursorFastForward(const AmData *a, AmCursor *c, am_sample_t duration) {
+	for (am_sample_t i = 0; i < duration; ++i, ++c->sample)
 		for (int j = 0; j < AM_MAX_CURSOR_CORES; ++j)
 			cursorCoreStep(a, c, j);
+}
 
-		for (int j = 0; j < AM_MAX_CURSOR_SIGNALS; ++j)
-			cursorSignalCompute(c, j);
-	} // for samples
+void amCursorAdvance(const AmData *a, AmCursor *c, am_sample_t duration) {
+	int should_reset = 0;
+
+	if (a->serial != c->data_serial) {
+		should_reset = 1;
+		duration = 0;
+		c->sample = 0;
+	}
+
+	if (c->sample < a->sample_start || c->sample >= a->sample_end)
+	{
+		should_reset = 1;
+		duration = 0;
+		c->sample = 0;
+	} else if (c->sample + duration >= a->sample_end) {
+		should_reset = 1;
+		duration = (c->sample + duration - a->sample_end) % (a->sample_end - a->sample_start);
+	}
+
+	if (should_reset) {
+		amCursorInit(a, c);
+		cursorFastForward(a, c, a->sample_start);
+	}
+
+	cursorFastForward(a, c, duration);
+
+	for (int i = 0; i < AM_MAX_CURSOR_SIGNALS; ++i)
+		cursorSignalCompute(c, i);
 }

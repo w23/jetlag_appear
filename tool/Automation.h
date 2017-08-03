@@ -102,16 +102,16 @@ typedef struct {
 	AmOp ops[AM_MAX_PROGRAM_OPS];
 } AmProgram;
 
+typedef unsigned am_sample_t;
+
 typedef struct {
 	int serial;
 	int samplerate, bpm;
 	int samples_per_bar, samples_per_tick;
-	int sample_start, sample_end;
+	am_sample_t sample_start, sample_end;
 
 	AmProgram programs[AM_MAX_PROGRAMS];
 } AmData;
-
-typedef unsigned am_sample_t;
 
 typedef struct {
 	enum {

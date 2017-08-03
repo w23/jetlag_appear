@@ -66,6 +66,9 @@ static int deserialize(const char *data, AmData *a) {
 	int wait_ticks = 0;
 	int op_index = 0;
 
+	int max_time = 0;
+	int loop_start = 0, loop_end = 0;
+
 	for (;;) {
 		parseLine(&parser);
 
@@ -86,7 +89,7 @@ static int deserialize(const char *data, AmData *a) {
 			float f;
 			int ticks;
 		} argv[MAX_TOKEN_ARGS];
-		
+
 		unsigned long itok;
 		for (itok = 0; itok < COUNTOF(tokens); ++itok)
 			if (strcmp(tokens[itok].name, parser.token[0].str) == 0)
@@ -134,7 +137,8 @@ static int deserialize(const char *data, AmData *a) {
 				break;
 
 			case Token_PreviewLoop:
-				// TODO
+				loop_start = argv[0].ticks;
+				loop_end = argv[1].ticks;
 				break;
 
 			case Token_Program:
@@ -155,6 +159,8 @@ static int deserialize(const char *data, AmData *a) {
 			case Token_Time:
 				wait_ticks += argv[0].ticks - prev_tick;
 				prev_tick = argv[0].ticks;
+				if (max_time < argv[0].ticks)
+					max_time = argv[0].ticks;
 				break;
 
 			case Token_Lin:
@@ -216,6 +222,9 @@ static int deserialize(const char *data, AmData *a) {
 			}
 		} // switch (token type)
 	} // for(;;)
+
+	a->sample_start = a->samples_per_tick * loop_start;
+	a->sample_end = a->samples_per_tick * (loop_end == 0 ? max_time : loop_end);
 
 	MSG("Timeline updated");
 	return 1;

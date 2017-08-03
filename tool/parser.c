@@ -43,4 +43,5 @@ void parseLine(ParserContext *context) {
 	}
 	if (*p == '\n') ++p;
 	context->line = p;
+	++context->line_number;
 }
