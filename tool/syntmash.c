@@ -2,6 +2,7 @@
 
 #include <stdio.h>
 #include <math.h>
+#include <stdlib.h>
 
 #define CHECK_STACK_OVERFLOW(n) \
 	if (sp + n >= context->stack_size) { \
@@ -210,6 +211,43 @@ int symaRun(SymaRunContext *context) {
 				stack[sp] = op->imm[0].f / stack[sp];
 			else
 				stack[sp] = 0;
+			break;
+
+		case SYMA_OP_ROT:
+			CHECK_STACK_UNDERFLOW(abs(op->imm[0].i));
+			if (op->imm[0].i < 0) {
+				const float tmp = stack[sp+op->imm[0].i];
+				for (int i = op->imm[0].i; i < -1; ++i) {
+					stack[sp - i] = stack[sp - i + 1];
+				}
+				stack[sp] = tmp;
+			} else {
+				const float tmp = stack[sp];
+				for (int i = 0; i < op->imm[0].i-1; ++i) {
+					stack[sp - i] = stack[sp - i - 1];
+				}
+				stack[sp - op->imm[0].i] = tmp;
+			}
+			break;
+
+		case SYMA_OP_SUB:
+			CHECK_STACK_UNDERFLOW(1);
+			stack[sp-1] -= stack[sp];
+			--sp;
+			break;
+
+		case SYMA_OP_MIN:
+			CHECK_STACK_UNDERFLOW(1);
+			if (stack[sp-1] > stack[sp])
+				stack[sp-1] = stack[sp];
+			--sp;
+			break;
+
+		case SYMA_OP_MAX:
+			CHECK_STACK_UNDERFLOW(1);
+			if (stack[sp-1] < stack[sp])
+				stack[sp-1] = stack[sp];
+			--sp;
 			break;
 
 		default:

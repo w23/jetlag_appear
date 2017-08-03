@@ -33,6 +33,10 @@ enum syma_opcode_t {
 	SYMA_OP_SWAP,
 	SYMA_OP_STEPI,
 	SYMA_OP_RDIVI,
+	SYMA_OP_ROT,
+	SYMA_OP_SUB,
+	SYMA_OP_MIN,
+	SYMA_OP_MAX,
 };
 
 #define SYMA_MAX_OP_IMM 4

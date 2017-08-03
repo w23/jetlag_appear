@@ -66,8 +66,8 @@ typedef struct {
 } Event;
 void timelineEdit(const Event *event);
 
-#define PARSER_MAX_TOKEN_LENGTH 16
-#define PARSER_MAX_LINE_TOKENS 8
+#define PARSER_MAX_TOKEN_LENGTH 32
+#define PARSER_MAX_LINE_TOKENS 16
 
 typedef struct {
 	const char *line, *prev_line;
@@ -91,9 +91,12 @@ typedef enum {
 	PAF_None = 0,
 	PAF_Int = 1<<0,
 	PAF_Float = 1<<1,
-	PAF_String = 1<<2,
 	PAF_Var = 1<<3,
+	PAF_Time = 1<<4,
+	PAF_String = 1<<2,
+	PAF__MAX
 } ParserArgTypeFlag;
+
 typedef struct {
 	ParserArgTypeFlag type;
 	const char *s;
@@ -101,6 +104,9 @@ typedef struct {
 	union {
 		int i;
 		float f;
+		struct {
+			int bar, tick;
+		} time;
 	} value;
 } ParserArg;
 
@@ -114,11 +120,19 @@ typedef struct ParserLine {
 } ParserLine;
 
 typedef struct {
-	const char *next_line;
+	ParserContext ctx;
 	ParserLine *line_table;
 	int line_table_length;
 	void *userdata;
 } ParserTokenizer;
+
+enum {
+	Tokenize_Parsed,
+	Tokenize_End,
+	Tokenize_TokenTooLong,
+	Tokenize_TooManyTokens,
+	Tokenize_TokenWrongFormat,
+};
 
 int parserTokenizeLine(ParserTokenizer *tokenizer);
 

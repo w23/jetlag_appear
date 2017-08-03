@@ -39,6 +39,10 @@ static struct {
 	{"swap", SYMA_OP_SWAP, 0, {0}},
 	{"stepi", SYMA_OP_STEPI, 1, {ArgType_Float}},
 	{"rdivi", SYMA_OP_RDIVI, 1, {ArgType_Float}},
+	{"rot", SYMA_OP_ROT, 1, {ArgType_Int}},
+	{"sub", SYMA_OP_SUB, 0, {0}},
+	{"min", SYMA_OP_MIN, 0, {0}},
+	{"max", SYMA_OP_MAX, 0, {0}},
 };
 
 int symasmCompile(SymaRunContext *ctx_inout, const char *source) {
