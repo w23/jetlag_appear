@@ -116,6 +116,7 @@
     </ClCompile>
     <Link />
     <ProjectReference />
+    <Link />
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='ReleaseFast|Win32'">
     <ClCompile>
@@ -124,6 +125,7 @@
     </ClCompile>
     <Link />
     <ProjectReference />
+    <Link />
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Capture|Win32'">
     <ClCompile>

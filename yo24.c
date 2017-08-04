@@ -286,6 +286,7 @@ static MMTIME MMTime =
 
 #ifndef _DEBUG
 #define GLCHECK()
+#define glGetError()
 #else
 static const char *a__GlPrintError(int error) {
 	const char *errstr = "UNKNOWN";
@@ -364,7 +365,7 @@ static __forceinline GLuint compileProgram(const char *fragment) {
 	return pid;
 }
 
-static __forceinline void initTexture(GLuint tex, int w, int h, int comp, int type, void *data) {
+static /*__forceinline*/ void initTexture(GLuint tex, int w, int h, int comp, int type, void *data) {
 	glBindTexture(GL_TEXTURE_2D, tex);
 	GLCHECK();
 	glTexImage2D(GL_TEXTURE_2D, 0, comp, w, h, 0, GL_RGBA, type, data);
@@ -375,12 +376,12 @@ static __forceinline void initTexture(GLuint tex, int w, int h, int comp, int ty
 	//glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
 }
 
-static __forceinline void initFb(GLuint fb, GLuint tex1, GLuint tex2) {
+static /*__forceinline*/ void initFb(GLuint fb, GLuint tex1, GLuint tex2) {
 	oglBindFramebuffer(GL_FRAMEBUFFER, fb);
 	GLCHECK();
 	oglFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, tex1, 0);
 	GLCHECK();
-	if (tex2 > 0)
+	//if (tex2 > 0)
 		oglFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT1, GL_TEXTURE_2D, tex2, 0);
 	GLCHECK();
 }
@@ -393,6 +394,7 @@ static void paint(GLuint prog, GLuint dst_fb, int out_bufs) {
 	//glBindTexture(GL_TEXTURE_2D, src_tex);
 	oglBindFramebuffer(GL_FRAMEBUFFER, dst_fb);
 	GLCHECK();
+	// wastes bytes
 	if (dst_fb) oglDrawBuffers(out_bufs, draw_buffers);
 	GLCHECK();
 	oglUniform1iv(oglGetUniformLocation(prog, "S"), Tex_COUNT, samplers);
