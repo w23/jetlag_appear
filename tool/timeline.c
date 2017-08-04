@@ -459,13 +459,15 @@ void timelineMidiNote(int note, int vel, int on) {
 		memcpy(cursor_lock.data_dst, cursor_lock.data_src, sizeof(CursorAndOverride));
 		CursorAndOverride *cursor = cursor_lock.data_dst;
 
-		int i = 0;
+		int i = 0, empty = 0;
 		for (i = 0; i < MAX_MIDI_VOICES; ++i)
 			if (cursor->midi_voices[i].note == note)
 				break;
+			else if (!cursor->midi_voices[i].on)
+				empty = i;
 
 		if (i == MAX_MIDI_VOICES) {
-			i = 0;
+			i = empty;
 			cursor->midi_voices[i].on = 0;
 			doMidiNote(data, cursor, i, 0);
 		}

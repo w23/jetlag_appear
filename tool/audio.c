@@ -71,7 +71,7 @@ void audioCheckUpdate() {
 }
 
 void audioSynthesize(float *samples, int num_samples) {
-	float input[16] = { 440.f / g.samplerate };
+	float input[32];
 	float stack[MACHINE_STACK];
 	SymaRunContext ctx;
 

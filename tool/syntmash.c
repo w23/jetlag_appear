@@ -28,7 +28,7 @@ int symaRun(SymaRunContext *context) {
 			stack[++sp] = op->imm[0].f;
 			break;
 		case SYMA_OP_POP:
-			CHECK_STACK_UNDERFLOW(1);
+			CHECK_STACK_UNDERFLOW(0);
 			--sp;
 			break;
 		case SYMA_OP_PUSH_IN:
@@ -199,7 +199,7 @@ int symaRun(SymaRunContext *context) {
 			stack[sp-1] = tmp;
 			break;
 		}
-	
+
 		case SYMA_OP_STEPI:
 			CHECK_STACK_UNDERFLOW(0);
 			stack[sp] = stack[sp] < op->imm[0].f ? 0.f : 1.f;
