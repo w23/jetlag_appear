@@ -131,6 +131,8 @@ typedef struct {
 	int finalizing;
 } AmCursorCoreState;
 
+#define MAX_MIDI_VOICES 4
+
 typedef struct {
 	int data_serial;
 
@@ -139,6 +141,10 @@ typedef struct {
 	AmCursorCoreState core[AM_MAX_CURSOR_CORES];
 	AmCursorSignalState signal[AM_MAX_CURSOR_SIGNALS];
 	float signal_values[AM_MAX_CURSOR_SIGNALS];
+
+	struct {
+		int note, on;
+	} midi_voices[MAX_MIDI_VOICES];
 } AmCursor;
 
 void amDataInit(AmData *a, int samplerate, int bpm, int ticks_per_bar);

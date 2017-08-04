@@ -46,9 +46,11 @@ extern DiagSignals diag_signals;
 
 void timelineInit(const char *filename, int samplerate);
 void timelineCheckUpdate();
-void timelinePaintUI();
 void timelineGetLatestSignals(float *output, int signals);
 void timelineComputeSignalsAndAdvance(float *output, int signals, int count);
+void timelineMidiCtl(int ctl, int value);
+void timelineMidiNote(int note, int vel, int on);
+void timelinePaintUI();
 
 typedef struct {
 	enum {

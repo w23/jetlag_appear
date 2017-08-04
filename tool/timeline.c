@@ -18,6 +18,27 @@ static struct {
 static void serialize(const char *file, const AmData *a);
 */
 
+typedef struct {
+	int ctl;
+	int signal;
+	float min, mul;
+	float value;
+} MidiCtlMap;
+
+typedef struct {
+	int note_signal;
+	int gate_signal;
+	int velocity_signal;
+} MidiVoiceMap;
+
+#define MAX_MIDI_CTL 32
+
+typedef struct {
+	AmData data;
+	MidiCtlMap midi_ctl[MAX_MIDI_CTL];
+	MidiVoiceMap midi_voice[MAX_MIDI_VOICES];
+} DataAndMidi;
+
 static struct {
 	const char *name;
 	enum {
@@ -31,9 +52,11 @@ static struct {
 		Token_PStart,
 		Token_PStop,
 		Token_PreviewLoop,
+		Token_MidiCtl,
+		Token_MidiVoice
 	} type;
 	int args;
-#define MAX_TOKEN_ARGS 3
+#define MAX_TOKEN_ARGS 8
 	enum {
 		ArgType_Int,
 		ArgType_Float,
@@ -50,11 +73,21 @@ static struct {
 	{"bpm", Token_BPM, 1, {ArgType_Int}},
 	{"bar_ticks", Token_BarTicks, 1, {ArgType_Int}},
 	{"preview_loop", Token_PreviewLoop, 2, {ArgType_Time, ArgType_Time}},
+	{"midi_ctl", Token_MidiCtl, 5, {ArgType_Int, ArgType_Int, ArgType_Float, ArgType_Float, ArgType_Float}},
+	{"midi_voice", Token_MidiVoice, 3, {ArgType_Int, ArgType_Int, ArgType_Int}},
 };
 
-static int deserialize(const char *data, AmData *a) {
+static int deserialize(int first, const char *source, DataAndMidi *data) {
+	AmData *a = &data->data;
+	for (int i = 0; i < MAX_MIDI_CTL; ++i)
+		data->midi_ctl[i].ctl = -1;
+	for (int i = 0; i < MAX_MIDI_VOICES; ++i) {
+		MidiVoiceMap *v = data->midi_voice + i;
+		v->note_signal = v->gate_signal = v->velocity_signal = -1;
+	}
+
 	ParserContext parser;
-	parser.line = data;
+	parser.line = source;
 	parser.prev_line = 0;
 	parser.line_number = 0;
 
@@ -68,6 +101,9 @@ static int deserialize(const char *data, AmData *a) {
 
 	int max_time = 0;
 	int loop_start = 0, loop_end = 0;
+
+	int midi_ctl_index = 0;
+	int midi_voice_index = 0;
 
 	for (;;) {
 		parseLine(&parser);
@@ -220,6 +256,59 @@ static int deserialize(const char *data, AmData *a) {
 				++op_index;
 				break;
 			}
+
+			case Token_MidiCtl:
+				if (midi_ctl_index >= MAX_MIDI_CTL) {
+					MSG("Max number of midi ctls %d reached", MAX_MIDI_CTL);
+					return 0;
+				}
+
+				if (argv[1].i < 0 || argv[1].i >= AM_MAX_CURSOR_SIGNALS) {
+					MSG("Max signal %d is invalid [%d, %d)",
+							argv[1].i, 0, AM_MAX_CURSOR_SIGNALS);
+					return 0;
+				}
+
+				data->midi_ctl[midi_ctl_index].ctl = argv[0].i;
+				data->midi_ctl[midi_ctl_index].signal = argv[1].i;
+				data->midi_ctl[midi_ctl_index].min = argv[2].f;
+				data->midi_ctl[midi_ctl_index].mul = (argv[3].f - argv[2].f) / 127.f;
+
+				if (first)
+					data->midi_ctl[midi_ctl_index].value = argv[4].f;
+
+				midi_ctl_index++;
+				break;
+			case Token_MidiVoice:
+				if (midi_voice_index >= MAX_MIDI_VOICES) {
+					MSG("Max number of midi voices %d reached", MAX_MIDI_VOICES);
+					return 0;
+				}
+
+				if (argv[0].i >= AM_MAX_CURSOR_SIGNALS) {
+					MSG("Max signal %d is invalid [%d, %d)",
+							argv[0].i, 0, AM_MAX_CURSOR_SIGNALS);
+					return 0;
+				}
+
+				if (argv[1].i >= AM_MAX_CURSOR_SIGNALS) {
+					MSG("Max signal %d is invalid [%d, %d)",
+							argv[1].i, 0, AM_MAX_CURSOR_SIGNALS);
+					return 0;
+				}
+
+				if (argv[2].i >= AM_MAX_CURSOR_SIGNALS) {
+					MSG("Max signal %d is invalid [%d, %d)",
+							argv[2].i, 0, AM_MAX_CURSOR_SIGNALS);
+					return 0;
+				}
+
+				data->midi_voice[midi_voice_index].note_signal = argv[0].i;
+				data->midi_voice[midi_voice_index].gate_signal = argv[1].i;
+				data->midi_voice[midi_voice_index].velocity_signal = argv[2].i;
+
+				midi_voice_index++;
+				break;
 		} // switch (token type)
 	} // for(;;)
 
@@ -232,19 +321,19 @@ static int deserialize(const char *data, AmData *a) {
 
 void timelineInit(const char *filename, int samplerate) {
 	g.samplerate = samplerate;
-	g.locked_data = lfmCreate(4, sizeof(AmData), NULL, malloc);
+	g.locked_data = lfmCreate(4, sizeof(DataAndMidi), NULL, malloc);
 	g.locked_cursor = lfmCreate(4, sizeof(AmCursor), NULL, malloc);
 	g.timeline_source = resourceOpenFile(filename);
 
-	AmData a;
-	amDataInit(&a, samplerate, 120, 16);
+	DataAndMidi data;
+	amDataInit(&data.data, samplerate, 120, 16);
 	LFLock lock;
 	lfmModifyLock(g.locked_data, &lock);
-	memcpy(lock.data_dst, &a, sizeof(a));
+	memcpy(lock.data_dst, &data, sizeof(data));
 	ASSERT(lfmModifyUnlock(g.locked_data, &lock));
 
 	AmCursor c;
-	amCursorInit(&a, &c);
+	amCursorInit(&data.data, &c);
 	lfmModifyLock(g.locked_cursor, &lock);
 	memcpy(lock.data_dst, &c, sizeof(c));
 	ASSERT(lfmModifyUnlock(g.locked_cursor, &lock));
@@ -254,15 +343,15 @@ void timelineCheckUpdate() {
 	if (!g.timeline_source->updated)
 		return;
 
-	AmData a;
-	if (!deserialize(g.timeline_source->bytes, &a))
+	DataAndMidi data;
+	if (!deserialize(0, g.timeline_source->bytes, &data))
 		return;
 
 	LFLock lock;
 	lfmModifyLock(g.locked_data, &lock);
 	for (;;) {
-		a.serial = ((const AmData*)lock.data_src)->serial + 1;
-		memcpy(lock.data_dst, &a, sizeof(a));
+		data.data.serial = ((const DataAndMidi*)lock.data_src)->data.serial + 1;
+		memcpy(lock.data_dst, &data, sizeof(data));
 		if (lfmModifyUnlock(g.locked_data, &lock))
 			break;
 	}
@@ -274,20 +363,24 @@ static void copyCursorSignals(const AmCursor *cur, float *output, int signals) {
 }
 
 void timelineComputeSignalsAndAdvance(float *output, int signals, int count) {
-	LFLock data_lock, cursor_lock;
-	lfmReadLock(g.locked_data, &data_lock);
-	lfmModifyLock(g.locked_cursor, &cursor_lock);
-	memcpy(cursor_lock.data_dst, cursor_lock.data_src, sizeof(AmCursor));
-	if (output) {
-		for (int i = 0; i < count; ++i) {
-			amCursorAdvance(data_lock.data_src, cursor_lock.data_dst, 1);
-			copyCursorSignals(cursor_lock.data_dst, output, signals);
-			output += signals;
-		}
-	} else
-		amCursorAdvance(data_lock.data_src, cursor_lock.data_dst, count);
-	ASSERT(lfmModifyUnlock(g.locked_cursor, &cursor_lock));
-	lfmReadUnlock(g.locked_data, &data_lock);
+	(void)count;
+	for (;;) {
+		LFLock data_lock, cursor_lock;
+		lfmReadLock(g.locked_data, &data_lock);
+		lfmModifyLock(g.locked_cursor, &cursor_lock);
+		memcpy(cursor_lock.data_dst, cursor_lock.data_src, sizeof(AmCursor));
+		if (output) {
+			for (int i = 0; i < count; ++i) {
+				amCursorAdvance(&((const DataAndMidi*)data_lock.data_src)->data, cursor_lock.data_dst, 1);
+				copyCursorSignals(cursor_lock.data_dst, output, signals);
+				output += signals;
+			}
+		} else
+				amCursorAdvance(&((const DataAndMidi*)data_lock.data_src)->data, cursor_lock.data_dst, count);
+		lfmReadUnlock(g.locked_data, &data_lock);
+		if (0 != lfmModifyUnlock(g.locked_cursor, &cursor_lock))
+			break;
+	}
 }
 
 void timelineGetLatestSignals(float *output, int signals) {
@@ -295,6 +388,84 @@ void timelineGetLatestSignals(float *output, int signals) {
 	lfmReadLock(g.locked_cursor, &cursor_lock);
 	copyCursorSignals(cursor_lock.data_src, output, signals);
 	lfmReadUnlock(g.locked_cursor, &cursor_lock);
+}
+
+void timelineMidiCtl(int ctl, int value) {
+	for (;;) {
+		LFLock data_lock, cursor_lock;
+		const DataAndMidi *data;
+		lfmReadLock(g.locked_data, &data_lock);
+		data = data_lock.data_src;
+
+		lfmModifyLock(g.locked_cursor, &cursor_lock);
+		memcpy(cursor_lock.data_dst, cursor_lock.data_src, sizeof(AmCursor));
+
+		AmCursor *cursor = cursor_lock.data_dst;
+
+		int i;
+		for (i = 0; i < MAX_MIDI_CTL; ++i)
+			if (data->midi_ctl[i].ctl == ctl) {
+				const MidiCtlMap *map = data->midi_ctl + i;
+				if (map->signal >= 0) {
+					cursor->signal[map->signal].mode = AmSignal_Const;
+					cursor->signal[map->signal].base =
+					cursor->signal_values[map->signal] = map->min + value * map->mul;
+					MSG("F[%d] = %f", map->signal, cursor->signal_values[map->signal]);
+				}
+				break;
+			}
+		if (i == MAX_MIDI_CTL)
+			MSG("%d %d", ctl, value);
+
+		lfmReadUnlock(g.locked_data, &data_lock);
+		if (0 != lfmModifyUnlock(g.locked_cursor, &cursor_lock))
+			break;
+	}
+}
+
+static void doMidiNote(const DataAndMidi *data, AmCursor *c, int index, int vel) {
+	const MidiVoiceMap *voice = data->midi_voice + index;
+	if (voice->gate_signal >= 0)
+		c->signal_values[voice->gate_signal] = c->midi_voices[index].on;
+
+	if (voice->velocity_signal >= 0)
+		c->signal_values[voice->velocity_signal] = vel / 127.f;
+
+	if (voice->note_signal >= 0)
+		c->signal_values[voice->note_signal] = c->midi_voices[index].note;
+}
+
+void timelineMidiNote(int note, int vel, int on) {
+	for (;;) {
+		LFLock data_lock, cursor_lock;
+		const DataAndMidi *data;
+		lfmReadLock(g.locked_data, &data_lock);
+		data = data_lock.data_src;
+
+		lfmModifyLock(g.locked_cursor, &cursor_lock);
+		memcpy(cursor_lock.data_dst, cursor_lock.data_src, sizeof(AmCursor));
+
+		AmCursor *cursor = cursor_lock.data_dst;
+
+		int i = 0;
+		for (i = 0; i < MAX_MIDI_VOICES; ++i)
+			if (cursor->midi_voices[i].note == note)
+				break;
+
+		if (i == MAX_MIDI_VOICES) {
+			i = 0;
+			cursor->midi_voices[i].on = 0;
+			doMidiNote(data, cursor, i, 0);
+		}
+
+		cursor->midi_voices[i].on = on;
+		cursor->midi_voices[i].note = note;
+		doMidiNote(data, cursor, i, vel);
+
+		lfmReadUnlock(g.locked_data, &data_lock);
+		if (0 != lfmModifyUnlock(g.locked_cursor, &cursor_lock))
+			break;
+	}
 }
 
 void timelinePaintUI() {

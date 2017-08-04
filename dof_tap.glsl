@@ -4,7 +4,7 @@ void main() {
 	mat2 rot = mat2(cos(2.4),sin(2.4),-sin(2.4),cos(2.4));
 	vec4 near, far;
 	near = far = vec4(.0,.0,.0,.0001);
-	float fdist = 1. + F[13] * 50.;
+	float fdist = F[13];
 	float z = T(5,X).w;
 	for (int i = 0; i < 81; i++) {
 		vec4 pix = T(5, X + rad * angle);
