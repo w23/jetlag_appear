@@ -6,6 +6,8 @@
 #endif
 //#define DO_RANGES
 
+#define SOUND
+
 #ifdef _DEBUG
 #ifdef FULLSCREEN
 #undef FULLSCREEN
@@ -84,6 +86,12 @@ int _fltused = 1;
 #define INTRO_LENGTH (1000ull * MAX_SAMPLES / SAMPLE_RATE)
 #endif
 
+#define SOUND_SAMPLERATE 44100
+#define SOUND_SAMPLES (SOUND_SAMPLERATE * 120)
+#define INTRO_LENGTH (SOUND_SAMPLES / SOUND_SAMPLERATE)
+#define SAMPLE_TYPE float
+#define FLOAT_32BIT
+
 #ifdef CAPTURE
 #ifndef CAPTURE_FRAMERATE
 #define CAPTURE_FRAMERATE 60
@@ -151,6 +159,18 @@ static __forceinline void timelineUpdate(float time) {
 	//printf("\n");
 }
 #endif
+
+
+#ifdef SOUND
+#pragma data_seg(".wavedata")
+static SAMPLE_TYPE sound_buffer[SOUND_SAMPLES];
+
+void soundRender() {
+	for (int i = 0; i < SOUND_SAMPLES; ++i) {
+		sound_buffer[i] = (i % (44100 / 440)) / (float)(44100 / 440);
+	}
+}
+#endif // SOUND
 
 #ifdef NO_CREATESHADERPROGRAMV
 FUNCLIST_DO(PFNGLCREATESHADERPROC, CreateShader) \
@@ -252,7 +272,7 @@ static const DEVMODE screenSettings = { {0},
 	#endif
 	};
 
-#ifdef OLD_4KLANG
+#ifdef SOUND
 #pragma data_seg(".wavefmt")
 static const WAVEFORMATEX WaveFMT =
 {
@@ -261,10 +281,10 @@ static const WAVEFORMATEX WaveFMT =
 #else
 	WAVE_FORMAT_PCM,
 #endif
-	2,                                   // channels
-	SAMPLE_RATE,                         // samples per sec
-	SAMPLE_RATE*sizeof(SAMPLE_TYPE) * 2, // bytes per sec
-	sizeof(SAMPLE_TYPE) * 2,             // block alignment;
+	1,                                   // channels
+	SOUND_SAMPLERATE,                         // samples per sec
+	SOUND_SAMPLERATE * sizeof(SAMPLE_TYPE), // bytes per sec
+	sizeof(SAMPLE_TYPE),             // block alignment;
 	sizeof(SAMPLE_TYPE) * 8,             // bits per sample
 	0                                    // extension not needed
 };
@@ -272,16 +292,10 @@ static const WAVEFORMATEX WaveFMT =
 #pragma data_seg(".wavehdr")
 static WAVEHDR WaveHDR =
 {
-	(LPSTR)lpSoundBuffer, MAX_SAMPLES*sizeof(SAMPLE_TYPE)*2,0,0,0,0,0,0
+	(LPSTR)sound_buffer, SOUND_SAMPLES*sizeof(SAMPLE_TYPE),0,0,0,0,0,0
 };
 
-/*
-static MMTIME MMTime =
-{
-	TIME_SAMPLES, 0
-};
-*/
-#endif // OLD_4KLANG
+#endif // SOUND
 #endif /* _WIN32 */
 
 #ifndef _DEBUG
@@ -365,6 +379,7 @@ static __forceinline GLuint compileProgram(const char *fragment) {
 	return pid;
 }
 
+#pragma code_seg(".initTexture")
 static /*__forceinline*/ void initTexture(GLuint tex, int w, int h, int comp, int type, void *data) {
 	glBindTexture(GL_TEXTURE_2D, tex);
 	GLCHECK();
@@ -376,6 +391,7 @@ static /*__forceinline*/ void initTexture(GLuint tex, int w, int h, int comp, in
 	//glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
 }
 
+#pragma code_seg(".initFb")
 static /*__forceinline*/ void initFb(GLuint fb, GLuint tex1, GLuint tex2) {
 	oglBindFramebuffer(GL_FRAMEBUFFER, fb);
 	GLCHECK();
@@ -388,6 +404,8 @@ static /*__forceinline*/ void initFb(GLuint fb, GLuint tex1, GLuint tex2) {
 
 #define NUM_SIGNALS 32
 float signals[NUM_SIGNALS] = { 1.f, 1.f, 1.f, 1.f, 1.f, 1.f, 1.f, 1.f, 1.f, 1.f };
+
+#pragma code_seg(".paint")
 static void paint(GLuint prog, GLuint dst_fb, int out_bufs) {
 	oglUseProgram(prog);
 	GLCHECK();
@@ -423,6 +441,7 @@ static void paint(GLuint prog, GLuint dst_fb, int out_bufs) {
 #define NOISE_SIZE 256
 static unsigned char noise_bytes[4 * NOISE_SIZE * NOISE_SIZE];
 
+#pragma code_seg(".introInit")
 static __forceinline void introInit() {
 	unsigned seed = 0;
 	for (int i = 0; i < 4 * NOISE_SIZE * NOISE_SIZE; ++i) {
@@ -465,6 +484,7 @@ static __forceinline void introInit() {
 	program[Pass_Post] = compileProgram(post_glsl);
 }
 
+#pragma code_seg(".introPaint")
 static __forceinline void introPaint(float time) {
 	//timelineUpdate(time);
 	paint(program[Pass_Raymarch], fb[Pass_Raymarch], 2);
@@ -476,6 +496,14 @@ static __forceinline void introPaint(float time) {
 }
 
 #ifdef _WIN32
+
+#ifdef _DEBUG
+void checkResult(int result) {
+	if (result != 0)
+		ExitProcess(0);
+}
+#endif
+
 #pragma code_seg(".entry")
 void entrypoint(void) {
 #ifdef FULLSCREEN
@@ -496,8 +524,9 @@ void entrypoint(void) {
 		while (next_gl_func[0] != '\0') {
 			*funcptr = wglGetProcAddress(next_gl_func);
 #ifdef DEBUG_FUNCLOAD
-			if (!*funcptr) { \
-				MessageBox(NULL, next_gl_func, "wglGetProcAddress", 0x00000000L); \
+			if (!*funcptr) {
+				\
+					MessageBox(NULL, next_gl_func, "wglGetProcAddress", 0x00000000L); \
 			}
 #endif
 			++funcptr;
@@ -507,46 +536,42 @@ void entrypoint(void) {
 
 	introInit();
 
-#ifdef CAPTURE
-	FILE* captureStream = _popen(FFMPEG_CAPTURE_INPUT, "wb");
+#ifdef SOUND
+#ifdef _DEBUG
+#define CHECK(f) checkResult(f)
 #else
-#if 0
+#define CHECK(f) (f)
+#endif
 	// initialize sound
 	HWAVEOUT hWaveOut;
-	CreateThread(0, 0, (LPTHREAD_START_ROUTINE)_4klang_render, lpSoundBuffer, 0, 0);
-	//_4klang_render(lpSoundBuffer);
-	waveOutOpen(&hWaveOut, WAVE_MAPPER, &WaveFMT, NULL, 0, CALLBACK_NULL);
-	waveOutPrepareHeader(hWaveOut, &WaveHDR, sizeof(WaveHDR));
-	waveOutWrite(hWaveOut, &WaveHDR, sizeof(WaveHDR));
+	CreateThread(0, 0, (LPTHREAD_START_ROUTINE)soundRender, sound_buffer, 0, 0);
+	//soundRender(sound_buffer);
+	CHECK(waveOutOpen(&hWaveOut, WAVE_MAPPER, &WaveFMT, NULL, 0, CALLBACK_NULL));
+	CHECK(waveOutPrepareHeader(hWaveOut, &WaveHDR, sizeof(WaveHDR)));
+	CHECK(waveOutWrite(hWaveOut, &WaveHDR, sizeof(WaveHDR)));
+#else
+	const int start = timeGetTime();
 #endif
-#endif
-
-	const int to = timeGetTime();
 
 	// play intro
 	do {
-		//waveOutGetPosition(hWaveOut, &MMTime, sizeof(MMTIME));
-#ifdef CAPTURE
-		static int frame = -1;
-		frame++;
-		const long time = (float)frame / CAPTURE_FRAMERATE * 1000.;
+#ifdef SOUND
+		MMTIME mmtime;
+		mmtime.wType = TIME_BYTES;
+		CHECK(waveOutGetPosition(hWaveOut, &mmtime, sizeof(mmtime)));
+		const float time = (float)mmtime.u.sample / (sizeof(SAMPLE_TYPE) * SOUND_SAMPLERATE);
 #else
-		const int time = timeGetTime() - to;
+		const float time = (timeGetTime() - start) / 1000.f;
 #endif
-		signals[2] = signals[12] = time / 1000.f;
+
+		signals[2] = signals[12] = time;
 		signals[13] = .1f;
 		introPaint(time / 1000.f);
 		SwapBuffers(hDC);
 
-#ifdef CAPTURE
-		glReadPixels(0, 0, XRES, YRES, GL_RGB, GL_UNSIGNED_BYTE, backbufferData);
-		fwrite(backbufferData, 1, XRES*YRES * 3, captureStream);
-		fflush(captureStream);
-#endif
-
 		/* hide cursor properly */
 		PeekMessageA(0, 0, 0, 0, PM_REMOVE);
-		//if (time > INTRO_LENGTH) break;
+		if (time > INTRO_LENGTH) break;
 	} while (!GetAsyncKeyState(VK_ESCAPE));
 		// && MMTime.u.sample < MAX_SAMPLES);
 
