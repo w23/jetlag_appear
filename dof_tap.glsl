@@ -4,22 +4,20 @@ void main() {
 	mat2 rot = mat2(cos(2.4),sin(2.4),-sin(2.4),cos(2.4));
 	vec4 near, far;
 	near = far = vec4(.0,.0,.0,.0001);
-	float fdist = F[13];
 	float z = T(5,X).w;
 	for (int i = 0; i < 81; i++) {
 		vec4 pix = T(5, X + rad * angle);
 
 		float A = .04;
-		float D = fdist;
+		float D = F[13];
 		float F = .03 / tan(.7);
 		float P = pix.w;
 		float coc = abs(A * F / (P - F) * (P / D - 1.)) * Z(1).x / .035;
 
 		if (coc > rad) {
-		 	if (pix.w > fdist) {
-				//if (pix.w <= z)
-					far += vec4(pix.xyz, 1.);
-			} else
+		 	if (pix.w > D)
+				far += vec4(pix.xyz, 1.);
+			else
 				near += vec4(pix.xyz, 1.);
 		}
 

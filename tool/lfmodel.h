@@ -103,7 +103,7 @@ LFModel *lfmCreate(int max_threads, int data_size, const void *initial_data, voi
 	// last one will wait for someone to free a slot
 	// TODO: increase number of slot?
 
-	const size_t data_offset = ALIGNED_SIZE(sizeof(LFSlot), 16); 
+	const size_t data_offset = ALIGNED_SIZE(sizeof(LFSlot), 16);
 	const size_t slot_size = ALIGNED_SIZE(data_offset + data_size, 16);
 	const size_t slot_offset = ALIGNED_SIZE(sizeof(LFModel), 16);
 	const size_t model_size = slot_offset + max_threads * slot_size;
@@ -119,7 +119,7 @@ LFModel *lfmCreate(int max_threads, int data_size, const void *initial_data, voi
 	model->max_threads = max_threads;
 	model->data_size = data_size;
 
-	LFSlot *initial = lfm_GetSlot(model, 0);
+	LFSlot *initial = lfm_GetSlot(model, model->seq_active);
 	initial->state = max_threads;
 	model->next_free = 1;
 	if (initial_data)

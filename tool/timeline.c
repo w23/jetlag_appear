@@ -6,6 +6,7 @@
 #include "lfmodel.h"
 
 #include <stdio.h>
+#include <float.h>
 
 static struct {
 	int samplerate, bpm;
@@ -38,6 +39,14 @@ typedef struct {
 	MidiCtlMap midi_ctl[MAX_MIDI_CTL];
 	MidiVoiceMap midi_voice[MAX_MIDI_VOICES];
 } DataAndMidi;
+
+typedef struct {
+	AmCursor cursor;
+	float sig_over[AM_MAX_CURSOR_SIGNALS];
+	struct {
+		int note, on;
+	} midi_voices[MAX_MIDI_VOICES];
+} CursorAndOverride;
 
 static struct {
 	const char *name;
@@ -321,22 +330,18 @@ static int deserialize(int first, const char *source, DataAndMidi *data) {
 
 void timelineInit(const char *filename, int samplerate) {
 	g.samplerate = samplerate;
-	g.locked_data = lfmCreate(4, sizeof(DataAndMidi), NULL, malloc);
-	g.locked_cursor = lfmCreate(4, sizeof(AmCursor), NULL, malloc);
-	g.timeline_source = resourceOpenFile(filename);
 
 	DataAndMidi data;
 	amDataInit(&data.data, samplerate, 120, 16);
-	LFLock lock;
-	lfmModifyLock(g.locked_data, &lock);
-	memcpy(lock.data_dst, &data, sizeof(data));
-	ASSERT(lfmModifyUnlock(g.locked_data, &lock));
+	g.locked_data = lfmCreate(4, sizeof(DataAndMidi), &data, malloc);
 
-	AmCursor c;
-	amCursorInit(&data.data, &c);
-	lfmModifyLock(g.locked_cursor, &lock);
-	memcpy(lock.data_dst, &c, sizeof(c));
-	ASSERT(lfmModifyUnlock(g.locked_cursor, &lock));
+	CursorAndOverride cursor;
+	amCursorInit(&data.data, &cursor.cursor);
+	for (int i = 0; i < AM_MAX_CURSOR_SIGNALS; ++i)
+		cursor.sig_over[i] = FLT_MIN;
+	g.locked_cursor = lfmCreate(4, sizeof(CursorAndOverride), &cursor, malloc);
+
+	g.timeline_source = resourceOpenFile(filename);
 }
 
 void timelineCheckUpdate() {
@@ -346,6 +351,8 @@ void timelineCheckUpdate() {
 	DataAndMidi data;
 	if (!deserialize(0, g.timeline_source->bytes, &data))
 		return;
+
+	// FIXME reset all override signals dangling
 
 	LFLock lock;
 	lfmModifyLock(g.locked_data, &lock);
@@ -357,9 +364,13 @@ void timelineCheckUpdate() {
 	}
 }
 
-static void copyCursorSignals(const AmCursor *cur, float *output, int signals) {
+static void copyCursorSignals(const CursorAndOverride *cur, float *output, int signals) {
 	signals = signals < AM_MAX_CURSOR_SIGNALS ? signals : AM_MAX_CURSOR_SIGNALS;
-	memcpy(output, cur->signal_values, sizeof(*output) * signals);
+	for (int i = 0; i < signals; ++i)
+		if (cur->sig_over[i] == FLT_MIN)
+			output[i] = cur->cursor.signal_values[i];
+		else
+			output[i] = cur->sig_over[i];
 }
 
 void timelineComputeSignalsAndAdvance(float *output, int signals, int count) {
@@ -367,16 +378,21 @@ void timelineComputeSignalsAndAdvance(float *output, int signals, int count) {
 	for (;;) {
 		LFLock data_lock, cursor_lock;
 		lfmReadLock(g.locked_data, &data_lock);
+		const DataAndMidi *data = data_lock.data_src;
+
 		lfmModifyLock(g.locked_cursor, &cursor_lock);
-		memcpy(cursor_lock.data_dst, cursor_lock.data_src, sizeof(AmCursor));
+		memcpy(cursor_lock.data_dst, cursor_lock.data_src, sizeof(CursorAndOverride));
+		CursorAndOverride *cursor = cursor_lock.data_dst;
+
 		if (output) {
 			for (int i = 0; i < count; ++i) {
-				amCursorAdvance(&((const DataAndMidi*)data_lock.data_src)->data, cursor_lock.data_dst, 1);
-				copyCursorSignals(cursor_lock.data_dst, output, signals);
+				amCursorAdvance(&data->data, &cursor->cursor, 1);
+				copyCursorSignals(cursor, output, signals);
 				output += signals;
 			}
 		} else
-				amCursorAdvance(&((const DataAndMidi*)data_lock.data_src)->data, cursor_lock.data_dst, count);
+				amCursorAdvance(&data->data, &cursor->cursor, count);
+
 		lfmReadUnlock(g.locked_data, &data_lock);
 		if (0 != lfmModifyUnlock(g.locked_cursor, &cursor_lock))
 			break;
@@ -398,19 +414,16 @@ void timelineMidiCtl(int ctl, int value) {
 		data = data_lock.data_src;
 
 		lfmModifyLock(g.locked_cursor, &cursor_lock);
-		memcpy(cursor_lock.data_dst, cursor_lock.data_src, sizeof(AmCursor));
-
-		AmCursor *cursor = cursor_lock.data_dst;
+		memcpy(cursor_lock.data_dst, cursor_lock.data_src, sizeof(CursorAndOverride));
+		CursorAndOverride *cursor = cursor_lock.data_dst;
 
 		int i;
 		for (i = 0; i < MAX_MIDI_CTL; ++i)
 			if (data->midi_ctl[i].ctl == ctl) {
 				const MidiCtlMap *map = data->midi_ctl + i;
 				if (map->signal >= 0) {
-					cursor->signal[map->signal].mode = AmSignal_Const;
-					cursor->signal[map->signal].base =
-					cursor->signal_values[map->signal] = map->min + value * map->mul;
-					MSG("F[%d] = %f", map->signal, cursor->signal_values[map->signal]);
+					cursor->sig_over[map->signal] = map->min + value * map->mul;
+					MSG("F[%d] = %f", map->signal, cursor->sig_over[map->signal]);
 				}
 				break;
 			}
@@ -423,16 +436,16 @@ void timelineMidiCtl(int ctl, int value) {
 	}
 }
 
-static void doMidiNote(const DataAndMidi *data, AmCursor *c, int index, int vel) {
+static void doMidiNote(const DataAndMidi *data, CursorAndOverride *c, int index, int vel) {
 	const MidiVoiceMap *voice = data->midi_voice + index;
 	if (voice->gate_signal >= 0)
-		c->signal_values[voice->gate_signal] = c->midi_voices[index].on;
+		c->sig_over[voice->gate_signal] = c->midi_voices[index].on;
 
 	if (voice->velocity_signal >= 0)
-		c->signal_values[voice->velocity_signal] = vel / 127.f;
+		c->sig_over[voice->velocity_signal] = vel / 127.f;
 
 	if (voice->note_signal >= 0)
-		c->signal_values[voice->note_signal] = c->midi_voices[index].note;
+		c->sig_over[voice->note_signal] = c->midi_voices[index].note;
 }
 
 void timelineMidiNote(int note, int vel, int on) {
@@ -443,9 +456,8 @@ void timelineMidiNote(int note, int vel, int on) {
 		data = data_lock.data_src;
 
 		lfmModifyLock(g.locked_cursor, &cursor_lock);
-		memcpy(cursor_lock.data_dst, cursor_lock.data_src, sizeof(AmCursor));
-
-		AmCursor *cursor = cursor_lock.data_dst;
+		memcpy(cursor_lock.data_dst, cursor_lock.data_src, sizeof(CursorAndOverride));
+		CursorAndOverride *cursor = cursor_lock.data_dst;
 
 		int i = 0;
 		for (i = 0; i < MAX_MIDI_VOICES; ++i)
@@ -461,6 +473,8 @@ void timelineMidiNote(int note, int vel, int on) {
 		cursor->midi_voices[i].on = on;
 		cursor->midi_voices[i].note = note;
 		doMidiNote(data, cursor, i, vel);
+
+		MSG("note %d vel %d on %d voice %d", note, vel, on, i);
 
 		lfmReadUnlock(g.locked_data, &data_lock);
 		if (0 != lfmModifyUnlock(g.locked_cursor, &cursor_lock))
