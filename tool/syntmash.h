@@ -37,6 +37,8 @@ enum syma_opcode_t {
 	SYMA_OP_SUB,
 	SYMA_OP_MIN,
 	SYMA_OP_MAX,
+	SYMA_OP_RINGWRTIE,
+	SYMA_OP_RINGREAD,
 };
 
 #define SYMA_MAX_OP_IMM 4

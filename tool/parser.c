@@ -91,7 +91,8 @@ int parserTokenizeLine(ParserTokenizer *tokenizer) {
 			args[j].slen = strlen(arg);
 
 			for (unsigned f = 1; f < PAF__MAX; f<<=1) {
-				if (!(line->args[j].type_flags & f))
+				//MSG("%s %x %x", arg, line->args_flags[j], f);
+				if (!(line->args_flags[j] & f))
 					continue;
 
 				char *endptr = 0;
@@ -113,6 +114,7 @@ int parserTokenizeLine(ParserTokenizer *tokenizer) {
 						}
 						break;
 					case PAF_Var:
+						//MSG("%s", arg);
 						if (arg[0] != '$')
 							continue;
 						args[j].s = arg + 1;
@@ -123,15 +125,26 @@ int parserTokenizeLine(ParserTokenizer *tokenizer) {
 					default:
 						continue;
 				} // switch arg type
+
 				args[j].type = f;
 				break;
 			} // for all possible arg types
 
-			if (args[j].type == PAF_None && line->args[j].type_flags != PAF_None) {
-				MSG("arg '%s' cant be parsed as any of %x", arg, line->args[j].type_flags);
+			if (args[j].type == PAF_None && line->args_flags[j] != PAF_None) {
+				MSG("arg '%s' cant be parsed as any of %x", arg, line->args_flags[j]);
 				return Tokenize_TokenWrongFormat;
 			}
 		} // for all args
+
+		ParserCallbackParams params;
+		params.num_args = num_args;
+		params.line_param0 = line->param0;
+		params.userdata = tokenizer->userdata;
+		params.line = line;
+		params.args = args;
+		const int cb_result = line->callback(&params);
+		if (cb_result != 0)
+			return cb_result;
 
 		break;
 	} // forever
