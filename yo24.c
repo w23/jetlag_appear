@@ -91,7 +91,7 @@ int _fltused = 1;
 #define BAR_TICKS 32
 #define SAMPLES_PER_BAR (SOUND_SAMPLERATE * 4 * 60 / BPM)
 #define SAMPLES_PER_TICK (SAMPLES_PER_BAR / BAR_TICKS)
-#define LENGTH_BARS 16
+#define LENGTH_BARS 32
 
 #define SOUND_SAMPLES (SAMPLES_PER_BAR * LENGTH_BARS)
 #define SAMPLE_TYPE float
@@ -134,49 +134,214 @@ int _fltused = 1;
 #pragma data_seg(".post.glsl")
 #include "post.h"
 
+#define NOISE_SIZE 256
+static unsigned char noise_bytes[4 * NOISE_SIZE * NOISE_SIZE];
+
+//#define OLD_TIMELINE
+#define NUM_SIGNALS 32
+static float signal[NUM_SIGNALS];
+
 #ifdef OLD_TIMELINE
 #pragma data_seg(".timeline.h")
 #include "timeline.h"
 
 #pragma data_seg(".timeline_unpacked")
-static float TV[TIMELINE_ROWS];
 
 #pragma code_seg(".timeline_updater")
-static __forceinline void timelineUpdate(float time) {
-	int i, j;
-	for (i = 1; i < TIMELINE_ROWS; ++i) {
-		const float dt = timeline_times[i] * (float)(SAMPLES_PER_TICK) / (float)(SAMPLE_RATE) / 2.f;
-		//printf("%.2f: [i=%d; dt=%.2f, t=%.2f]\n", time, i, dt, time/dt);
-		if (dt >= time) {
-			time /= dt;
-			break;
-		}
-		time -= dt;
+static /*__forceinline*/ void timelineUpdate(float tick, float *TV) {
+	float av = 0, bv = 0;
+	int at = 0, bt = 1;
+	for (int i = 1; i < NUM_SIGNALS; ++i) {
+		int key_tick = 0;
+		for (int j = 0; j < TIMELINE_KEYPOINTS; ++j) {
+			const int dt = timeline_times[j];
+			key_tick += dt;
+			if (key_tick < tick) {
+				if (timeline_signals[j] == i) {
+					av = timeline_values[j];
+					at = key_tick;
+				}
+			} else {
+				if (timeline_signals[j] == i) {
+					bv = timeline_values[j];
+					bt = key_tick;
+					break;
+				}
+			}
+		} // for all keypoints find signal
+		
+		TV[i] = (av + (bv - av) * (tick / (bt - at))) * 32.f / 255.f;// -127.f) / 2.f;
+		//printf("%.2f ", TV[i]);
 	}
-
-	for (j = 0; j < TIMELINE_COLS; ++j) {
-		const float a = timeline_values[i + j * TIMELINE_ROWS - 1];
-		const float b = timeline_values[i + j * TIMELINE_ROWS];
-#ifdef DO_RANGES
-		const float r = timeline_ranges[j];
-		TV[j] = ((a + (b - a) * time) / 255.f * 2.f - 1.f) * r;
-#else
-		TV[j] = ((a + (b - a) * time) - 127.f) / 2.f;
-#endif
-		//printf("%.2f ", TV[j]);
-	}
-	//printf("\n");
+	//pritnf("\n");
 }
-#endif
+#else
+#pragma data_seg(".timeline_packed")
+#pragma code_seg(".timeline_updater")
 
+static double fsin(double in) {
+	double result;
+	_asm { fld in
+		fsin
+		fstp result
+	}
+	return result;
+}
+
+static float fract(float f) {
+	int i;
+	_asm {
+		fld f
+		fisttp i
+	}
+	return f - (float)i;
+}
+
+static float fmod(float f, float d) {
+	return fract(f / d) * d;
+}
+
+#undef max
+#undef min
+static float max(float a, float b) { return a > b ? a : b; }
+static float min(float a, float b) { return a < b ? a : b; }
+
+static float clamp(float f, float m, float M) {
+	return max(min(f, M), m);
+}
+
+#define COUNTOF(a) (sizeof(a) / sizeof(*a))
+
+static const char bass_notes[] = {20, 19};
+
+static const char kicks[] = {
+	1, 0, 0, 0, 
+	0, 1, 0, 0, 
+	1, 0, 0, 0, 
+	0, 0, 0, 0, 
+	1, 0, 0, 0, 
+	0, 1, 0, 0, 
+	1, 0, 0, 0, 
+	0, 0, 1, 0 };
+
+static void timelineUpdate(float tick, float *S) {
+	const int itick = tick;
+	const int ibar = itick / BAR_TICKS;
+
+	const float scene1 = clamp((tick - BAR_TICKS) / BAR_TICKS, 0.f, 1.f);
+	const float scene2 = clamp((tick - 2.f * BAR_TICKS) / BAR_TICKS, 0.f, 1.f);
+
+	S[0] = tick;
+	S[1] = 1.f + 10.f * noise_bytes[ibar % NOISE_SIZE] / 255.f;
+	S[2] = scene1;
+	S[3] = scene2 * fmod(tick, BAR_TICKS) / BAR_TICKS;
+	//S[11] = fmod(tick*256., 3.);
+	S[10] = kicks[(itick / 4) % COUNTOF(kicks)];
+	S[11] = (itick % BAR_TICKS) != (BAR_TICKS - 1);
+	S[12] = bass_notes[(ibar / 4) % COUNTOF(bass_notes)] - 15;
+	S[13] = (itick + 16) % BAR_TICKS == 0;
+	S[14] = 36;
+}
+
+#endif
 
 #ifdef SOUND
 #pragma data_seg(".wavedata")
 static SAMPLE_TYPE sound_buffer[SOUND_SAMPLES];
 
+static float padd(float f, float a) { return fract(f + a); }
+
+static float step(float f, float s) { return f > s;  }
+static float psine(float f) { return fsin(f * 3.141693f * 2.f); }
+static float noise() {
+	static unsigned seed = 0;
+	seed = 1013904223ul + seed * 1664525ul;
+	return (seed >> 18) / (float)(0x3fff);
+}
+static float mix(float a, float b, float t) { return a + t * (b - a); }
+static float ptri(float v, float p) {
+	return ((v < p) ? 1.f - v / p : (v - p) / (1.f - p)) * 2.f - 1.f;
+}
+
+static float ntodp(float n) {
+	if (n < 0 || n > 64) return 0;
+	const float kht = 1.059463f;
+	float f = 55.5f / 2.f / SOUND_SAMPLERATE;
+	while ((n -= 1.f) >= 0.f) f *= kht;
+	return f;
+	//return powf(2.f, (stack[sp] - 57.f) / 12.f) * 440.f / context->samplerate;
+}
+
+typedef struct Voice {
+	int gate_signal, note_signal;
+	float (*gen)(struct Voice *v, float *S);
+	float p, dp;
+	float env, attack, decay;
+	float note;
+	float last_gatesig;
+	float gatetime;
+	float p1, dp1;
+} Voice;
+
+static float bass(Voice *v, float *S) {
+	v->dp1 = .1f / SOUND_SAMPLERATE;
+	return clamp(1.7 * ptri(v->p, psine(v->p1) * .3 + .5), -8., .8) * .5;
+}
+
+static float kick(Voice *v, float *S) {
+	float gt2 = v->gatetime; gt2 *= gt2;
+	v->dp = clamp(.0008f / (1.f - gt2), .0001f, .1f);
+	return ((psine(v->p) + ptri(v->p, .2)) * 2. + .08 * noise()) * v->gatetime;
+}
+
+static float snare(Voice *v, float *S) {
+	return (.5 * ptri(v->p, .5) * v->gatetime + noise()) * v->gatetime * v->gatetime;
+}
+
 void soundRender() {
+	float S[NUM_SIGNALS];
+	float kick_phase = 0;
+	float kgate = 0;
+	float ps10 = 0;
+
+	float bdp = ntodp(12.f);
+
+	Voice voices[] = {
+		{11, 12, bass},
+		{10, 0, kick},
+		{13, 14, snare}
+	};
+
 	for (int i = 0; i < SOUND_SAMPLES; ++i) {
-		sound_buffer[i] = (i % (44100 / 440)) / (float)(44100 / 440);
+		const float tick = (float)i / (float)SAMPLES_PER_TICK;
+		timelineUpdate(tick, S);
+		float s = 0;
+
+		for (int j = 0; j < COUNTOF(voices); ++j) {
+			Voice *v = voices + j;
+			if (v->note_signal) v->dp = ntodp(S[v->note_signal]);
+			v->p = fract(v->p + v->dp);
+			v->p1 = fract(v->p1 + v->dp1);
+			s += v->gen(v, S);
+			const float gate = S[v->gate_signal];
+			if (gate > 0 && v->last_gatesig == 0) {
+				v->gatetime = 1.f;
+			} else {
+				v->gatetime -= .25f / SAMPLES_PER_TICK;
+				v->gatetime = max(v->gatetime, 0);
+			}
+
+			v->last_gatesig = S[v->gate_signal];
+		}
+
+		int delay = 20 * SAMPLES_PER_TICK;
+		if (i > delay) {
+			//s += .2 * sound_buffer[i - delay];
+		}
+
+		sound_buffer[i] = s;
+
+		//sound_buffer[i] = signals[10] * (i % (44100 / 440)) / (float)(44100 / 440);
 	}
 }
 #endif // SOUND
@@ -411,7 +576,6 @@ static /*__forceinline*/ void initFb(GLuint fb, GLuint tex1, GLuint tex2) {
 	GLCHECK();
 }
 
-#define NUM_SIGNALS 32
 static float signals[NUM_SIGNALS];
 
 #pragma code_seg(".paint")
@@ -446,9 +610,6 @@ static void paint(GLuint prog, GLuint dst_fb, int out_bufs) {
 #endif
 	GLCHECK();
 }
-
-#define NOISE_SIZE 256
-static unsigned char noise_bytes[4 * NOISE_SIZE * NOISE_SIZE];
 
 #pragma code_seg(".introInit")
 static __forceinline void introInit() {
@@ -495,7 +656,7 @@ static __forceinline void introInit() {
 
 #pragma code_seg(".introPaint")
 static __forceinline void introPaint(float time_tick) {
-	//timelineUpdate(time);
+	timelineUpdate(time_tick, signals);
 	signals[0] = time_tick / BAR_TICKS;
 	paint(program[Pass_Raymarch], fb[Pass_Raymarch], 2);
 	paint(program[Pass_ReflectBlur1], fb[Pass_ReflectBlur1], 1);

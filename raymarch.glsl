@@ -142,7 +142,7 @@ float world(vec3 p) {
 float trace(vec3 o, vec3 d) {
 	float l = 0., w;
 	int i;
-	for (i = 0; i < 70; ++i) {
+	for (i = 0; i < 128; ++i) {
 		w = world(o + d * l);
 		l += w;//*.2;//mix(1.,.2,step(length(p),1.));
 		if (w < .002*l) break;

@@ -99,6 +99,13 @@
     <CustomBuild Include="*.glsl" />
     <CustomBuild Include="*.glsl" />
     <CustomBuild Include="*.glsl" />
+    <CustomBuild Include="*.glsl" />
+    <CustomBuild Include="*.glsl" />
+    <CustomBuild Include="*.glsl" />
+    <CustomBuild Include="*.glsl" />
+    <CustomBuild Include="*.glsl" />
+    <CustomBuild Include="*.glsl" />
+    <CustomBuild Include="*.glsl" />
   </ItemGroup>
   <ItemGroup>
     <MASM Include="yo24.asm">
