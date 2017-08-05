@@ -281,6 +281,7 @@ void videoPaint(float *signals, int num_signals, int force_redraw) {
 	else
 			drawPass(signals, num_signals, g.pass + Pass_MAX - 1);
 
+	if (0) {
 	const int samples = 2000;
 	const int diag_signals_count = 4;//MAX_DIAG_SIGNALS;
 	const float h = 2.f / diag_signals_count;
@@ -298,6 +299,7 @@ void videoPaint(float *signals, int num_signals, int force_redraw) {
 			paintGraph(diag_signals.signal[i].f + begin, length, -1.f + j * kx, kx, y_off, h * .5);
 			j += length;
 		}
+	}
 	}
 }
 

@@ -48,7 +48,7 @@ vec3 rep(vec3 p, vec3 x) { return mod(p, x) - x*.5; }
 
 float groundHeight(vec3 p) {
 	//return /*.01 * (1.-pow(noise21(p.xz*50.),3.)) + */ .05 * (noise21(p.xz*.5) - .5);
-	return .05 * (1.-pow(noise21(p.xz*20.),3.)) + .3 * (noise21(p.xz*.6) - .3);
+	return .05 * (1.-pow(noise21(p.xz*20.),3.)) + .4 * (noise21(p.xz*.6) - .4);
 }
 
 float ground(vec3 p) {
@@ -104,6 +104,8 @@ float object(vec3 p) {
 	p -= vec3(0., 3., 0.);
 	p*=.5;
 
+	float bounds = box(p, vec3(5.));
+
 	float cd = dot(p, E.zxx*RY(t));
 	const float cr = .4, cs = .07;
 	float cut = abs(mod(cd,cr)-cr*.5)-cs;
@@ -116,17 +118,16 @@ float object(vec3 p) {
 	// p.zy = abs(p.yx); p *= RY(tt*1.1);
 	p.zy = abs(p.yz); p *= RY(tt*1.1);
 
-	float d = min(min(min(
-			box(p, vec3(.7,2.4,.2)),
-			box(p, vec3(1.3,.4,.3))),
-			box(RX(.6)*p, vec3(.3,.4,2.3))),
-			tor(p, vec2(1., .1))
-			);
+	float d = tor(p, vec2(2., .1));
+	d = min(d, ring(p.yxz, 1.4, 1.5, .2));
+	d = min(d, box(p-F[17]*4*E.zxx, vec3(.7,2.4,.2)));
+	d = min(d, box(p-F[16]*4*E.xzx, vec3(1.3,.4,.3)));
+	d = min(d, box(RX(.6)*p-F[15]*4*E.xxz, vec3(.3,.4,2.3)));
+	d = max(d, bounds);
 
 	return .5*max(d, -cut);
 }
 
-/*
 float object2(vec3 p) {
 	p -= 3.*E.xzx;
 
@@ -144,6 +145,7 @@ float object2(vec3 p) {
 	return max(d, -cut);
 }
 
+/*
 float object3(vec3 p) {
 	p -= 3.*E.xzx;
 
@@ -267,18 +269,20 @@ vec4 raycast() {
 		albedo = mix(vec3(.12), vec3(.03,.08,.07), type);
 		roughness = mix(.99, .05, type);
 		//metallic = mix(0., .1, type);
+		/*
 		normal.xz += .002 * type * (
 			sin(t*4. + 6.*noise22(10.*ray_pos.xz)) +
 			.6 * sin(t*2. + 6.*noise22(15.*ray_pos.xz)) +
 			.3 * sin(t*8. + 6.*noise22(25.*ray_pos.xz)));
 		normal = normalize(normal);
+		*/
 	} else if (mindex == 2) {
 		albedo = vec3(.56, .57, .58);
-		roughness = F[26];//mix(.15, .5, step(box3(rep3(ray_pos, vec3(2.)), vec3(.6)), 0.));
-		metallic = F[25];
+		roughness = .15;//F[14];//mix(.15, .5, step(box3(rep3(ray_pos, vec3(2.)), vec3(.6)), 0.));
+		metallic = 1.;//F[15];
 
 		// stripes
-		//color = vec3(10.) * smoothstep(.6,.999,sin(t*4.*.4+(RX(t*.4)*ray_pos).y*6.));
+		color = vec3(2.) * smoothstep(.99,.999,sin(t*8.+(RX(t*.4)*ray_pos).y*2.));
 		//albedo = vec3(.56,.57,.58);
 		//roughness = .01 + .5 * fbm(ray_pos.xy*10.);
 		//metallic = .5 + fbm(ray_pos.zx*21.)*.5;
@@ -293,6 +297,7 @@ vec4 raycast() {
 		roughness = mix(.9, .2, stripe);
 		metallic = .1;
 */
+/*
 	} else if (mindex == 4) {
 		albedo = vec3(.56, .57, .58);
 		roughness = .2 + .6 * pow(noise21(ray_pos.xz*4.+40.),4.);
@@ -301,6 +306,7 @@ vec4 raycast() {
 		albedo = vec3(1., 0., 0.);
 		roughness = .2;
 		metallic = .8;
+		*/
 	}
 
 	// vec3 pointlight(vec3 lightpos, vec3 lightcolor, float metallic, float roughness, vec3 albedo, vec3 ray_pos, vec3 ray, vec3 normal) {
@@ -312,11 +318,19 @@ vec4 raycast() {
 	//color += pointlight(vec3(4., 4., 0.), 1000.*F[16]*vec3(F[13],F[14],F[15]));
 	//color += pointlight(vec3(2., 1. + 6.*F[17], 0.), 100.*vec3(.85,.43,.56));
 
-	color += pointlight(10.*(vec3(F[18], F[19], F[20]) - .5), 1000.*F[21]*vec3(F[22],F[23],F[24]));
-	color += pointlight(vec3(-1.,4.,2.)*2., 100.*vec3(.14,.33,.23));
-	color += pointlight(vec3(2.,4.,-1.)*2., 100.*vec3(.14,.33,.23).zxy);
-	color += pointlight(7.*E.xzx, vec3(40.));
-	color += pointlight(vec3(0.,3.,0.), vec3(100.));
+//	color += pointlight(10.*(vec3(F[18], F[19], F[20]) - .5), 1000.*F[21]*vec3(F[22],F[23],F[24]));
+//	color += pointlight(vec3(-1.,4.,2.)*2., 100.*vec3(.14,.33,.23));
+//	color += pointlight(vec3(2.,4.,-1.)*2., 100.*vec3(.14,.33,.23).zxy);
+//	color += pointlight(7.*E.xzx, vec3(40.));
+	//color += pointlight(vec3(F[10], F[11], F[12]), vec3(100.));
+	color += pointlight(vec3(-20.,10.,-30.), 50.*vec3(.9,.8,.7));
+	color += pointlight(vec3( 20.,10.,-30.), 50.*vec3(.9,.8,.7));
+	color += pointlight(vec3( 20.,10., 30.), 50.*vec3(.9,.8,.7));
+	color += pointlight(vec3(-20.,10., 30.), 50.*vec3(.9,.8,.7));
+
+	color += pointlight(vec3(3.,7.,-3.), 1000.*vec3(.2,.5,.9));
+	color += pointlight(vec3(3.,7.,3.), 500.*vec3(.5,.9,.2));
+	color += pointlight(vec3(0.,6.,0.), vec3(100.));
 
 	return vec4(color, tr);
 }
@@ -327,17 +341,22 @@ mat3 lookat(vec3 p, vec3 a, vec3 y) {
 	y = cross(z, x);
 	return mat3(x, y, z);
 }
-
+vec3 cyl(vec3 p) {
+	return vec3(p.x*cos(p.z*PI2), p.y, p.x*sin(p.z*PI2));
+}
 void main() {
 	vec2 V = Z(1);
 	vec2 uv = X / V * 2. - 1.;
 	uv.x *= V.x / V.y;
+	
+	float tl = t * .6;
+	float tt = tl;//floor(tl) + pow(fract(tl), 4.);
 
-	//gl_FragData[0] = vec4(F[27], F[28], F[29], 0.); return;
+	vec3 origin = mix(rnd(vec2(floor(tl)*3.)), rnd(vec2(floor(tl)*3.+1.)), fract(tl)).xzy;
 
 	//vec3 origin = 30. * (vec3(F[27],F[28]+.501,F[29]) - .5);// + .1 * noise13(t*3.);
-	vec3 origin = vec3(5.) + .1 * noise13(t);
-	mat3 LAT = lookat(origin, vec3(0.,3.,0.), E.xzx);
+	origin = cyl(origin* vec3(8.,10.,1.) + vec3(5.,.2,0.)) + .8 * noise13(t);
+	mat3 LAT = lookat(origin, vec3(0.,3.,0.)+2.*noise13(tt), E.xzx);
 	//origin += LAT * vec3(uv*.01, 0.);
 	ray = - LAT * normalize(vec3(uv, -1.));//-D.y));
 
