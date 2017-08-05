@@ -110,15 +110,17 @@ static void drawPass(float *signals, int num_signals, const RenderPass *pass) {
 	if (pass->fb > 0) {
 		GL(Viewport(0, 0, g.width, g.height));
 		int Vloc = glGetUniformLocation(pass->program, "VIEWPORT");
+		const float V[] = { (float)g.width, (float)g.height };
 		if (Vloc >= 0)
-			GL(Uniform2f(Vloc, (float)g.width, (float)g.height));
+			GL(Uniform2fv(Vloc, 1, V));
 		const GLuint bufs[] = { GL_COLOR_ATTACHMENT0, GL_COLOR_ATTACHMENT1, GL_COLOR_ATTACHMENT2 };
 		GL(DrawBuffers(pass->targets, bufs));
 	} else {
 		GL(Viewport(0, 0, g.output_width, g.output_height));
 		int Vloc = glGetUniformLocation(pass->program, "VIEWPORT");
+		const float V[] = { (float)g.output_width, (float)g.output_height };
 		if (Vloc >= 0)
-			GL(Uniform2f(Vloc, (float)g.output_width, (float)g.output_height));
+			GL(Uniform2fv(Vloc, 1, V));
 	}
 	GL(Uniform1iv(glGetUniformLocation(pass->program, "S"), Texture_MAX, g.texture_unit));
 	GL(Uniform1fv(glGetUniformLocation(pass->program, "F"), num_signals, signals));

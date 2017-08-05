@@ -142,7 +142,7 @@ float world(vec3 p) {
 float trace(vec3 o, vec3 d) {
 	float l = 0., w;
 	int i;
-	for (i = 0; i < 128; ++i) {
+	for (i = 0; i < 70; ++i) {
 		w = world(o + d * l);
 		l += w;//*.2;//mix(1.,.2,step(length(p),1.));
 		if (w < .002*l) break;
@@ -180,15 +180,15 @@ vec3 pbr(vec3 lightdir) {
 	float G = GeometrySchlickGGX(NV, roughness) * GeometrySchlickGGX(NL, roughness);
 	//vec3 brdf = DistributionGGX(NH, roughness) * G * F / max(1e-10, 4. * NV * NL);
 	vec3 brdf = r4 / max(1e-10, PI * GGXdenom * GGXdenom) * G * F / max(1e-10, 4. * NV * NL);
-	return ((vec3(1.) - F) * (1. - metallic) * albedo / PI + brdf) * NL;
+	return ((E.zzz - F) * (1. - metallic) * albedo / PI + brdf) * NL;
 }
 
 vec3 pointlight(vec3 lightpos, vec3 lightcolor) {
 	vec3 L = lightpos - ray_pos, pp;
 	float LL = dot(L,L), Ls = sqrt(LL);
-	L = normalize(L);
+	L /= Ls;
 
-	const int Nao = 15;
+	const int Nao = 8;//16
 	float kao = 1., d, ki = 1. / float(Nao);
 	for (int i = 1; i < Nao; ++i) {
 		d = min(Ls, 2.) * float(i) * ki;

@@ -87,10 +87,19 @@ int _fltused = 1;
 #endif
 
 #define SOUND_SAMPLERATE 44100
-#define SOUND_SAMPLES (SOUND_SAMPLERATE * 120)
-#define INTRO_LENGTH (SOUND_SAMPLES / SOUND_SAMPLERATE)
+#define BPM 160
+#define BAR_TICKS 32
+#define SAMPLES_PER_BAR (SOUND_SAMPLERATE * 4 * 60 / BPM)
+#define SAMPLES_PER_TICK (SAMPLES_PER_BAR / BAR_TICKS)
+#define LENGTH_BARS 16
+
+#define SOUND_SAMPLES (SAMPLES_PER_BAR * LENGTH_BARS)
 #define SAMPLE_TYPE float
 #define FLOAT_32BIT
+
+#define BYTES_PER_SAMPLE sizeof(SAMPLE_TYPE)
+#define BYTES_PER_TICK (BYTES_PER_SAMPLE * SAMPLES_PER_TICK)
+#define LENGTH_TICKS (LENGTH_BARS * BAR_TICKS)
 
 #ifdef CAPTURE
 #ifndef CAPTURE_FRAMERATE
@@ -403,7 +412,7 @@ static /*__forceinline*/ void initFb(GLuint fb, GLuint tex1, GLuint tex2) {
 }
 
 #define NUM_SIGNALS 32
-float signals[NUM_SIGNALS] = { 1.f, 1.f, 1.f, 1.f, 1.f, 1.f, 1.f, 1.f, 1.f, 1.f };
+static float signals[NUM_SIGNALS];
 
 #pragma code_seg(".paint")
 static void paint(GLuint prog, GLuint dst_fb, int out_bufs) {
@@ -485,8 +494,9 @@ static __forceinline void introInit() {
 }
 
 #pragma code_seg(".introPaint")
-static __forceinline void introPaint(float time) {
+static __forceinline void introPaint(float time_tick) {
 	//timelineUpdate(time);
+	signals[0] = time_tick / BAR_TICKS;
 	paint(program[Pass_Raymarch], fb[Pass_Raymarch], 2);
 	paint(program[Pass_ReflectBlur1], fb[Pass_ReflectBlur1], 1);
 	paint(program[Pass_ReflectBlur2], fb[Pass_ReflectBlur2], 1);
@@ -559,19 +569,17 @@ void entrypoint(void) {
 		MMTIME mmtime;
 		mmtime.wType = TIME_BYTES;
 		CHECK(waveOutGetPosition(hWaveOut, &mmtime, sizeof(mmtime)));
-		const float time = (float)mmtime.u.sample / (sizeof(SAMPLE_TYPE) * SOUND_SAMPLERATE);
+		const float time_ticks = (float)mmtime.u.cb / (BYTES_PER_TICK);
 #else
-		const float time = (timeGetTime() - start) / 1000.f;
+		const int time_ms = timeGetTime() - start;
 #endif
 
-		signals[2] = signals[12] = time;
-		signals[13] = .1f;
-		introPaint(time / 1000.f);
+		introPaint(time_ticks);
 		SwapBuffers(hDC);
 
 		/* hide cursor properly */
 		PeekMessageA(0, 0, 0, 0, PM_REMOVE);
-		if (time > INTRO_LENGTH) break;
+		if (time_ticks >= LENGTH_TICKS) break;
 	} while (!GetAsyncKeyState(VK_ESCAPE));
 		// && MMTime.u.sample < MAX_SAMPLES);
 
