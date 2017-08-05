@@ -37,13 +37,13 @@ static void paint(ATimeUs ts, float dt) {
 	timelineCheckUpdate();
 	audioCheckUpdate();
 
-	const float now = 1e-6f * ts;
+	(void)ts;
+	//const float now = 1e-6f * ts;
 
 	{
 		float signals[32];
 		memset(signals, 0, sizeof(signals));
 		timelineGetLatestSignals(signals, COUNTOF(signals));
-		signals[2] = signals[12] = now;
 		//for (unsigned long i = 0; i < COUNTOF(signals); ++i) printf("%lu=%.1f ", i, signals[i]); printf("\n");
 
 		videoOutputResize(a_app_state->width, a_app_state->height);

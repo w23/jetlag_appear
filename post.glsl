@@ -27,9 +27,9 @@ void main() {
 	color -= .02*T(0, X*.3+t*vec2(623.,1107.)).y;
 	//gl_FragColor = vec4(color, 1.); return;
 
-	//color.xyz *= (1. - smoothstep(.5,.7,length(uv-.5)));
-	uv = 1. - 2. * abs(uv);
-	color*= min(1., 20.*uv.x*uv.y);
+	// (horrible) vignetting
+	//color.xyz *= (1. - smoothstep(.5,.7,length(uv)));
+	//uv = 1. - 2. * abs(uv); color*= min(1., 20.*uv.x*uv.y);
 
 	gl_FragColor = vec4(color, 1.);
 }

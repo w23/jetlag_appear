@@ -5,13 +5,5 @@ void main() {
 	//gl_FragColor = vec4(c.xyz + T(4,X).xyz, c.w); return;
 	gl_FragColor = vec4(mix(c.xyz,
 		mix(mix(r.xyz, T(3,X).xyz, linstep(.1,.2,r.w)), T(4,X).xyz, linstep(.3,.6,r.w))
-	, .2), c.w);	return;
-
-	gl_FragColor = vec4(
-		mix(c.xyz,
-			mix(r.xyz,
-				T(4,X).xyz,
-				r.w), .5
-		//	*step(r.w*r.w, .4)
-			), c.w);
+	, .2), c.w);
 }

@@ -9,7 +9,7 @@ void main() {
 		vec4 pix = T(5, X + rad * angle);
 
 		float A = .04;
-		float D = F[13];
+		float D = F[1];
 		float F = .03 / tan(.7);
 		float P = pix.w;
 		float coc = abs(A * F / (P - F) * (P / D - 1.)) * Z(1).x / .035;

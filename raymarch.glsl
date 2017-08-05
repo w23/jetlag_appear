@@ -1,12 +1,10 @@
 vec4 rnd(vec2 n) { return T(0,n-.5); }//texture2DLod(S[0], (n-.5)/textureSize(S[0],0), 0); }
-float noise(float v) { return rnd(vec2(v)).w; }
-vec2 noise12(float v) { return rnd(vec2(v)).wx; }
+//float noise(float v) { return rnd(vec2(v)).w; }
+//vec2 noise12(float v) { return rnd(vec2(v)).wx; }
 vec3 noise13(float v) { return rnd(vec2(v)).xyz; }
-float noise2s(vec2 v) { vec2 V = floor(v); v-=V;
-	v*=v*(3.-2.*v);
-	return rnd(V + v).z; }
+//float noise2s(vec2 v) { vec2 V = floor(v); v-=V; v*=v*(3.-2.*v); return rnd(V + v).z; }
 float noise21(vec2 v) { return rnd(v).z; }
-vec2 noise22(vec2 v) { return rnd(v).wx; }
+//vec2 noise22(vec2 v) { return rnd(v).wx; }
 float noise31(vec3 v) { return .5 * (rnd(v.yz).x+rnd(v.xy).x); }
 
 //float hash1(float v){return fract(sin(v)*43758.5); }
@@ -14,6 +12,7 @@ float noise31(vec3 v) { return .5 * (rnd(v.yz).x+rnd(v.xy).x); }
 //float hash2(vec2 p){return fract(sin(17.*hash1(p.x)+54.*hash1(p.y)));}
 //float hash3(vec3 p){return hash2(vec2(hash2(p.xy), p.z));}
 
+/*
 float fbm(vec2 v) {
 	float r = 0.;
 	float k = .5;
@@ -23,28 +22,26 @@ float fbm(vec2 v) {
 		v *= 2.3;
 	}
 	return r;
-}
+}*/
 
 //float box2(vec2 p, vec2 s) { p = abs(p) - s; return max(p.x, p.y); }
-float box3(vec3 p, vec3 s) { p = abs(p) - s; return max(p.x, max(p.y, p.z)); }
+//float box3(vec3 p, vec3 s) { p = abs(p) - s; return max(p.x, max(p.y, p.z)); }
 mat3 RX(float a){ float s=sin(a),c=cos(a); return mat3(1.,0.,0.,0.,c,-s,0.,s,c); }
 mat3 RY(float a){	float s=sin(a),c=cos(a); return mat3(c,0.,s,0.,1.,0,-s,0.,c); }
 //mat3 RZ(float a){ float s=sin(a),c=cos(a); return mat3(c,s,0.,-s,c,0.,0.,0.,1.); }
 
-float ball(vec3 p, float r) { return length(p) - r; }
-vec3 rep3(vec3 p, vec3 r) { return mod(p,r) - r*.5; }
+//float ball(vec3 p, float r) { return length(p) - r; }
+//vec3 rep3(vec3 p, vec3 r) { return mod(p,r) - r*.5; }
 vec2 rep2(vec2 p, vec2 r) { return mod(p,r) - r*.5; }
 float ring(vec3 p, float r, float R, float t) {
 	return max(abs(p.y)-t, max(length(p) - R, r - length(p)));
 }
-float vmax(vec2 p) { return max(p.x, p.y); }
+//float vmax(vec2 p) { return max(p.x, p.y); }
 float vmax(vec3 v) { return max(v.x, max(v.y, v.z)); }
 float box(vec3 p, vec3 s) { return vmax(abs(p) - s);}
 float tor(vec3 p, vec2 s) {
 	return length(vec2(length(p.xz) - s.x, p.y)) - s.y;
 }
-
-vec3 rep(vec3 p, vec3 x) { return mod(p, x) - x*.5; }
 
 float groundHeight(vec3 p) {
 	//return /*.01 * (1.-pow(noise21(p.xz*50.),3.)) + */ .05 * (noise21(p.xz*.5) - .5);
@@ -105,80 +102,32 @@ float object(vec3 p) {
 	p*=.5;
 
 	float bounds = box(p, vec3(5.));
+	float ball = length(p) - 1.4 - .1*sin(3.*(2.*p.x+t));
 
 	float cd = dot(p, E.zxx*RY(t));
 	const float cr = .4, cs = .07;
 	float cut = abs(mod(cd,cr)-cr*.5)-cs;
 
-	//p.x += sin(p.y*2. + t);
-
-	float tt = t * .3;
-	p.xy = abs(p.yx); p *= RX(tt);
-	p.xz = abs(p.zx); p *= RX(tt*.7);
-	// p.zy = abs(p.yx); p *= RY(tt*1.1);
-	p.zy = abs(p.yz); p *= RY(tt*1.1);
+	p.xz = abs(p.zx); p *= RX(t*.7);
+	//p.zy = abs(p.yx); p *= RY(t*1.1);
+	p.zy = abs(p.yz); p *= RY(t*1.1);
 
 	float d = tor(p, vec2(2., .1));
 	d = min(d, ring(p.yxz, 1.4, 1.5, .2));
-	d = min(d, box(p-F[17]*4*E.zxx, vec3(.7,2.4,.2)));
-	d = min(d, box(p-F[16]*4*E.xzx, vec3(1.3,.4,.3)));
-	d = min(d, box(RX(.6)*p-F[15]*4*E.xxz, vec3(.3,.4,2.3)));
+	d = min(d, box(p-F[3]*E.zxx, vec3(.7,2.4,.2)));
+	d = min(d, box(p-F[3]*E.xzx, vec3(1.3,.4,.3)));
+	d = min(d, box(/*RX(.6)**/p-F[3]*E.xxz, vec3(.3,.4,2.3)));
 	d = max(d, bounds);
+
+	d = mix(d, ball, clamp(1.-F[2], 0., 1.));//step(F[2], .5));//clamp(d-ball, 0., 1.));
+
+	// well...
+	//p.zy = abs(p.yz); p *= RY(t*1.1);
+	//p *= RY(floor(p.y+.5)*10.);
+	//d = min(d, max(box(p, vec3(4.)), -box(p, 2.*vec3(1.8, 3., 1.8))));
 
 	return .5*max(d, -cut);
 }
-
-float object2(vec3 p) {
-	p -= 3.*E.xzx;
-
-	float cd = dot(p, E.zxx*RY(t));
-	const float cr = .4, cs = .1;
-	float cut = abs(mod(cd,cr)-cr*.5)-cs;
-
-	float d = length(p) - 2. - .2*sin(2.*p.z*(1.+F[14]*10.)+2.*F[2]);
-	//d = max(d, -box(p, vec3(3.,.4,.4)));
-	//p *= RX(F[2]);
-	d = min(d, ring(p, 3., 3.2, .2));
-	//d = min(d, box(p, vec3(.3, 4., 1.)));
-
-	cut = 10.;
-	return max(d, -cut);
-}
-
-/*
-float object3(vec3 p) {
-	p -= 3.*E.xzx;
-
-	float cd = dot(p, E.zxx*RY(t));
-	const float cr = .4, cs = .1;
-	float cut = abs(mod(cd,cr)-cr*.5)-cs;
-
-
-	//float tt = F[2] * .3;
-	////p.xy = abs(p.yx); p *= RX(tt);
-	////p.xz = abs(p.zx); p *= RX(tt*.7);
-	//p.zy = abs(p.yz); p *= RY(tt*1.1);
-	////p.zy = abs(p.yz); p *= RY(tt*1.1);
-
-
-	float angle = floor(p.y+.5)*F[2]*.1;
-	p *= RY(angle);
-
-	float d = box(p, vec3(2.));
-	d = max(d, -box(p, vec3(1.8, 3., 1.8)));
-	//d = max(d, -box(rep3(p, vec3(1.)), vec3(9.,.2,9.)));
-
-	//float d = length(p) - 2. - .2*sin(2.*p.z*(1.+F[14]*10.)+2.*F[2]);
-	//d = max(d, -box(p, vec3(3.,.4,.4)));
-	//p *= RX(F[2]);
-	//d = min(d, ring(p, 3., 3.2, .2));
-	//d = min(d, box(p, vec3(.3, 4., 1.)));
-
-	cut = 1.;
-	return max(d, -cut);
-}
-*/
-
 int mindex = 0;
 void PICK(inout float d, float dn, int mat) { if (dn<d) {d = dn; mindex = mat;} }
 
@@ -186,9 +135,7 @@ float world(vec3 p) {
 	float w = 1e6;
 	PICK(w, ground(p), 1);
 	PICK(w, object(p), 2);
-	PICK(w, room(p), 3);// + 10. * E.zzz * (1./length(p))*sin(length(p)+F[2])), 3);
-	//PICK(w, dbgNoise(p), 3);
-	//PICK(w, grid(p), 3);
+	PICK(w, room(p), 3);
 	return w;
 }
 
@@ -237,7 +184,8 @@ vec3 pbr(vec3 lightdir) {
 }
 
 vec3 pointlight(vec3 lightpos, vec3 lightcolor) {
-	vec3 L = lightpos - ray_pos, pp; float LL = dot(L,L), Ls = sqrt(LL);
+	vec3 L = lightpos - ray_pos, pp;
+	float LL = dot(L,L), Ls = sqrt(LL);
 	L = normalize(L);
 
 	const int Nao = 15;
@@ -288,41 +236,10 @@ vec4 raycast() {
 		//metallic = .5 + fbm(ray_pos.zx*21.)*.5;
 	} else if (mindex == 3) {
 		float type = step(noise31(ray_pos*4.), .7);
-		albedo = mix(vec3(0.662124, 0.654864, 0.633732), vec3(.7,.66,.6), type);
+		albedo = mix(vec3(.66, .65, .63), vec3(.7,.66,.6), type);
 		roughness = mix(1.,.7, type);
 		metallic = mix(0.,.9,type);
-/*
-		float stripe = step(0., sin(atan(ray_pos.x,ray_pos.z)*60.));
-		albedo = vec3(mix(1., .0, stripe));
-		roughness = mix(.9, .2, stripe);
-		metallic = .1;
-*/
-/*
-	} else if (mindex == 4) {
-		albedo = vec3(.56, .57, .58);
-		roughness = .2 + .6 * pow(noise21(ray_pos.xz*4.+40.),4.);
-		metallic = .8;
-	} else if (mindex == 5) {
-		albedo = vec3(1., 0., 0.);
-		roughness = .2;
-		metallic = .8;
-		*/
 	}
-
-	// vec3 pointlight(vec3 lightpos, vec3 lightcolor, float metallic, float roughness, vec3 albedo, vec3 ray_pos, vec3 ray, vec3 normal) {
-	//color += pointlight(vec3(11., 6.,11.), 100.*vec3(1.));
-	//color += pointlight(vec3(11., 6.,11.), 100.*vec3(.7,.35,.45));
-	//color += pointlight(vec3(11., 6.,-11.),100.* vec3(.7,.35,.15));
-	//color += pointlight(vec3(-11., 6.,-11.), 100.*vec3(.3,.35,.75));
-	//color += pointlight(vec3(-11., 6.,11.), 100.*vec3(.7,.35,.15));
-	//color += pointlight(vec3(4., 4., 0.), 1000.*F[16]*vec3(F[13],F[14],F[15]));
-	//color += pointlight(vec3(2., 1. + 6.*F[17], 0.), 100.*vec3(.85,.43,.56));
-
-//	color += pointlight(10.*(vec3(F[18], F[19], F[20]) - .5), 1000.*F[21]*vec3(F[22],F[23],F[24]));
-//	color += pointlight(vec3(-1.,4.,2.)*2., 100.*vec3(.14,.33,.23));
-//	color += pointlight(vec3(2.,4.,-1.)*2., 100.*vec3(.14,.33,.23).zxy);
-//	color += pointlight(7.*E.xzx, vec3(40.));
-	//color += pointlight(vec3(F[10], F[11], F[12]), vec3(100.));
 	color += pointlight(vec3(-20.,10.,-30.), 50.*vec3(.9,.8,.7));
 	color += pointlight(vec3( 20.,10.,-30.), 50.*vec3(.9,.8,.7));
 	color += pointlight(vec3( 20.,10., 30.), 50.*vec3(.9,.8,.7));
@@ -330,7 +247,7 @@ vec4 raycast() {
 
 	color += pointlight(vec3(3.,7.,-3.), 1000.*vec3(.2,.5,.9));
 	color += pointlight(vec3(3.,7.,3.), 500.*vec3(.5,.9,.2));
-	color += pointlight(vec3(0.,6.,0.), vec3(100.));
+	//color += pointlight(vec3(0.,6.,0.), vec3(100.));
 
 	return vec4(color, tr);
 }
