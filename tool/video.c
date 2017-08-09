@@ -24,7 +24,6 @@ typedef struct {
 enum {
 	Pass_Raymarch,
 	Pass_BlurReflection,
-	Pass_BlurReflection2,
 	Pass_Composite,
 	Pass_DofTap,
 	Pass_MergeAndPost,
@@ -36,9 +35,7 @@ enum {
 	Texture_Noise,
 	Texture_RaymarchPrimary,
 	Texture_RaymarchReflection,
-	//Texture_RaymarchReflectionMeta,
 	Texture_RaymarchReflectionBlur,
-	Texture_RaymarchReflectionBlur2,
 	Texture_RaymarchCombined,
 	Texture_DofTapNear,
 	Texture_DofTapFar,
@@ -191,6 +188,15 @@ static void graphInit() {
 	aGLAttributeLocate(graph.source.program, graph.attribs, COUNTOF(graph.attribs));
 }
 
+static /*__forceinline*/ void initTexture(GLuint tex, int w, int h, int comp, int type, void *data, int wrap) {
+	GL(BindTexture(GL_TEXTURE_2D, tex));
+	GL(TexImage2D(GL_TEXTURE_2D, 0, comp, w, h, 0, GL_RGBA, type, data));
+	GL(TexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR));
+	GL(TexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR));
+	GL(TexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, wrap));
+	GL(TexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, wrap));
+}
+
 void videoInit(int width, int height) {
 	aGLInit();
 	graphInit();
@@ -210,25 +216,25 @@ void videoInit(int width, int height) {
 			noise_bytes[i] = (seed >> 18);
 		}
 
-		g.texture_unit[0] = 0;
-		GL(ActiveTexture(GL_TEXTURE0));
-		GL(BindTexture(GL_TEXTURE_2D, g.textures[0]));
-		GL(TexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, NOISE_SIZE, NOISE_SIZE, 0, GL_RGBA, GL_UNSIGNED_BYTE, noise_bytes));
-		GL(TexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR));
-		GL(TexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR));
-		GL(TexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT));
-		GL(TexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT));
-	}
+		for (int i = 0; i < Texture_MAX; ++i)
+			g.texture_unit[i] = i;
 
-	for (int i = 1; i < Texture_MAX; ++i) {
-		g.texture_unit[i] = i;
-		GL(ActiveTexture(GL_TEXTURE0 + i));
-		GL(BindTexture(GL_TEXTURE_2D, g.textures[i]));
-		GL(TexImage2D(GL_TEXTURE_2D, 0, GL_RGBA16F, width, height, 0, GL_RGBA, GL_FLOAT, 0));
-		GL(TexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR));
-		GL(TexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR));
-		GL(TexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_BORDER));
-		GL(TexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_BORDER));
+		glActiveTexture(GL_TEXTURE0);
+		initTexture(g.textures[Texture_Noise], NOISE_SIZE, NOISE_SIZE, GL_RGBA, GL_UNSIGNED_BYTE, noise_bytes, GL_REPEAT);
+		glActiveTexture(GL_TEXTURE1);
+		initTexture(g.textures[Texture_RaymarchPrimary], g.width, g.height, GL_RGBA16F, GL_FLOAT, 0, GL_CLAMP_TO_BORDER);
+		glActiveTexture(GL_TEXTURE2);
+		initTexture(g.textures[Texture_RaymarchReflection], g.width, g.height, GL_RGBA16F, GL_FLOAT, 0, GL_CLAMP_TO_BORDER);
+		glActiveTexture(GL_TEXTURE3);
+		initTexture(g.textures[Texture_RaymarchReflectionBlur], g.width/2, g.height/2, GL_RGBA16F, GL_FLOAT, 0, GL_CLAMP_TO_BORDER);
+		glActiveTexture(GL_TEXTURE4);
+		initTexture(g.textures[Texture_RaymarchCombined], g.width, g.height, GL_RGBA16F, GL_FLOAT, 0, GL_CLAMP_TO_BORDER);
+		glActiveTexture(GL_TEXTURE5);
+		initTexture(g.textures[Texture_DofTapNear], g.width, g.height, GL_RGBA16F, GL_FLOAT, 0, GL_CLAMP_TO_BORDER);
+		glActiveTexture(GL_TEXTURE6);
+		initTexture(g.textures[Texture_DofTapFar], g.width, g.height, GL_RGBA16F, GL_FLOAT, 0, GL_CLAMP_TO_BORDER);
+		glActiveTexture(GL_TEXTURE7);
+		initTexture(g.textures[Texture_Frame], g.width, g.height, GL_RGBA16F, GL_FLOAT, 0, GL_CLAMP_TO_BORDER);
 	}
 
 	{
@@ -237,7 +243,6 @@ void videoInit(int width, int height) {
 	passInit(g.pass + PASS, NTEX, tex, FILENAME); tex += NTEX
 		PASS(Pass_Raymarch, 2, "raymarch.glsl");
 		PASS(Pass_BlurReflection, 1, "blur_reflection.glsl");
-		PASS(Pass_BlurReflection2, 1, "blur_reflection2.glsl");
 		PASS(Pass_Composite, 1, "composite.glsl");
 		PASS(Pass_DofTap, 2, "dof_tap.glsl");
 		PASS(Pass_MergeAndPost, 1, "post.glsl");

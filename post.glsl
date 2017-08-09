@@ -1,11 +1,12 @@
 vec4 mergeNearFar(vec2 p) {
-	p *= Z(6);
-	//return T(5,p);
-	vec4 near = T(6,p), far = T(7,p);
+	p += .5 / Z(5);
+	//p *= Z(5);
+	//return P(5,p);
+	vec4 near = P(5,p), far = P(6,p);
 	return mix(near, far, far.w / (near.w + far.w));
 }
 void main() {
-	vec2 uv = X / Z(6) - .5;
+	vec2 uv = X / Z(1) - .5;
 
 	float amount = .2;
 	vec3 color =

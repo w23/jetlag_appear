@@ -31,7 +31,7 @@ mat3 RY(float a){	float s=sin(a),c=cos(a); return mat3(c,0.,s,0.,1.,0,-s,0.,c); 
 //mat3 RZ(float a){ float s=sin(a),c=cos(a); return mat3(c,s,0.,-s,c,0.,0.,0.,1.); }
 
 //float ball(vec3 p, float r) { return length(p) - r; }
-//vec3 rep3(vec3 p, vec3 r) { return mod(p,r) - r*.5; }
+vec3 rep3(vec3 p, vec3 r) { return mod(p,r) - r*.5; }
 vec2 rep2(vec2 p, vec2 r) { return mod(p,r) - r*.5; }
 float ring(vec3 p, float r, float R, float t) {
 	return max(abs(p.y)-t, max(length(p) - R, r - length(p)));
@@ -42,42 +42,12 @@ float box(vec3 p, vec3 s) { return vmax(abs(p) - s);}
 float tor(vec3 p, vec2 s) {
 	return length(vec2(length(p.xz) - s.x, p.y)) - s.y;
 }
-
-float groundHeight(vec3 p) {
-	//return /*.01 * (1.-pow(noise21(p.xz*50.),3.)) + */ .05 * (noise21(p.xz*.5) - .5);
-	return .05 * (1.-pow(noise21(p.xz*20.),3.)) + .4 * (noise21(p.xz*.6) - .4);
-}
-
 float ground(vec3 p) {
-	float d = p.y - max(0., groundHeight(p));
-	d = min(d, noise31(p*2.)*.8 + box(vec3(rep2(p.xz, vec2(12.)),p.y+1.).xzy, vec3(2.)));
-	return d;
+	return p.y + 3.;
 }
 
 float room(vec3 p) {
-	vec3 po = p;
-	p.y += 60.;
-	float thick = .4;
-	float a = atan(p.x, p.y)*60.;
-	float r = length(p.xy);
-	float z = mod(p.z,10.)-5.;
-	float d = max(max(77.-r,r-79.), abs(z)-thick*.5);
-	vec3 pr = vec3(mod(a,3.)-1.5,r-78.,p.z);
-	d = max(d, .8-length(pr.xy));
-	//d += .2*step(length(pr.xy), .8);
-	d = min(d, 80. - r);
-	d = min(d, box(pr-E.xzx*2., vec3(.1,.1,1000.)));
-	d = min(d, - abs(p.x) + 25);
-	d = min(d, - abs(p.z) + 50);
-	p.x -= 12.5;
-	p.xz = rep2(p.xz, vec2(25., 10.));
-	p.y -= 60.;
-	d = min(d, box(p - E.xzx*13., vec3(thick, thick, 10.)));
-	d = min(d, box(p, vec3(thick, 17., thick)));
-
-	if (d < .1)
-		d += .04 * noise31(po*10.) - .1 * step(noise31(po*4.),.7);
-	return d;
+	return -box(p, vec3(20.));
 }
 
 /*
@@ -98,54 +68,26 @@ float grid(vec3 p) {
 */
 
 float object(vec3 p) {
-	p -= vec3(0., 3., 0.);
-	p*=.5;
-
-	float bounds = box(p, vec3(5.));
-	float ball = length(p) - 1.4 - .1*sin(3.*(2.*p.x+t));
-
-	float cd = dot(p, E.zxx*RY(t));
-	const float cr = .4, cs = .07;
-	float cut = abs(mod(cd,cr)-cr*.5)-cs;
-
-	p.xz = abs(p.zx); p *= RX(t*.7);
-	//p.zy = abs(p.yx); p *= RY(t*1.1);
-	p.zy = abs(p.yz); p *= RY(t*1.1);
-
-	float d = tor(p, vec2(2., .1));
-	d = min(d, ring(p.yxz, 1.4, 1.5, .2));
-	d = min(d, box(p-F[3]*E.zxx, vec3(.7,2.4,.2)));
-	d = min(d, box(p-F[3]*E.xzx, vec3(1.3,.4,.3)));
-	d = min(d, box(/*RX(.6)**/p-F[3]*E.xxz, vec3(.3,.4,2.3)));
-	d = max(d, bounds);
-
-	d = mix(d, ball, clamp(1.-F[2], 0., 1.));//step(F[2], .5));//clamp(d-ball, 0., 1.));
-
-	// well...
-	//p.zy = abs(p.yz); p *= RY(t*1.1);
-	//p *= RY(floor(p.y+.5)*10.);
-	//d = min(d, max(box(p, vec3(4.)), -box(p, 2.*vec3(1.8, 3., 1.8))));
-
-	return .5*max(d, -cut);
+	return max(box(p, vec3(10., 2., 10.)), length(rep3(p-2.,vec3(4.))) - 1.5);
 }
-int mindex = 0;
+int mindex;
 void PICK(inout float d, float dn, int mat) { if (dn<d) {d = dn; mindex = mat;} }
 
 float world(vec3 p) {
-	float w = 1e6;
-	PICK(w, ground(p), 1);
-	PICK(w, object(p), 2);
-	PICK(w, room(p), 3);
+	mindex = 0;
+	float w = ground(p);
+	PICK(w, object(p), 1);
+	PICK(w, room(p), 2);
 	return w;
 }
 
 float trace(vec3 o, vec3 d) {
 	float l = 0., w;
 	int i;
-	for (i = 0; i < 128; ++i) {
+	for (i = 0; i < 64; ++i) {
 		w = world(o + d * l);
 		l += w;//*.2;//mix(1.,.2,step(length(p),1.));
-		if (w < .002*l) break;
+		if (w < .001*l) break;
 	}
 	return l;
 }
@@ -206,25 +148,22 @@ vec4 raycast() {
 	ray_pos -= tr * ray;
 
 	color = E.xxx;
-	albedo = E.zzz;
+
+	// mindex == 0: floor
 	metallic = roughness = 0.;
+	albedo = vec3(.03,.08,.07);
+	roughness = mix(.1,.9, mod(floor(ray_pos.x*.5)+floor(ray_pos.z*.5),2.));
 
 	float w=world(ray_pos);
 	normal = normalize(vec3(world(ray_pos+E.yxx),world(ray_pos+E.xyx),world(ray_pos+E.xxy))-w);
 
+	// mindex == 1: object
 	if (mindex == 1) {
-		float type = step(groundHeight(ray_pos), .001);// .01*fbm(ray_pos.xz*9.));//smoothstep(.4,.6,fbm(ray_pos.xz*(8.*F[17])));
-		albedo = mix(vec3(.12), vec3(.03,.08,.07), type);
-		roughness = mix(.99, .05, type);
-		//metallic = mix(0., .1, type);
-		/*
-		normal.xz += .002 * type * (
-			sin(t*4. + 6.*noise22(10.*ray_pos.xz)) +
-			.6 * sin(t*2. + 6.*noise22(15.*ray_pos.xz)) +
-			.3 * sin(t*8. + 6.*noise22(25.*ray_pos.xz)));
-		normal = normalize(normal);
-		*/
-	} else if (mindex == 2) {
+		vec2 P = floor((ray_pos.xz+10.) / 4.) / 5.;
+		roughness = P.x;
+		metallic = P.y;
+		albedo = vec3(1.);
+	} else if (mindex == 2) { // mindex == 2: room/walls
 		albedo = vec3(.56, .57, .58);
 		roughness = .15;//F[14];//mix(.15, .5, step(box3(rep3(ray_pos, vec3(2.)), vec3(.6)), 0.));
 		metallic = 1.;//F[15];
@@ -234,16 +173,13 @@ vec4 raycast() {
 		//albedo = vec3(.56,.57,.58);
 		//roughness = .01 + .5 * fbm(ray_pos.xy*10.);
 		//metallic = .5 + fbm(ray_pos.zx*21.)*.5;
-	} else if (mindex == 3) {
-		float type = step(noise31(ray_pos*4.), .7);
-		albedo = mix(vec3(.66, .65, .63), vec3(.7,.66,.6), type);
-		roughness = mix(1.,.7, type);
-		metallic = mix(0.,.9,type);
 	}
-	color += pointlight(vec3(-20.,10.,-30.), 50.*vec3(.9,.8,.7));
+	/*
+	color += pointlight(.5*vec3(-20.,10.,-30.), 50.*vec3(.9,.8,.7));
 	color += pointlight(vec3( 20.,10.,-30.), 50.*vec3(.9,.8,.7));
 	color += pointlight(vec3( 20.,10., 30.), 50.*vec3(.9,.8,.7));
 	color += pointlight(vec3(-20.,10., 30.), 50.*vec3(.9,.8,.7));
+	*/
 
 	color += pointlight(vec3(3.,7.,-3.), 1000.*vec3(.2,.5,.9));
 	color += pointlight(vec3(3.,7.,3.), 500.*vec3(.5,.9,.2));
@@ -269,11 +205,11 @@ void main() {
 	float tl = t * .6;
 	float tt = tl;//floor(tl) + pow(fract(tl), 4.);
 
-	vec3 origin = mix(rnd(vec2(floor(tl)*3.)), rnd(vec2(floor(tl)*3.+1.)), fract(tl)).xzy;
+	vec3 origin = vec3(F[2], F[3], F[4]);//mix(rnd(vec2(floor(tl)*3.)), rnd(vec2(floor(tl)*3.+1.)), fract(tl)).xzy;
 
 	//vec3 origin = 30. * (vec3(F[27],F[28]+.501,F[29]) - .5);// + .1 * noise13(t*3.);
-	origin = cyl(origin* vec3(8.,10.,1.) + vec3(5.,.2,0.)) + .8 * noise13(t);
-	mat3 LAT = lookat(origin, vec3(0.,3.,0.)+2.*noise13(tt), E.xzx);
+	origin = cyl(origin) + .0 * noise13(t);
+	mat3 LAT = lookat(origin, vec3(0.,0.,0.)+0.*noise13(tt), E.xzx);
 	//origin += LAT * vec3(uv*.01, 0.);
 	ray = - LAT * normalize(vec3(uv, -1.));//-D.y));
 

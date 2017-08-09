@@ -7,5 +7,6 @@ const float PI = 3.141593, PI2 = PI * 2.;
 const float rt = .1, zt = .3;
 #define Z(s) textureSize(S[s], 0)
 #define T(s,c) texture2D(S[s], (c)/Z(s))
+#define P(s,c) texture2D(S[s], (c))
 #define X gl_FragCoord.xy
 //vec2 uv = gl_FragCoord.xy / textureSize(S[1],0);
