@@ -40,6 +40,11 @@ static void paint(ATimeUs ts, float dt) {
 	(void)ts;
 	//const float now = 1e-6f * ts;
 
+	// No sound support for win32 tool yet
+#ifdef _WIN32
+	timelineComputeSignalsAndAdvance(NULL, 0, (int)(dt * 44100.f));
+#endif
+
 	{
 		float signals[32];
 		memset(signals, 0, sizeof(signals));

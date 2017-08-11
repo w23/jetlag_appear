@@ -12,8 +12,8 @@ void main() {
 		float A = .04;
 		float D = F[5];
 		float F = .03 / tan(.7);
-		float P = pix.w;
-		float coc = abs(A * F / (P - F) * (P / D - 1.)) * Z(1).x / .035;
+		float P_ = pix.w;
+		float coc = abs(A * F / (P_ - F) * (P_ / D - 1.)) * Z(1).x / .035;
 
 		if (coc > rad) {
 		 	if (pix.w > D)

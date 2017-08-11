@@ -50,9 +50,6 @@
     <ClCompile Include="parser.c">
       <Filter>Файлы исходного кода</Filter>
     </ClCompile>
-    <ClCompile Include="seqgui.c">
-      <Filter>Файлы исходного кода</Filter>
-    </ClCompile>
     <ClCompile Include="syntasm.c">
       <Filter>Файлы исходного кода</Filter>
     </ClCompile>

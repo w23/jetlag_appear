@@ -159,9 +159,9 @@ vec4 raycast() {
 
 	// mindex == 1: object
 	if (mindex == 1) {
-		vec2 P = floor((ray_pos.xz+10.) / 4.) / 5.;
-		roughness = P.x;
-		metallic = P.y;
+		vec2 pp = floor((ray_pos.xz+10.) / 4.) / 5.;
+		roughness = pp.x;
+		metallic = pp.y;
 		albedo = vec3(1.);
 	} else if (mindex == 2) { // mindex == 2: room/walls
 		albedo = vec3(.56, .57, .58);
@@ -201,7 +201,9 @@ void main() {
 	vec2 V = Z(1);
 	vec2 uv = X / V * 2. - 1.;
 	uv.x *= V.x / V.y;
-	
+
+//	gl_FragData[0] = gl_FragData[1] = vec4(uv, sin(F[0]), 0.); return;
+
 	float tl = t * .6;
 	float tt = tl;//floor(tl) + pow(fract(tl), 4.);
 
