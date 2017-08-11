@@ -5,11 +5,11 @@ void main() {
 		r = P(2,uv).w,
 		z = P(1,uv).w,
 		x, y, sr, sz;
-#if 0
+	/*
 	for(y = -8.; y < 8.; ++y)
 		for(x = -8.; x < 8.; ++x) {
 			vec2 v = uv + (2.*vec2(x,y)+.5) / Z(3);
-#else
+			*/
 	float rad = 0.;
 	vec2 angle = vec2(0.,1.1);
 	mat2 rot = mat2(cos(2.4),sin(2.4),-sin(2.4),cos(2.4));
@@ -17,7 +17,6 @@ void main() {
 		vec2 v = uv + (rad * angle + .0)/Z(3);
 		rad += 1. / (rad + 4.);
 		angle *= rot;
-#endif
 			s = P(2,v);
 			sr = s.w;
 			sz = P(1,v).w;
@@ -26,3 +25,4 @@ void main() {
 		}
 	gl_FragColor = vec4(c.xyz/max(1.,c.w), r);
 }
+
