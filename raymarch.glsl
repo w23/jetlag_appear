@@ -182,7 +182,8 @@ vec4 raycast() {
 	*/
 
 	color += pointlight(vec3(3.,7.,-3.), 1000.*vec3(.2,.5,.9));
-	color += pointlight(vec3(3.,7.,3.), 500.*vec3(.5,.9,.2));
+	color += pointlight(vec3(3.,6.,3.), 500.*vec3(.5,.9,.2));
+	color += pointlight(vec3(-3.,5.,3.), 500.*vec3(.9,.5,.2));
 	//color += pointlight(vec3(0.,6.,0.), vec3(100.));
 
 	return vec4(color, tr);
@@ -220,12 +221,10 @@ void main() {
 	//vec3 p, n;
 	ray_pos = origin;
 	gl_FragData[0] = raycast();
-	gl_FragData[1].w = roughness;
-	vec3 ray2 = reflect(-ray, normal);
-
-	ray_pos += ray2 * .02;
-	ray = -ray2;
-	gl_FragData[1].xyz = raycast().xyz;
+	gl_FragData[1] = vec4(albedo, roughness);
+	ray = reflect(ray, normal);
+	//ray_pos -= ray * .02;
+	gl_FragData[1].xyz *= raycast().xyz;
 
 	//TODO IBL
 	//gl_FragData[1].xyz = pbr(ray2) * raycast().xyz;
