@@ -1,5 +1,5 @@
 #version 130
-uniform sampler2D S[12];
+uniform sampler2D S[7];
 uniform float F[32];
 float t = F[0]; // TODO F[0]
 const vec3 E = vec3(.0,.01,1.);
@@ -9,4 +9,3 @@ const float rt = .1, zt = .3;
 #define T(s,c) texture2D(S[s], (c)/Z(s))
 #define P(s,c) texture2D(S[s], (c))
 #define X gl_FragCoord.xy
-//vec2 uv = gl_FragCoord.xy / textureSize(S[1],0);
