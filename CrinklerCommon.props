@@ -5,7 +5,7 @@
   <PropertyGroup />
   <ItemDefinitionGroup>
     <Link>
-      <AdditionalOptions>/CRINKLER /UNSAFEIMPORT /NOALIGNMENT /NOINITIALIZERS /RANGE:opengl32 /TRANSFORM:CALLS /PRINT:IMPORTS /PRINT:LABELS /EXPORT:NvOptimusEnablement=1 /EXPORT:AmdPowerXpressRequestHighPerformance=1 %(AdditionalOptions)</AdditionalOptions>
+      <AdditionalOptions>/CRINKLER /UNSAFEIMPORT /NOALIGNMENT /NOINITIALIZERS /RANGE:opengl32 /PRINT:IMPORTS /PRINT:LABELS /EXPORT:NvOptimusEnablement=1 /EXPORT:AmdPowerXpressRequestHighPerformance=1 %(AdditionalOptions)</AdditionalOptions>
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup />

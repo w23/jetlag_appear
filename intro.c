@@ -497,7 +497,7 @@ static const char *a__GlPrintError(int error) {
 	return errstr;
 }
 static void GLCHECK() {
-	const int glerror = glGetError(); 
+	const int glerror = glGetError();
 	if (glerror != GL_NO_ERROR) {
 		MessageBox(NULL, a__GlPrintError(glerror), "GLCHECK", 0);
 		ExitProcess(0);
