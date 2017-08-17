@@ -13,9 +13,8 @@ vec4 mergeNearFar(vec2 p) {
 	//return mix(near, far, far.w / (near.w + far.w));
 }
 void main() {
+	gl_FragColor = vec4(1., 1., 0., 0.); return;
 	vec2 uv = X / Z(1) - .5;
-
-	//gl_FragColor = vec4(0.); return;
 
 	//gl_FragColor = vec4(mergeNearFar(.5+uv).xyz, 0.); return;
 
