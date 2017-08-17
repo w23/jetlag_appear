@@ -3,6 +3,7 @@
   <ImportGroup Label="PropertySheets">
     <Import Project="Compact4k.props" />
     <Import Project="CrinklerCommon.props" />
+    <Import Project="CrinklerTransformCalls.props" />
   </ImportGroup>
   <PropertyGroup Label="UserMacros" />
   <PropertyGroup />
