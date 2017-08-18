@@ -5,7 +5,9 @@ vec3 noise13(float v) { return rnd(vec2(v)).xyz; }
 //float noise2s(vec2 v) { vec2 V = floor(v); v-=V; v*=v*(3.-2.*v); return rnd(V + v).z; }
 float noise21(vec2 v) { return rnd(v).z; }
 //vec2 noise22(vec2 v) { return rnd(v).wx; }
-float noise31(vec3 v) { return .5 * (rnd(v.yz).x+rnd(v.xy).x); }
+vec4 noise34(vec3 v) { return .5 * (rnd(v.yz)+rnd(v.zx)); }
+float noise31(vec3 v) { return .5 * (rnd(v.yz).x+rnd(v.zx).z); }
+//float noise31(vec3 v) { return (rnd(vec2(v.x)) + rnd(vec2(v.y)) + rnd(vec2(v.z))).y / 3.; }
 
 //float hash1(float v){return fract(sin(v)*43758.5); }
 //float hash2(vec2 p){return fract(1e4*sin(17.*p.x+.1*p.y)*(.1+abs(sin(13.*p.y+p.x))));}
@@ -28,7 +30,7 @@ float fbm(vec2 v) {
 //float box3(vec3 p, vec3 s) { p = abs(p) - s; return max(p.x, max(p.y, p.z)); }
 mat3 RX(float a){ float s=sin(a),c=cos(a); return mat3(1.,0.,0.,0.,c,-s,0.,s,c); }
 mat3 RY(float a){	float s=sin(a),c=cos(a); return mat3(c,0.,s,0.,1.,0,-s,0.,c); }
-//mat3 RZ(float a){ float s=sin(a),c=cos(a); return mat3(c,s,0.,-s,c,0.,0.,0.,1.); }
+mat3 RZ(float a){ float s=sin(a),c=cos(a); return mat3(c,s,0.,-s,c,0.,0.,0.,1.); }
 
 //float ball(vec3 p, float r) { return length(p) - r; }
 vec3 rep3(vec3 p, vec3 r) { return mod(p,r) - r*.5; }
@@ -53,19 +55,36 @@ struct {
 	vec3 color;
 } tube_light;
 
+float techfld(vec3 p) {
+	float
+	d = box(rep3(p,vec3(2.)), vec3(.8));
+	d = max(d, -box(rep3(p,vec3(2.)), vec3(.6)));
+
+	d = max(d, -box(rep3(p,vec3(1.2)), vec3(.5)));
+	//d = max(d, -box(p, vec3(10., 3., 20.)+vec3(.1)));
+
+	d = max(d, -box(rep3(p,vec3(4.)), vec3(1.4)));
+	//d = min(d, -box(p, vec3(10., 3., 20.)+vec3(.2)));
+	return d;
+}
+
 float room(vec3 p) {
 	p.y -= 3.;
-	float d, bbox;
-	d = bbox = -box(p, vec3(10., 3., 20.));
-	if (bbox < .1)
+	float d
+	= -box(p, vec3(8., 3., 14.));
+	if (d < .1)
 	{
-		d = box(rep3(p,vec3(1.)), vec3(.4));
+		p.x+=.3;//+2.*sin(t);
+		d = max(d, min(d+.1, techfld(RZ(.7)*p*2.)*.5));
+		//d = 1e10;
+		//d = min(d, -box(rep3(p+.1,vec3(1.)), vec3(.3)));
+		//d = min(d, -box(p, vec3(10., 3., 20.)+vec3(.3)));
+
+		//d -= -.2*step(box(rep3(p,vec3(1.)), vec3(.4)), .1);
 		//d = min(d, -box(rep3(p*RY(.2)+.7,vec3(4.)), vec3(.8)));
 		//d = min(d, box(rep3(p-.5,vec3(2.)), vec3(.9)));
 
-		//d = min(d, -box(p, vec3(10., 3., 20.)+vec3(.2)));
 	}
-	d = max(bbox, d);
 	return d;
 }
 
@@ -87,17 +106,18 @@ float grid(vec3 p) {
 */
 
 float object(vec3 p) {
-	return max(box(p, vec3(10., 2., 10.)), length(rep3(p-2.,vec3(4.))) - 1.5);
+	//return max(box(p, vec3(10., 2., 10.)), length(rep3(p-2.,vec3(4.))) - 1.5);
+	return length(p.xz)-.2;
 }
 int mindex;
 void PICK(inout float d, float dn, int mat) { if (dn<d) {d = dn; mindex = mat;} }
 
-bool do_lights = true;
+int dist_lights = 1;
 float world(vec3 p) {
-	mindex = 2;
+	mindex = 0;
 	float w = room(p);
-	//PICK(w, object(p), 10);
-	if (do_lights) {
+	PICK(w, object(p), 1);
+	if (dist_lights != 0) {
 		PICK(w, length(p-sphere_light.posr.xyz) - sphere_light.posr.w, 100);
 	}
 	return w;
@@ -185,12 +205,6 @@ vec4 raycast() {
 	float tr = trace(ray_pos, -ray);
 	ray_pos -= tr * ray;
 
-	color = E.xxx;
-
-	// mindex == 0: floor
-	metallic = roughness = 0.;
-	albedo = vec3(.03,.08,.07);
-	roughness = mix(.1,.9, mod(floor(ray_pos.x*.5)+floor(ray_pos.z*.5),2.));
 
 	normal = normalize(vec3(1e-8)+vec3(world(ray_pos+E.yxx),world(ray_pos+E.xyx),world(ray_pos+E.xxy))-world(ray_pos));
 	//if (any(isnan(normal))) normal = E.xzx; // CRAP
@@ -203,23 +217,21 @@ vec4 raycast() {
 	*/
 
 	//return vec4(normal*.5+.5, tr);
-	do_lights = false;
+	dist_lights = 0;
 
-	// mindex == 1: object
-	// debug
-	if (mindex == 100) {
-		albedo = E.xxx;
-		color = sphere_light.color;
-		roughness = 0.;
-	}
-	if (mindex == 10) {
-		vec2 pp = floor((ray_pos.xz+10.) / 4.) / 5.;
-		roughness = pp.x;
-		metallic = pp.y;
-		albedo = vec3(1.);
-	}
-	if (mindex == 2) { // mindex == 2: room/walls
-		albedo = vec3(.56, .57, .58);
+	// mindex == 0 || (anything) -- default metal
+	//color = E.xxx;
+
+	vec4 ns = noise34(floor(ray_pos*9.));
+	color = vec3(10.,8.,1.) * step(.98, ns.x);
+	color += vec3(2.,8.,10.) * step(.96, ns.y);
+	albedo = vec3(.56, .57, .58); // iron
+	//albedo = vec3(.91, .92, .92); // aluminum
+	metallic = 1.;
+	//roughness = .55;//mix(.1,.9, mod(floor(ray_pos.x*.5)+floor(ray_pos.z*.5),2.));
+	roughness = mix(.5,.6, smoothstep(.7, .9, noise31(ray_pos*10.)));
+
+	/*
 		roughness = .55;//F[14];//mix(.15, .5, step(box3(rep3(ray_pos, vec3(2.)), vec3(.6)), 0.));
 		metallic = 1.;//F[15];
 
@@ -228,6 +240,21 @@ vec4 raycast() {
 		//albedo = vec3(.56,.57,.58);
 		//roughness = .01 + .5 * fbm(ray_pos.xy*10.);
 		//metallic = .5 + fbm(ray_pos.zx*21.)*.5;
+	*/
+
+	// mindex == 1: object
+	if (mindex == 1) {
+		albedo = vec3(.95,.93,.88); // silver
+		//vec2 pp = floor((ray_pos.xz+10.) / 4.) / 5.;
+		//roughness = pp.x;
+		//metallic = pp.y;
+		roughness = .1;
+	}
+
+	if (mindex == 100) {
+		albedo = E.xxx;
+		color = sphere_light.color;
+		roughness = 0.;
 	}
 	/*
 	color += pointlight(.5*vec3(-20.,10.,-30.), 50.*vec3(.9,.8,.7));
@@ -263,7 +290,7 @@ void main() {
 	vec2 uv = X / V * 2. - 1.;
 	uv.x *= V.x / V.y;
 
-	sphere_light.posr = vec4(6.*sin(t), 3., 6.*cos(t), .5);
+	sphere_light.posr = vec4(3.*sin(t), 3., 3.*cos(t), .1);
 	sphere_light.color = vec3(10.);
 
 //	gl_FragData[0] = gl_FragData[1] = vec4(uv, sin(F[0]), 0.); return;
@@ -271,18 +298,18 @@ void main() {
 	float tl = t * .6;
 	float tt = tl;//floor(tl) + pow(fract(tl), 4.);
 
-	vec3 origin = vec3(F[2], F[3], F[4]);//mix(rnd(vec2(floor(tl)*3.)), rnd(vec2(floor(tl)*3.+1.)), fract(tl)).xzy;
+	//vec3 origin = vec3(F[2], F[3], F[4]);//mix(rnd(vec2(floor(tl)*3.)), rnd(vec2(floor(tl)*3.+1.)), fract(tl)).xzy;
 
 	//vec3 origin = 30. * (vec3(F[27],F[28]+.501,F[29]) - .5);// + .1 * noise13(t*3.);
-	origin = cyl(origin) + .9*noise13(t);
-	mat3 LAT = lookat(origin, vec3(0.,0.,0.)+noise13(tt), E.xzx);
+	//origin = cyl(origin) + .9*noise13(t);
+	ray_pos = vec3(0.,2.,-3.);
+	mat3 LAT = lookat(ray_pos, vec3(0.,1.5,0.)+(-.5+.5*noise13(tt)), E.xzx);
 	//origin += LAT * vec3(uv*.01, 0.);
 	ray = - LAT * normalize(vec3(uv, -1.));//-D.y));
 
 	//gl_FragData[0] = vec4(ray,0.); return;
 
 	//vec3 p, n;
-	ray_pos = origin;
 	gl_FragData[0] = raycast();
 	gl_FragData[1] = vec4(albedo, roughness);
 	ray = reflect(ray, normal);
