@@ -22,6 +22,7 @@ void main() {
 			sz = P(1,v).w;
 			if (abs(r-sr) < rt && abs(z-sz) < zt)
 				c += vec4(s.xyz, 1.);
+			//if (any(isnan(P(1,v)))) {gl_FragColor = E.xzxx; return;}
 		}
 	gl_FragColor = vec4(c.xyz/max(1.,c.w), r);
 }
