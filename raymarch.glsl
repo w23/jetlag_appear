@@ -56,34 +56,29 @@ struct {
 } tube_light;
 
 float techfld(vec3 p) {
+	//p=RX(t*.1)*p;
+	//p.y+=t*.1;
 	float
 	d = box(rep3(p,vec3(2.)), vec3(.8));
 	d = max(d, -box(rep3(p,vec3(2.)), vec3(.6)));
+	d = max(d, -box(rep3(p,vec3(1.3)), vec3(.5)));
 
-	d = max(d, -box(rep3(p,vec3(1.2)), vec3(.5)));
 	//d = max(d, -box(p, vec3(10., 3., 20.)+vec3(.1)));
-
-	d = max(d, -box(rep3(p,vec3(4.)), vec3(1.4)));
+	//d = max(d, -box(rep3(p,vec3(4.)), vec3(1.4)));
 	//d = min(d, -box(p, vec3(10., 3., 20.)+vec3(.2)));
+
+	d = max(d, -box(rep3(p,vec3(.3)), vec3(.11)));
 	return d;
 }
 
 float room(vec3 p) {
 	p.y -= 3.;
-	float d
-	= -box(p, vec3(8., 3., 14.));
+	float d = -box(p, vec3(8., 3., 14.));
 	if (d < .1)
 	{
 		p.x+=.3;//+2.*sin(t);
-		d = max(d, min(d+.1, techfld(RZ(.7)*p*2.)*.5));
-		//d = 1e10;
-		//d = min(d, -box(rep3(p+.1,vec3(1.)), vec3(.3)));
-		//d = min(d, -box(p, vec3(10., 3., 20.)+vec3(.3)));
-
-		//d -= -.2*step(box(rep3(p,vec3(1.)), vec3(.4)), .1);
-		//d = min(d, -box(rep3(p*RY(.2)+.7,vec3(4.)), vec3(.8)));
-		//d = min(d, box(rep3(p-.5,vec3(2.)), vec3(.9)));
-
+		d = max(d, min(d+1., techfld(RZ(.7)*p*2.)*.5));
+		//d = max(d, max(d+.2, -techfld(RZ(.7)*p*2.)*.5));
 	}
 	return d;
 }
@@ -290,7 +285,7 @@ void main() {
 	uv.x *= Z(1).x / Z(1).y;
 
 	sphere_light.posr = vec4(3.*sin(t*.1), 3., 3.*cos(t*.1), .1);
-	sphere_light.color = vec3(10.);
+	sphere_light.color = vec3(10.);//*fract(t));
 
 	//gl_FragData[0] = gl_FragData[1] = vec4(uv, sin(t), 0.); return;
 
