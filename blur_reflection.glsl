@@ -8,7 +8,7 @@ void main() {
 	/*
 	for(y = -8.; y < 8.; ++y)
 		for(x = -8.; x < 8.; ++x) {
-			vec2 v = uv + (2.*vec2(x,y)+.5) / Z(3);
+			vec2 v = uv + (2.*vec2(x,y)+.0) / Z(3);
 			*/
 	float rad = 0.;
 	vec2 angle = vec2(0.,1.1);
@@ -17,6 +17,7 @@ void main() {
 		vec2 v = uv + (rad * angle + .0)/Z(3);
 		rad += 1. / (rad + 4.);
 		angle *= rot;
+
 			s = P(2,v);
 			sr = s.w;
 			sz = P(1,v).w;
