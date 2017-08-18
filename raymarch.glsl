@@ -286,26 +286,27 @@ vec3 cyl(vec3 p) {
 	return vec3(p.x*cos(p.z*PI2), p.y, p.x*sin(p.z*PI2));
 }
 void main() {
-	vec2 V = Z(1);
-	vec2 uv = X / V * 2. - 1.;
-	uv.x *= V.x / V.y;
+	vec2 uv = X / Z(1) * 2. - 1.;
+	uv.x *= Z(1).x / Z(1).y;
 
-	sphere_light.posr = vec4(3.*sin(t), 3., 3.*cos(t), .1);
+	sphere_light.posr = vec4(3.*sin(t*.1), 3., 3.*cos(t*.1), .1);
 	sphere_light.color = vec3(10.);
 
-//	gl_FragData[0] = gl_FragData[1] = vec4(uv, sin(F[0]), 0.); return;
+	//gl_FragData[0] = gl_FragData[1] = vec4(uv, sin(t), 0.); return;
 
-	float tl = t * .6;
-	float tt = tl;//floor(tl) + pow(fract(tl), 4.);
+	//float tl = t * .6;
+	//float tt = tl;//floor(tl) + pow(fract(tl), 4.);
 
 	//vec3 origin = vec3(F[2], F[3], F[4]);//mix(rnd(vec2(floor(tl)*3.)), rnd(vec2(floor(tl)*3.+1.)), fract(tl)).xzy;
 
 	//vec3 origin = 30. * (vec3(F[27],F[28]+.501,F[29]) - .5);// + .1 * noise13(t*3.);
 	//origin = cyl(origin) + .9*noise13(t);
-	ray_pos = vec3(0.,2.,-3.);
-	mat3 LAT = lookat(ray_pos, vec3(0.,1.5,0.)+(-.5+.5*noise13(tt)), E.xzx);
+	ray_pos = vec3(F[1], F[2], F[3]);
+	mat3 LAT = lookat(ray_pos,
+			vec3(F[4], F[5], F[6]),
+			vec3(F[7], 1., 0.));//vec3(0.,1.5,0.)+(-.5+.5*noise13(tt)), E.xzx);
 	//origin += LAT * vec3(uv*.01, 0.);
-	ray = - LAT * normalize(vec3(uv, -1.));//-D.y));
+	ray = - LAT * normalize(vec3(uv, -F[8]));//-D.y));
 
 	//gl_FragData[0] = vec4(ray,0.); return;
 
