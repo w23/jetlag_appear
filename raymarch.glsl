@@ -98,7 +98,8 @@ float grid(vec3 p) {
 
 vec2 object(vec3 p) {
 	//return max(box(p, vec3(10., 2., 10.)), length(rep3(p-2.,vec3(4.))) - 1.5);
-	return vec2(length(p.xz)-.2, 1.);
+	float r = mix(.2, .2 + .3*pow(sin(p.y+fract(t/4.)),2.), smoothstep(64.,70.,t));
+	return vec2(length(p.xz)-r, 1.);
 }
 
 //int mindex;
@@ -231,8 +232,10 @@ vec4 raycast() {
 	//color = E.xxx;
 
 	vec4 ns = noise34(floor(ray_pos*9.));
-	color = vec3(10.,8.,1.) * step(.98, ns.x);
-	color += vec3(2.,8.,10.) * step(.96, ns.y);
+	if (tr.y == 0.) {
+		color = vec3(10.,8.,1.) * step(.98, ns.x);
+		color += vec3(2.,8.,10.) * step(.96, ns.y);
+	}
 	//albedo = vec3(.56, .57, .58); // iron
 	albedo = vec3(.91, .92, .92); // aluminum
 	metallic = 1.;//step(.2, ns.z);
@@ -244,7 +247,6 @@ vec4 raycast() {
 		metallic = 1.;//F[15];
 
 		// stripes
-		//color = vec3(2.) * smoothstep(.99,.999,sin(t*8.+(RX(t*.4)*ray_pos).y*2.));
 		//albedo = vec3(.56,.57,.58);
 		//roughness = .01 + .5 * fbm(ray_pos.xy*10.);
 		//metallic = .5 + fbm(ray_pos.zx*21.)*.5;
@@ -252,6 +254,7 @@ vec4 raycast() {
 
 	// mindex == 1: object
 	if (tr.y == 1.) {
+		color = vec3(4.) * smoothstep(.99,.999,sin(t+(/*RX(t*.4)*/ray_pos).y*4.));
 		albedo = vec3(.95,.93,.88); // silver
 		//vec2 pp = floor((ray_pos.xz+10.) / 4.) / 5.;
 		//roughness = pp.x;
@@ -301,10 +304,10 @@ void main() {
 	vec2 uv = X / Z(1) * 2. - 1.;
 	uv.x *= Z(1).x / Z(1).y;
 
-	light0_pos = vec4(7., 6., 7., .1);
-	light0_col = vec3(20.);//*fract(t));
-	light1_pos = vec4(-7., 6., -7., .1);
-	light1_col = vec3(20.);//*fract(t));
+	light0_pos = rnd(vec2(t))*.2+vec4(7., 5., 7., .1);
+	light1_pos = rnd(vec2(t))*.2+vec4(-7., 4., -7., .1);
+	light0_col = vec3(40.)*(1.+(1.-fract(t*.5))*step(64.,t));
+	light1_col = vec3(40.)*(1.+(1.-fract(t*.5+.5))*step(64.,t));//*fract(t));
 
 	//light0_pos = vec4(1.*sin(t*1.1), 1., 1.*cos(t*1.1), .1);
 	//light0_col = vec3(20.);//*fract(t));
@@ -320,8 +323,8 @@ void main() {
 	//origin = cyl(origin) + .9*noise13(t);
 
 	//ray_pos = vec3(F[1], F[2], F[3]);
-	ray_pos = vec3(0.,1.,-2.);
-	vec3 at = vec3(0.,1.,0.);
+	ray_pos = vec3(0.,1.,-2.)+.1*rnd(vec2(t*.25)).wyx;
+	vec3 at = vec3(0.,1.,0.)+.1*rnd(vec2(t*.5)).wyx;
 	if (t<16.) {
 		ray_pos = vec3(7.,3.,10.-t/16.);
 		at = ray_pos + E.zxx;
@@ -330,10 +333,18 @@ void main() {
 		ray_pos = vec3(-6.,1.,10.-t/16.);
 		at = ray_pos - E.zxx;
 	} t -= 16.;
-	if (t>0.&&t<16.) {
-		ray_pos = vec3(6.,1.,10.-t/16.);
+	if (t>0.&&t<32.) {
+		ray_pos = vec3(6.,1.,12.-t/16.);
 		at = ray_pos - E.zxx;
-	} t -= 16.;
+	} t -= 32.;
+	if (t>0.&&t<32.) {
+		ray_pos = vec3(6.,1.,12.-t/16.);
+		at = ray_pos - E.zxx;
+	} t -= 96.;
+	if (t>0.) {
+		ray_pos = vec3(-6.,1.,10.-t/16.);
+		at = ray_pos - E.zxx;
+	}// t -= 16.;
 	//ray_pos = k(t/32.,0.).xyz*16.-8.,
 	ray = - lookat(
 			ray_pos,
