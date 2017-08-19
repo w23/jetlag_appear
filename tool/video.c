@@ -119,7 +119,7 @@ static void drawPass(float *signals, int num_signals, const RenderPass *pass) {
 		if (Vloc >= 0)
 			GL(Uniform2fv(Vloc, 1, V));
 	}
-	const int itime = signals[0] * 11025 * 4;
+	const int itime = signals[0] * 8 * 44100;
 
 	GL(Uniform1iv(glGetUniformLocation(pass->program, "S"), Texture_MAX, g.texture_unit));
 	//GL(Uniform1fv(glGetUniformLocation(pass->program, "F"), num_signals, signals));

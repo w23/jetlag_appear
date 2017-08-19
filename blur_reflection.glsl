@@ -21,7 +21,7 @@ void main() {
 			s = P(2,v);
 			sr = s.w;
 			sz = P(1,v).w;
-			if (abs(r-sr) < rt && abs(z-sz) < zt)
+			if (abs(r-sr) < .04 && abs(z-sz) < .1)
 				c += vec4(s.xyz, 1.);
 			//if (any(isnan(P(1,v)))) {gl_FragColor = E.xzxx; return;}
 		}

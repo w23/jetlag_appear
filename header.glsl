@@ -6,7 +6,7 @@
 uniform sampler2D S[8];
 //uniform float F[32];
 uniform int F;
-float t = float(F)/88200.;
+float t = float(F)/352800.;
 const vec3 E = vec3(.0,.001,1.);
-const float PI = 3.141593, PI2 = PI * 2., rt = .04, zt = .1;
+const float PI = 3.141593;//, PI2 = PI * 2.;
 //float s(float v, float m, float M) { return min(max(v, m), M); }

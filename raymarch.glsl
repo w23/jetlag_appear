@@ -72,7 +72,7 @@ vec2 room(vec3 p) {
 	//return d;
 	if (d < .1)
 	{
-		p.x+=.3;//+2.*sin(t);
+		//p.x+=.3;//+2.*sin(t);
 		d = max(d, min(d+.2, techfld(RZ(.7)*p*2.)*.5));
 		//d = max(d, max(d+.2, -techfld(RZ(.7)*p*2.)*.5));
 	}
@@ -283,14 +283,12 @@ vec4 raycast() {
 }
 
 mat3 lookat(vec3 p, vec3 a, vec3 y) {
-	vec3 z = normalize(p - a);
-	vec3 x = normalize(cross(y, z));
-	y = cross(z, x);
-	return mat3(x, y, z);
+	p = normalize(p - a),
+	a = normalize(cross(y, p));
+	return mat3(a, cross(p, a), p);
 }
-vec3 cyl(vec3 p) {
-	return vec3(p.x*cos(p.z*PI2), p.y, p.x*sin(p.z*PI2));
-}
+
+//vec3 cyl(vec3 p) { return vec3(p.x*cos(p.z*PI2), p.y, p.x*sin(p.z*PI2)); }
 void main() {
 	vec2 uv = X / Z(1) * 2. - 1.;
 	uv.x *= Z(1).x / Z(1).y;
@@ -310,13 +308,14 @@ void main() {
 
 	//ray_pos = vec3(F[1], F[2], F[3]);
 	ray_pos = vec3(0.,1.,-2.);
-	mat3 LAT = lookat(ray_pos,
+	ray = - lookat(ray_pos,
 			//vec3(F[4], F[5], F[6]),
 			vec3(0.,1.,0.),
-			vec3(0.,1.,0.));
+			vec3(0.,1.,0.))
 			//vec3(F[7], 1., 0.));//vec3(0.,1.5,0.)+(-.5+.5*noise13(tt)), E.xzx);
 	//origin += LAT * vec3(uv*.01, 0.);
-	ray = - LAT * normalize(vec3(uv, -1.));//F[8]));//-D.y));
+	 * normalize(vec3(uv, -1.));//F[8]));//-D.y));
+	//ray = - LAT * normalize(vec3(uv, -1.));//F[8]));//-D.y));
 
 	//gl_FragData[0] = vec4(ray,0.); return;
 
