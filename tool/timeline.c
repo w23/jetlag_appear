@@ -22,6 +22,7 @@ static void serialize(const char *file, const AmData *a) {
 		return;
 	}
 
+
 	struct {
 		int num_keypoints;
 		struct {
