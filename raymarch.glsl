@@ -50,9 +50,10 @@ struct {
 } tube_light;
 */
 
+float fldwrap = 0.;
 float techfld(vec3 p) {
-	//p=RX(t*.1)*p;
-	//p.y+=t*.5;
+	p=RZ(t*fldwrap)*p;
+	p.y+=t*fldwrap;
 	float
 	d = box(rep3(p,vec3(2.)), vec3(.8));
 	d = max(d, -box(rep3(p,vec3(2.)), vec3(.6)));
@@ -78,27 +79,10 @@ vec2 room(vec3 p) {
 	}
 	return vec2(d, 0.);
 }
-
-/*
-float dbgNoise(vec3 p) {
-	return max(length(p) - 5., noise31(p) - .5);
-}
-*/
-
-/*
-float grid(vec3 p) {
-	const vec2 ls = vec2(8.,.4);
-	p*=RX(.3);
-	float d = box(p, ls.xxx*1.5);
-	p = rep3(p, ls.xxx);
-	return max(-d,
-			min(box(p, ls.xyy),min(box(p, ls.yxy),box(p, ls.yyx))));
-}
-*/
-
+float krobj = 0.;
 vec2 object(vec3 p) {
 	//return max(box(p, vec3(10., 2., 10.)), length(rep3(p-2.,vec3(4.))) - 1.5);
-	float r = mix(.2, .2 + .3*pow(sin(p.y+fract(t/4.)),2.), smoothstep(64.,70.,t));
+	float r = .2 + krobj*pow(sin(p.y+fract(t/4.)),2.);//, smoothstep(64.,70.,t));
 	return vec2(length(p.xz)-r, 1.);
 }
 
@@ -305,9 +289,9 @@ void main() {
 	uv.x *= Z(1).x / Z(1).y;
 
 	light0_pos = rnd(vec2(t))*.2+vec4(7., 5., 7., .1);
-	light1_pos = rnd(vec2(t))*.2+vec4(-7., 4., -7., .1);
-	light0_col = vec3(40.)*(1.+(1.-fract(t*.5))*step(64.,t));
-	light1_col = vec3(40.)*(1.+(1.-fract(t*.5+.5))*step(64.,t));//*fract(t));
+	light1_pos = rnd(vec2(t))*.2+vec4(-7., 5., 7., .2);
+	light0_col = vec3(40.)*(1.+(1.-fract(t*.5))*step(48.,t)*step(t,128.));
+	light1_col = vec3(40.)*(1.+(1.-fract(t*.5+.5))*step(48.,t)*step(t,128.));//*fract(t));
 
 	//light0_pos = vec4(1.*sin(t*1.1), 1., 1.*cos(t*1.1), .1);
 	//light0_col = vec3(20.);//*fract(t));
@@ -325,23 +309,32 @@ void main() {
 	//ray_pos = vec3(F[1], F[2], F[3]);
 	ray_pos = vec3(0.,1.,-2.)+.1*rnd(vec2(t*.25)).wyx;
 	vec3 at = vec3(0.,1.,0.)+.1*rnd(vec2(t*.5)).wyx;
+	// 0 .. 16: wall close
 	if (t<16.) {
 		ray_pos = vec3(7.,3.,10.-t/16.);
 		at = ray_pos + E.zxx;
 	} t -= 16.;
+	// 16 .. 32: wall far
 	if (t>0.&&t<16.) {
 		ray_pos = vec3(-6.,1.,10.-t/16.);
 		at = ray_pos - E.zxx;
 	} t -= 16.;
+	// 32 .. 64: room scale
+	// 48: blink
 	if (t>0.&&t<32.) {
 		ray_pos = vec3(6.,1.,12.-t/16.);
 		at = ray_pos - E.zxx;
 	} t -= 32.;
-	if (t>0.&&t<32.) {
-		ray_pos = vec3(6.,1.,12.-t/16.);
-		at = ray_pos - E.zxx;
-	} t -= 96.;
+	// 64 .. 112: (beat)
+	if (t>0.&&t<48.) {
+		//ray_pos = vec3(6.,1.,12.-t/16.);
+		//at = ray_pos - E.zxx;
+		krobj = .4 * smoothstep(8.,32.,t);
+		fldwrap = .1 * smoothstep(44.,48.,t);
+	} t -= 48.;
+	// 112 .. 128
 	if (t>0.) {
+		fldwrap = .01;
 		ray_pos = vec3(-6.,1.,10.-t/16.);
 		at = ray_pos - E.zxx;
 	}// t -= 16.;

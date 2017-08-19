@@ -13,7 +13,7 @@ void main() {
 			mix(mix(mix(1.1,
 				2., step(16.,t)),
 				10., smoothstep(40.,64.,t)),
-				1.+8.*sin(t*.5), step(64., t));
+				3.+3.*sin(t*.5+2.), step(64., t));
 
 			//F[9];
 		float F = .03 / tan(.7);

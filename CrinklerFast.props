@@ -4,6 +4,7 @@
     <Import Project="Compact4k.props" />
     <Import Project="CrinklerCommon.props" />
     <Import Project="CrinklerTransformCalls.props" />
+    <Import Project="CrinklerTinyimport.props" />
   </ImportGroup>
   <PropertyGroup Label="UserMacros" />
   <PropertyGroup />
