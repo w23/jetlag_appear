@@ -35,7 +35,7 @@ enum {
 
 enum {
 	Texture_Noise,
-	Texture_Data,
+	//Texture_Data,
 	Texture_RaymarchPrimary,
 	Texture_RaymarchReflection,
 	Texture_RaymarchReflectionBlur,
@@ -92,6 +92,7 @@ static unsigned char data_texture[DATA_TEX_W * DATA_TEX_H * 4];
 
 int passCheckAndUpdateProgram(RenderPass *pass) {
 	if (g.data_texture->updated) {
+		/*
 		const char *c = g.data_texture->bytes;
 		memset(data_texture, 0, sizeof(data_texture));
 
@@ -162,6 +163,7 @@ int passCheckAndUpdateProgram(RenderPass *pass) {
 				fclose(f);
 			}
 		}
+		*/
 	}
 
 	if (!pass->fragment_source->updated && !g.common_header->updated)
@@ -307,20 +309,20 @@ void videoInit(int width, int height) {
 		glActiveTexture(GL_TEXTURE0);
 		initTexture(g.textures[Texture_Noise], NOISE_SIZE, NOISE_SIZE, GL_RGBA, GL_UNSIGNED_BYTE, noise_bytes, GL_REPEAT);
 		glActiveTexture(GL_TEXTURE1);
-		initTexture(g.textures[Texture_Data], 256, 32, GL_RGBA, GL_UNSIGNED_BYTE, 0, GL_CLAMP_TO_BORDER);
-		glActiveTexture(GL_TEXTURE2);
+		//initTexture(g.textures[Texture_Data], 256, 32, GL_RGBA, GL_UNSIGNED_BYTE, 0, GL_CLAMP_TO_BORDER);
+		//glActiveTexture(GL_TEXTURE2);
 		initTexture(g.textures[Texture_RaymarchPrimary], g.width, g.height, GL_RGBA16F, GL_FLOAT, 0, GL_CLAMP_TO_BORDER);
-		glActiveTexture(GL_TEXTURE3);
+		glActiveTexture(GL_TEXTURE2);
 		initTexture(g.textures[Texture_RaymarchReflection], g.width, g.height, GL_RGBA16F, GL_FLOAT, 0, GL_CLAMP_TO_BORDER);
-		glActiveTexture(GL_TEXTURE4);
+		glActiveTexture(GL_TEXTURE3);
 		initTexture(g.textures[Texture_RaymarchReflectionBlur], g.width/2, g.height/2, GL_RGBA16F, GL_FLOAT, 0, GL_CLAMP_TO_BORDER);
-		glActiveTexture(GL_TEXTURE5);
+		glActiveTexture(GL_TEXTURE4);
 		initTexture(g.textures[Texture_RaymarchCombined], g.width, g.height, GL_RGBA16F, GL_FLOAT, 0, GL_CLAMP_TO_BORDER);
-		glActiveTexture(GL_TEXTURE6);
+		glActiveTexture(GL_TEXTURE5);
 		initTexture(g.textures[Texture_DofTapNear], g.width, g.height, GL_RGBA16F, GL_FLOAT, 0, GL_CLAMP_TO_BORDER);
-		glActiveTexture(GL_TEXTURE7);
+		glActiveTexture(GL_TEXTURE6);
 		initTexture(g.textures[Texture_DofTapFar], g.width, g.height, GL_RGBA16F, GL_FLOAT, 0, GL_CLAMP_TO_BORDER);
-		glActiveTexture(GL_TEXTURE8);
+		glActiveTexture(GL_TEXTURE7);
 		initTexture(g.textures[Texture_Frame], g.width, g.height, GL_RGBA16F, GL_FLOAT, 0, GL_CLAMP_TO_BORDER);
 	}
 

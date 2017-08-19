@@ -73,7 +73,7 @@ vec2 room(vec3 p) {
 	if (d < .1)
 	{
 		//p.x+=.3;//+2.*sin(t);
-		d = max(d, min(d+.2, techfld(RZ(.7)*p*2.)*.5));
+		d = max(d, min(d+.4, techfld(RZ(.7)*p*2.)*.5));
 		//d = max(d, max(d+.2, -techfld(RZ(.7)*p*2.)*.5));
 	}
 	return vec2(d, 0.);
@@ -104,8 +104,8 @@ vec2 object(vec3 p) {
 //int mindex;
 //void PICK(inout float d, float dn, int mat) { if (dn<d) {d = dn; mindex = mat;} }
 
-vec4 light0_pos;
-vec3 light0_col;
+vec4 light0_pos, light1_pos;
+vec3 light0_col, light1_col;
 int dist_lights = 1;
 vec2 world(vec3 p) {
 	//mindex = 0;
@@ -113,7 +113,9 @@ vec2 world(vec3 p) {
 	d = object(p);
 	w = w.x < d.x ? w : d;
 	if (dist_lights != 0) {
-		d = vec2(length(p-light0_pos.xyz) - light0_pos.w, 100.);
+		d = vec2(length(p-light0_pos.xyz) - light0_pos.w, 10.);
+		w = w.x < d.x ? w : d;
+		d = vec2(length(p-light1_pos.xyz) - light1_pos.w, 20.);
 		w = w.x < d.x ? w : d;
 	}
 	return w;
@@ -257,9 +259,14 @@ vec4 raycast() {
 		roughness = .3;
 	}
 
-	if (tr.y == 100.) {
+	if (tr.y == 10.) {
 		albedo = E.xxx;
 		color = light0_col;
+		roughness = 0.;
+	}
+	if (tr.y == 20.) {
+		albedo = E.xxx;
+		color = light1_col;
 		roughness = 0.;
 	}
 	/*
@@ -270,6 +277,7 @@ vec4 raycast() {
 	*/
 
 	color += spherelight(light0_pos, light0_col);
+	color += spherelight(light1_pos, light1_col);
 	//color += pointlight(light0_pos.xyz, light0_col);
 
 	/*
@@ -290,11 +298,16 @@ mat3 lookat(vec3 p, vec3 a, vec3 y) {
 
 //vec3 cyl(vec3 p) { return vec3(p.x*cos(p.z*PI2), p.y, p.x*sin(p.z*PI2)); }
 void main() {
-	vec2 uv = X / Z(2) * 2. - 1.;
-	uv.x *= Z(2).x / Z(2).y;
+	vec2 uv = X / Z(1) * 2. - 1.;
+	uv.x *= Z(1).x / Z(1).y;
 
-	light0_pos = vec4(1.*sin(t*1.1), 1., 1.*cos(t*1.1), .1);
-	light0_col = vec3(40.);//*fract(t));
+	light0_pos = vec4(7., 6., 7., .1);
+	light0_col = vec3(20.);//*fract(t));
+	light1_pos = vec4(-7., 6., -7., .1);
+	light1_col = vec3(20.);//*fract(t));
+
+	//light0_pos = vec4(1.*sin(t*1.1), 1., 1.*cos(t*1.1), .1);
+	//light0_col = vec3(20.);//*fract(t));
 
 	//gl_FragData[0] = gl_FragData[1] = vec4(uv, sin(t), 0.); return;
 
@@ -307,12 +320,26 @@ void main() {
 	//origin = cyl(origin) + .9*noise13(t);
 
 	//ray_pos = vec3(F[1], F[2], F[3]);
-	//ray_pos = vec3(0.,1.,-2.);
-	ray_pos = k(t/32.,0.).xyz*16.-8.,
+	ray_pos = vec3(0.,1.,-2.);
+	vec3 at = vec3(0.,1.,0.);
+	if (t<16.) {
+		ray_pos = vec3(7.,3.,10.-t/16.);
+		at = ray_pos + E.zxx;
+	} t -= 16.;
+	if (t>0.&&t<16.) {
+		ray_pos = vec3(-6.,1.,10.-t/16.);
+		at = ray_pos - E.zxx;
+	} t -= 16.;
+	if (t>0.&&t<16.) {
+		ray_pos = vec3(6.,1.,10.-t/16.);
+		at = ray_pos - E.zxx;
+	} t -= 16.;
+	//ray_pos = k(t/32.,0.).xyz*16.-8.,
 	ray = - lookat(
 			ray_pos,
 			//vec3(F[4], F[5], F[6]),
-			k(t/32.,1.).xyz*16.-8.,
+			//k(t/32.,1.).xyz*16.-8.,
+			at,
 			vec3(0.,1.,0.))
 			//vec3(F[7], 1., 0.));//vec3(0.,1.5,0.)+(-.5+.5*noise13(tt)), E.xzx);
 	//origin += LAT * vec3(uv*.01, 0.);

@@ -1,8 +1,8 @@
 vec4 mergeNearFar(vec2 p) {
-	p += .5 / Z(6);
-	//p *= Z(6);
-	//return P(6,p);
-	vec4 near = P(6,p), far = P(7,p);
+	// DO p += .5 / Z(5);
+	//p *= Z(5);
+	//return P(5,p);
+	vec4 near = P(5,p), far = P(6,p);
 	//return near;
 	//return (near + far) / (near.w + far.w);
 	//return near + far;
@@ -13,13 +13,13 @@ vec4 mergeNearFar(vec2 p) {
 	//return mix(near, far, far.w / (near.w + far.w));
 }
 void main() {
-	//{ vec4 c = T(1,X); gl_FragColor = any(isnan(c)) ? E.zxxx : c; return; }
+	//{ vec4 c = T(3,X); gl_FragColor = any(isnan(c)) ? E.zxxx : c; return; }
 	//gl_FragColor = vec4(1., 1., 0., 0.); return;
-	vec2 uv = X / Z(2) - .5;
+	vec2 uv = X / Z(1) - .5;
 
 	//gl_FragColor = vec4(mergeNearFar(.5+uv).xyz, 0.); return;
 
-	float amount = .2;
+	float amount = .2+.1*fract(t)*step(64.,t);
 	vec3 color =
 		vec3(
 			mergeNearFar(.5+uv).r,
