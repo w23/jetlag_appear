@@ -1,7 +1,8 @@
 uniform vec2 VIEWPORT;
 void main() {
+	gl_FragColor = 1.*P(8,(X-.5)/VIEWPORT); return;
 #define K 1.
-#define TEXTURE 7
+#define TEXTURE 8
 	//gl_FragColor = T(TEXTURE, gl_FragCoord.xy).wwww*.1; return;
 #if 0
 	gl_FragColor = texture2D(S[TEXTURE], gl_FragCoord.xy / textureSize(S[TEXTURE],0));

@@ -290,8 +290,8 @@ mat3 lookat(vec3 p, vec3 a, vec3 y) {
 
 //vec3 cyl(vec3 p) { return vec3(p.x*cos(p.z*PI2), p.y, p.x*sin(p.z*PI2)); }
 void main() {
-	vec2 uv = X / Z(1) * 2. - 1.;
-	uv.x *= Z(1).x / Z(1).y;
+	vec2 uv = X / Z(2) * 2. - 1.;
+	uv.x *= Z(2).x / Z(2).y;
 
 	light0_pos = vec4(1.*sin(t*1.1), 1., 1.*cos(t*1.1), .1);
 	light0_col = vec3(40.);//*fract(t));
@@ -307,10 +307,12 @@ void main() {
 	//origin = cyl(origin) + .9*noise13(t);
 
 	//ray_pos = vec3(F[1], F[2], F[3]);
-	ray_pos = vec3(0.,1.,-2.);
-	ray = - lookat(ray_pos,
+	//ray_pos = vec3(0.,1.,-2.);
+	ray_pos = k(t/32.,0.).xyz*16.-8.,
+	ray = - lookat(
+			ray_pos,
 			//vec3(F[4], F[5], F[6]),
-			vec3(0.,1.,0.),
+			k(t/32.,1.).xyz*16.-8.,
 			vec3(0.,1.,0.))
 			//vec3(F[7], 1., 0.));//vec3(0.,1.5,0.)+(-.5+.5*noise13(tt)), E.xzx);
 	//origin += LAT * vec3(uv*.01, 0.);

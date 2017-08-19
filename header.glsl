@@ -3,7 +3,8 @@
 #define T(s,c) texture2D(S[s], (c)/Z(s))
 #define P(s,c) texture2D(S[s], (c))
 #define X gl_FragCoord.xy
-uniform sampler2D S[8];
+#define k(x,y) texture2D(S[1],(vec2(x,y)+.5)/Z(1))
+uniform sampler2D S[9];
 //uniform float F[32];
 uniform int F;
 float t = float(F)/352800.;
