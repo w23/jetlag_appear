@@ -19,7 +19,7 @@ void main() {
 
 	//gl_FragColor = vec4(mergeNearFar(.5+uv).xyz, 0.); return;
 
-	float amount = .2+.1*fract(t)*step(64.,t);
+	float amount = .2+.1*fract(t)*step(64.,t)*step(t,96.);
 	vec3 color =
 		vec3(
 			mergeNearFar(.5+uv).r,

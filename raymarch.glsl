@@ -290,8 +290,8 @@ void main() {
 
 	light0_pos = rnd(vec2(t))*.2+vec4(7., 5., 7., .1);
 	light1_pos = rnd(vec2(t))*.2+vec4(-7., 5., 7., .2);
-	light0_col = vec3(40.)*(1.+(1.-fract(t*.5))*step(48.,t)*step(t,128.));
-	light1_col = vec3(40.)*(1.+(1.-fract(t*.5+.5))*step(48.,t)*step(t,128.));//*fract(t));
+	light0_col = vec3(40.)*(1.+(1.-fract(t*.5-.125))*step(48.,t)*step(t,112.));
+	light1_col = vec3(40.)*(1.+(1.-fract(t*.5+.375))*step(48.,t)*step(t,112.));//*fract(t));
 
 	//light0_pos = vec4(1.*sin(t*1.1), 1., 1.*cos(t*1.1), .1);
 	//light0_col = vec3(20.);//*fract(t));

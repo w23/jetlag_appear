@@ -10,10 +10,11 @@ void main() {
 
 		float A = .04;
 		float D =
-			mix(mix(mix(1.1,
+			mix(mix(mix(mix(1.1,
 				2., step(16.,t)),
 				10., smoothstep(40.,64.,t)),
-				3.+3.*sin(t*.5+2.), step(64., t));
+				4.+2.*sin((t-64.)*PI*.25), step(64., t)),
+				2.5, step(112., t));
 
 			//F[9];
 		float F = .03 / tan(.7);
