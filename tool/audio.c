@@ -71,6 +71,8 @@ void audioCheckUpdate() {
 }
 
 void audioSynthesize(float *samples, int num_samples) {
+	memset(samples, 0, sizeof(float)*num_samples);
+	return;
 	float input[32];
 	float stack[MACHINE_STACK];
 	SymaRunContext ctx;

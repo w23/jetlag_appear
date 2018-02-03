@@ -49,6 +49,7 @@ static void paint(ATimeUs ts, float dt) {
 		float signals[32];
 		memset(signals, 0, sizeof(signals));
 		timelineGetLatestSignals(signals, COUNTOF(signals));
+		signals[0] = ts * 1e-6;
 		//for (unsigned long i = 0; i < COUNTOF(signals); ++i) printf("%lu=%.1f ", i, signals[i]); printf("\n");
 
 		videoOutputResize(a_app_state->width, a_app_state->height);

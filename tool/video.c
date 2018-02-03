@@ -88,7 +88,7 @@ static /*__forceinline*/ void initTexture(GLuint tex, int w, int h, int comp, in
 
 #define DATA_TEX_W 16
 #define DATA_TEX_H 16
-static unsigned char data_texture[DATA_TEX_W * DATA_TEX_H * 4];
+//static unsigned char data_texture[DATA_TEX_W * DATA_TEX_H * 4];
 
 int passCheckAndUpdateProgram(RenderPass *pass) {
 	if (g.data_texture->updated) {
@@ -191,6 +191,7 @@ int passCheckAndUpdateProgram(RenderPass *pass) {
 }
 
 static void drawPass(float *signals, int num_signals, const RenderPass *pass) {
+	(void)num_signals;
 	if (pass->program < 1)
 		return;
 
