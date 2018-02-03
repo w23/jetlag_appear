@@ -7,9 +7,20 @@
 #include <stdlib.h> // atoi
 #include <string.h>
 
+static struct {
+	int samples, sample;
+	int channels;
+	int samplerate;
+	float *buffer;
+} audio;
+
 static void audioCallback(void *userdata, float *samples, int nsamples) {
 	(void)(userdata);
-	audioSynthesize(samples, nsamples);
+	for(int i = 0; i < nsamples; ++i) {
+		samples[i] = audio.buffer[2*audio.sample];
+		audio.sample += 1;
+		audio.sample = audio.sample % audio.samples;
+	}
 }
 
 static void midiCallback(void *userdata, const unsigned char *data, int bytes) {
@@ -20,10 +31,10 @@ static void midiCallback(void *userdata, const unsigned char *data, int bytes) {
 		switch(data[0] & 0xf0) {
 			case 0x80:
 			case 0x90:
-				timelineMidiNote(data[1], data[2], !!(data[0] & 0x10));
+//				timelineMidiNote(data[1], data[2], !!(data[0] & 0x10));
 				break;
 			case 0xb0:
-				timelineMidiCtl(data[1], data[2]);
+//				timelineMidiCtl(data[1], data[2]);
 				break;
 			default:
 				MSG("%02x %02x %02x", data[0], data[1], data[2]);
@@ -34,41 +45,18 @@ static void midiCallback(void *userdata, const unsigned char *data, int bytes) {
 static void paint(ATimeUs ts, float dt) {
 	(void)dt;
 	resourcesUpdate();
-	timelineCheckUpdate();
-	audioCheckUpdate();
 
 	(void)ts;
 	//const float now = 1e-6f * ts;
 
-	// No sound support for win32 tool yet
-#ifdef _WIN32
-	timelineComputeSignalsAndAdvance(NULL, 0, (int)(dt * 44100.f));
-#endif
-
 	{
 		float signals[32];
 		memset(signals, 0, sizeof(signals));
-		timelineGetLatestSignals(signals, COUNTOF(signals));
-		signals[0] = ts * 1e-6;
+		signals[0] = (float)audio.sample / audio.samplerate;
 		//for (unsigned long i = 0; i < COUNTOF(signals); ++i) printf("%lu=%.1f ", i, signals[i]); printf("\n");
 
 		videoOutputResize(a_app_state->width, a_app_state->height);
 		videoPaint(signals, COUNTOF(signals), 1);
-
-#if 0
-		glUseProgram(0);
-		glEnable(GL_BLEND);
-		glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-		const GuiRect vp = {0, 0, (int)a_app_state->width, (int)a_app_state->height};
-		guiSetViewport(vp);
-		GuiTransform transform = {0, 0, 1};
-		{
-			Timeline::ReadOnlyLock lock(timeline_);
-			guiPaintAutomation(&lock.automation(), now, transform);
-		}
-		glDisable(GL_BLEND);
-		glLoadIdentity();
-#endif
 	}
 }
 
@@ -77,11 +65,11 @@ static void key(ATimeUs ts, AKey key, int down) {
 	if (!down)
 		return;
 	switch (key) {
-	//	case AK_Space: g.paused ^= 1; break;
-/*
+		/*
+		case AK_Space: g.paused ^= 1; break;
 		case AK_Right: adjustTime(5000000); break;
 		case AK_Left: adjustTime(-5000000); break;
-*/
+		*/
 		case AK_Q: aAppTerminate(0);
 		default: break;
 	}
@@ -116,11 +104,21 @@ void attoAppInit(struct AAppProctable *ptbl) {
 			midi_device = a_app_state->argv[++iarg];
 	}
 
-	resourcesInit();
-	timelineInit("timeline.txt", 44100);
-	videoInit(width, height);
+	FILE* f = fopen("sound.raw", "rb");
+	printf("%p %d\n", (void*)f, audio.samples);
+	fseek(f, 0L, SEEK_END);
+	printf("%p %d\n", (void*)f, audio.samples);
+	audio.samples = ftell(f) / 8;
+	printf("%p %d\n", (void*)f, audio.samples);
+	fseek(f, 0L, SEEK_SET);
+	audio.buffer = malloc(audio.samples * 8);
+	fread(audio.buffer, 1, audio.samples * 8, f);
+	fclose(f);
+	audio.samplerate = 44100;
+	audio.sample = 0;
 
-	audioInit("synth.src", 44100);
+	resourcesInit();
+	videoInit(width, height);
 	if (1 != audioOpen(NULL, audioCallback, midi_device, midiCallback))
 		aAppTerminate(-1);
 }
