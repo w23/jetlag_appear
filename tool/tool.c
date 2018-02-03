@@ -8,18 +8,21 @@
 #include <string.h>
 
 static struct {
-	int samples, sample;
+	unsigned int samples, sample;
 	int channels;
-	int samplerate;
+	unsigned int samplerate;
+	int paused;
 	float *buffer;
 } audio;
 
 static void audioCallback(void *userdata, float *samples, int nsamples) {
 	(void)(userdata);
+	memset(samples, 0, nsamples * 4);
+	if (audio.paused)
+		return;
 	for(int i = 0; i < nsamples; ++i) {
-		samples[i] = audio.buffer[2*audio.sample];
-		audio.sample += 1;
-		audio.sample = audio.sample % audio.samples;
+		samples[i] = audio.buffer[2*(audio.sample % audio.samples)];
+		audio.sample = (1 + audio.sample) % audio.samples;
 	}
 }
 
@@ -65,11 +68,9 @@ static void key(ATimeUs ts, AKey key, int down) {
 	if (!down)
 		return;
 	switch (key) {
-		/*
-		case AK_Space: g.paused ^= 1; break;
-		case AK_Right: adjustTime(5000000); break;
-		case AK_Left: adjustTime(-5000000); break;
-		*/
+		case AK_Space: audio.paused ^= 1; break;
+		case AK_Right: audio.sample += audio.samplerate * 4; break;
+		case AK_Left: audio.sample -= audio.samplerate * 4; break;
 		case AK_Q: aAppTerminate(0);
 		default: break;
 	}
@@ -105,9 +106,7 @@ void attoAppInit(struct AAppProctable *ptbl) {
 	}
 
 	FILE* f = fopen("sound.raw", "rb");
-	printf("%p %d\n", (void*)f, audio.samples);
 	fseek(f, 0L, SEEK_END);
-	printf("%p %d\n", (void*)f, audio.samples);
 	audio.samples = ftell(f) / 8;
 	printf("%p %d\n", (void*)f, audio.samples);
 	fseek(f, 0L, SEEK_SET);
@@ -116,6 +115,7 @@ void attoAppInit(struct AAppProctable *ptbl) {
 	fclose(f);
 	audio.samplerate = 44100;
 	audio.sample = 0;
+	audio.paused = 0;
 
 	resourcesInit();
 	videoInit(width, height);

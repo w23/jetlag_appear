@@ -9,7 +9,7 @@ void main() {
 		vec4 pix = P(4, uv + (rad * angle + .0)/Z(5));
 
 		float A = .04;
-		float D = 5. * smoothstep(20.,30.,t);
+		float D = 5. * smoothstep(24.,32.,t);
 
 			//F[9];
 		float F = .03 / tan(.7);

@@ -31,10 +31,9 @@ float vmax3(vec3 v) { return max(v.x, max(v.y, v.z)); }
 float box(vec3 p, vec3 s) { return vmax3(abs(p) - s);}
 //float tor(vec3 p, vec2 s) { return length(vec2(length(p.xz) - s.x, p.y)) - s.y; }
 
-float fldwrap = .1;
 float techfld(vec3 p) {
-	p=RZ(t*fldwrap)*p;
-	p.y+=t*fldwrap;
+	p=RZ(t*.1)*p;
+	p.y+=t*.1;
 	float
 	d = box(rep3(p,vec3(2.)), vec3(.8));
 	d = max(d, -box(rep3(p,vec3(2.)), vec3(.6)));
@@ -49,17 +48,20 @@ float techfld(vec3 p) {
 }
 
 vec2 room(vec3 p) {
-	p.y -= 3.;
+	//p.y -= 3.;
 	float d = -box(p, vec3(8., 8., 6.));
 	d = max(d, box(rep3(p,vec3(1.)), vec3(.4)));
 	return vec2(d, 0.);
 }
-float krobj = 1.4;
+float t2 = mod(t,2.),t4 = mod(t,4.), t8 = mod(t,8.);
+//float ttor = smoothstep(.0,.1,t2)*smoothstep(1.,.9,t2);//step(2.,t4)*step(t4,3.);
+//float or = step(40.,t)*4.*ttor-2., ok = 1.4;
 vec2 object(vec3 p) {
-	p.y -= 1.;
-	float r = 2. + krobj*pow(sin(p.y*.7+t/4.),2.);//, smoothstep(64.,70.,t));
-	float d = length(p) - r;
-	d = max(d, min(d+.4, techfld(RZ(.7)*p*2.)*.5));
+	//p.y -= 1.;
+	float d = length(p) - 2. - pow(sin(p.y*.7+t/4.),2.);
+	//if (d < ok)
+	//	d = max(d, min(d+.4, techfld(RZ(.7)*p*2.)*.5));
+		d = max(d, min(d+.4, techfld(p*2.)*.5));
 	return vec2(d, 1.);
 }
 
@@ -103,7 +105,6 @@ float GeometrySchlickGGX(float NV) {
 	return NV / (NV * (1. - roughness) + roughness);
 }
 vec3 pbr(vec3 lightdir) {
-	//roughness = max(.01, roughness);
 	vec3 H = normalize(ray + lightdir);
 	F0 = mix(vec3(.04), albedo, metallic);
 	float HV = max(dot(H, ray), .0),
@@ -114,8 +115,6 @@ vec3 pbr(vec3 lightdir) {
 				GGXdenom = NH * NH * (r4 - 1.) + 1.;
 	vec3 F = F0 + (1. - F0) * pow(1.001 - HV, 5.);
 	float G = GeometrySchlickGGX(NV) * GeometrySchlickGGX(NL);
-	//vec3 brdf = DistributionGGX(NH, roughness) * G * F / max(1e-10, 4. * NV * NL);
-	//vec3 brdf = r4 / max(1e-10, PI * GGXdenom * GGXdenom) * G * F / max(1e-10, 4. * NV * NL);
 	vec3 brdf = alpha * alpha * alphaP * alphaP / max(1e-10, PI * GGXdenom * GGXdenom) * G * F / max(1e-10, 4. * NV * NL);
 	return ((E.zzz - F) * (1. - metallic) * albedo / PI + brdf) * NL;
 }
@@ -136,13 +135,13 @@ vec3 dirlight(vec3 L, float Ls, float LL) {
 }
 
 vec3 spherelight(vec4 posr, vec3 lightcolor) {
+//lightcolor=vec3(1.)*40.;
 	vec3 refl = reflect(ray, normal),
 			 L = posr.xyz - ray_pos,
 			 l = dot(L, refl) * refl - L;
 	l = L + l * clamp(posr.w/length(l), 0., 1.);
 
 	alpha = roughness * roughness;
-	//alphaP = alpha;
 	alphaP = clamp(posr.w / (2. * length(l)) + roughness * roughness, 0., 1.);
 
 	return lightcolor * dirlight(normalize(l), dot(l,l), length(l));
@@ -152,8 +151,9 @@ vec4 raycast() {
 	vec2 tr = trace(ray_pos, -ray);
 	ray_pos -= tr.x * ray;
 
-	normal = normalize(.00005*noise34(ray_pos*20.).xyz
-			+vec3(world(ray_pos+E.yxx).x,
+	normal = normalize(
+		.00005*noise34(ray_pos*20.).xyz+
+			vec3(world(ray_pos+E.yxx).x,
 				world(ray_pos+E.xyx).x,
 				world(ray_pos+E.xxy).x)-world(ray_pos).x);
 	//if (any(isnan(normal))) normal = E.xzx; // CRAP
@@ -170,20 +170,31 @@ vec4 raycast() {
 	// mindex == 0 || (anything) -- default metal
 	//color = E.xxx;
 
+	albedo = vec3(.9);
 	//albedo = vec3(.56, .57, .58); // iron
-	albedo = vec3(.91, .92, .92); // aluminum
+	//albedo = vec3(.91, .92, .92); // aluminum
 	vec4 ns = pow(noise34(floor(ray_pos)), vec4(3.));
 	metallic = 1. - ns.w;
 
 	ns = pow(noise34(floor(ray_pos)+floor(t*4.)), vec4(3.));
-	color = vec3(step(.7,ns.w)*10.*(1.-smoothstep(2.,5.,mod(t,8.))));
+	color = vec3(
+		step(.7,ns.w)*10.
+		*step(t, 88.)
+		*max(
+			step(t, 32.),
+			step(56., t))
+		*max(
+			(1.-smoothstep(1.,4.,mod(t,8.))),
+			(1.-smoothstep(1.,4.,mod(t,4.)))*step(16.,t))
+
+		);
 	roughness = 0.;//smoothstep(.1, .9, pow(noise34(ray_pos*20.).x, 2.));
 
 	// mindex == 1: object
 	if (tr.y == 1.) {
 		color = E.xxx;
 		//color = vec3(4.) * smoothstep(.99,.999,sin(t+(/*RX(t*.4)*/ray_pos).y*4.));
-		albedo = vec3(.95,.93,.88); // silver
+		//albedo = vec3(.95,.93,.88); // silver
 		metallic = 0.;
 		roughness = .9;
 	}
@@ -218,12 +229,12 @@ void main() {
 	light0_pos = vec4(2., 7., 3., .1);
 	light1_pos = vec4(-3., -4., 4., .2);
 
-	float lt = smoothstep(16., 32., t)*40.;
+	float lt = smoothstep(24., 32., t)*smoothstep(88.,80.,t)*40.;
 	light0_col = vec3(.2,.8,.9) * lt;
 	light1_col = vec3(.7,.9,.6) * lt;
 
-	ray_pos = RZ(t*.09)*RY(t*.1)*(vec3(0.,1.,4.+noise(t*.21))+.1*rnd(vec2(t*.25)).wyx);
-	vec3 at = vec3(0.,1.,0.)+.9*rnd(vec2(t*.05)).wyx;
+	ray_pos = RZ(t*.09)*RY(t*.1)*(vec3(0.,0.,4.+noise(t*.21))+.9*rnd(vec2(t*.25)).wyx);
+	vec3 at = .9*rnd(vec2(t*.05)).wyx;
 	ray = - lookat(
 			ray_pos,
 			at,
