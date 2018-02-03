@@ -53,15 +53,18 @@ vec2 room(vec3 p) {
 	d = max(d, box(rep3(p,vec3(1.)), vec3(.4)));
 	return vec2(d, 0.);
 }
-float t2 = mod(t,2.),t4 = mod(t,4.), t8 = mod(t,8.);
-//float ttor = smoothstep(.0,.1,t2)*smoothstep(1.,.9,t2);//step(2.,t4)*step(t4,3.);
-//float or = step(40.,t)*4.*ttor-2., ok = 1.4;
 vec2 object(vec3 p) {
-	//p.y -= 1.;
-	float d = length(p) - 2. - pow(sin(p.y*.7+t/4.),2.);
-	//if (d < ok)
-	//	d = max(d, min(d+.4, techfld(RZ(.7)*p*2.)*.5));
-		d = max(d, min(d+.4, techfld(p*2.)*.5));
+	float d = length(p) - 2. -
+		pow(sin(p.y*.7+mod(t+1.,2.)+t/4.),2.);
+	d = max(d, min(d+.4, techfld(p*2.)*.5));
+	d = max(d,
+		box(p,vec3(
+			//2.*smoothstep(48.,64.,t+mod(t,2.))
+			max(0.,
+				t-48.+mod(t,2.))
+				/ 8.
+			))
+		);
 	return vec2(d, 1.);
 }
 
@@ -183,9 +186,9 @@ vec4 raycast() {
 		*max(
 			step(t, 32.),
 			step(56., t))
-		*max(
-			(1.-smoothstep(1.,4.,mod(t,8.))),
-			(1.-smoothstep(1.,4.,mod(t,4.)))*step(16.,t))
+		*max(step(16.,t)*
+			(1.-smoothstep(1.,4.,mod(t,4.))),
+			1.-smoothstep(1.,4.,mod(t,8.)))
 
 		);
 	roughness = 0.;//smoothstep(.1, .9, pow(noise34(ray_pos*20.).x, 2.));
