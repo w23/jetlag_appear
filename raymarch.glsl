@@ -47,34 +47,24 @@ float techfld(vec3 p) {
 	return d;
 }
 
-vec2 room(vec3 p) {
-	//p.y -= 3.;
-	float d = -box(p, vec3(8., 8., 6.));
-	d = max(d, box(rep3(p,vec3(1.)), vec3(.4)));
-	return vec2(d, 0.);
-}
-vec2 object(vec3 p) {
-	float d = length(p) - 2. -
-		pow(sin(p.y*.7+mod(t+1.,2.)+t/4.),2.);
-	d = max(d, min(d+.4, techfld(p*2.)*.5));
-	d = max(d,
+vec4 light0_pos, light1_pos;
+vec3 light0_col, light1_col;
+//int dist_lights = 1;
+vec2 world(vec3 p) {
+	vec2 w = vec2(max(
+		-box(p, vec3(8., 8., 6.)),
+		box(rep3(p,vec3(1.)), vec3(.4))
+	), 0.),
+	d = vec2(max(max(length(p) - 2. -
+		pow(sin(p.y*.7+mod(t+1.,2.)+t/4.),2.), techfld(p*2.)*.5),
 		box(p,vec3(
 			//2.*smoothstep(48.,64.,t+mod(t,2.))
 			max(0.,
 				t-48.+mod(t,2.))
 				/ 8.
 			))
-		);
-	return vec2(d, 1.);
-}
+		), 1.);
 
-vec4 light0_pos, light1_pos;
-vec3 light0_col, light1_col;
-//int dist_lights = 1;
-vec2 world(vec3 p) {
-	//mindex = 0;
-	vec2 w = room(p), d;
-	d = object(p);
 	w = w.x < d.x ? w : d;
 	/*
 	if (dist_lights != 0) {
