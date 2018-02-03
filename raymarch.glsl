@@ -63,9 +63,6 @@ vec2 object(vec3 p) {
 	return vec2(d, 1.);
 }
 
-//int mindex;
-//void PICK(inout float d, float dn, int mat) { if (dn<d) {d = dn; mindex = mat;} }
-
 vec4 light0_pos, light1_pos;
 vec3 light0_col, light1_col;
 //int dist_lights = 1;
@@ -171,15 +168,15 @@ vec4 raycast() {
 	//dist_lights = 0;
 
 	// mindex == 0 || (anything) -- default metal
-	color = E.xxx;
+	//color = E.xxx;
 
 	//albedo = vec3(.56, .57, .58); // iron
 	albedo = vec3(.91, .92, .92); // aluminum
 	vec4 ns = pow(noise34(floor(ray_pos)), vec4(3.));
 	metallic = 1. - ns.w;
-	color = vec3(step(.7,ns.x)*10.);
-	//metallic = .9;
-//	roughness = .55;//mix(.1,.9, mod(floor(ray_pos.x*.5)+floor(ray_pos.z*.5),2.));
+
+	ns = pow(noise34(floor(ray_pos)+floor(t*4.)), vec4(3.));
+	color = vec3(step(.7,ns.w)*10.*(1.-smoothstep(2.,5.,mod(t,8.))));
 	roughness = 0.;//smoothstep(.1, .9, pow(noise34(ray_pos*20.).x, 2.));
 
 	// mindex == 1: object
@@ -221,8 +218,9 @@ void main() {
 	light0_pos = vec4(2., 7., 3., .1);
 	light1_pos = vec4(-3., -4., 4., .2);
 
-	light0_col = vec3(.2,.8,.9) * 40.;
-	light1_col = vec3(.7,.9,.6) * 30.;
+	float lt = smoothstep(16., 32., t)*40.;
+	light0_col = vec3(.2,.8,.9) * lt;
+	light1_col = vec3(.7,.9,.6) * lt;
 
 	ray_pos = RZ(t*.09)*RY(t*.1)*(vec3(0.,1.,4.+noise(t*.21))+.1*rnd(vec2(t*.25)).wyx);
 	vec3 at = vec3(0.,1.,0.)+.9*rnd(vec2(t*.05)).wyx;
