@@ -35,7 +35,7 @@ static void serialize(const char *file, const AmData *a) {
 
 	int tick = 0;
 	for (int i = 0; i < AM_MAX_PROGRAM_OPS; ++i) {
-		const AmOp *op = a->programs[0].ops + i; 
+		const AmOp *op = a->programs[0].ops + i;
 		switch (op->type) {
 		case AmOp_Wait:
 			tick = op->a.wait.ticks.value.imm.i;
@@ -46,7 +46,7 @@ static void serialize(const char *file, const AmData *a) {
 			int nkey = signal_state[nsig].num_keypoints++;
 			//if (tick != signal_state[nsig].keypoints[nkey].tick)
 			//	nkey = ++signal_state[nsig].num_keypoints;
-			
+
 			signal_state[nsig].keypoints[nkey].tick = tick;
 			signal_state[nsig].keypoints[nkey].v = op->a.signal_set.value.value.imm.f;
 			break;

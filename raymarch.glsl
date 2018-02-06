@@ -31,11 +31,13 @@ float vmax3(vec3 v) { return max(v.x, max(v.y, v.z)); }
 float box(vec3 p, vec3 s) { return vmax3(abs(p) - s);}
 //float tor(vec3 p, vec2 s) { return length(vec2(length(p.xz) - s.x, p.y)) - s.y; }
 
+float t1 = t * .1, tpulse = smoothstep(71.,73.,t);
 float techfld(vec3 p) {
-	p=RZ(t*.1)*p;
-	p.y+=t*.1;
+	p=RY(t1)*p;
+	p.y+=t1;
 	float
 	d = box(rep3(p,vec3(2.)), vec3(.8));
+	p=RZ(.1*tpulse)*p;
 	d = max(d, -box(rep3(p,vec3(2.)), vec3(.6)));
 	d = max(d, -box(rep3(p,vec3(1.3)), vec3(.5)));
 
@@ -56,7 +58,9 @@ vec2 world(vec3 p) {
 		box(rep3(p,vec3(1.)), vec3(.4))
 	), 0.),
 	d = vec2(max(max(length(p) - 2. -
-		pow(sin(p.y*.7+mod(t+1.,2.)+t/4.),2.), techfld(p*2.)*.5),
+		pow(sin(p.y*.7+mod(t+1.,2.)+t/4.),2.)
+			* tpulse
+			, techfld(p*2.)*.5),
 		box(p,vec3(
 			//2.*smoothstep(48.,64.,t+mod(t,2.))
 			max(0.,
@@ -172,11 +176,11 @@ vec4 raycast() {
 	ns = pow(noise34(floor(ray_pos)+floor(t*4.)), vec4(3.));
 	color = vec3(
 		step(.7,ns.w)*10.
-		*step(t, 88.)
+		*step(t, 108.)
 		*max(
-			step(t, 32.),
-			step(56., t))
-		*max(step(16.,t)*
+			step(t, 48.),
+			step(72., t))
+		*max(step(32.,t)*
 			(1.-smoothstep(1.,4.,mod(t,4.))),
 			1.-smoothstep(1.,4.,mod(t,8.)))
 
@@ -219,10 +223,10 @@ void main() {
 	vec2 uv = X / Z(1) * 2. - 1.;
 	uv.x *= Z(1).x / Z(1).y;
 
-	light0_pos = vec4(2., 7., 3., .1);
+	light0_pos = vec4(2., 7., -3., .1);
 	light1_pos = vec4(-3., -4., 4., .2);
 
-	float lt = smoothstep(24., 32., t)*smoothstep(88.,80.,t)*40.;
+	float lt = smoothstep(24., 32., t)*smoothstep(104.,96.,t)*40.;
 	light0_col = vec3(.2,.8,.9) * lt;
 	light1_col = vec3(.7,.9,.6) * lt;
 
