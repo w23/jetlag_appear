@@ -11,7 +11,7 @@ MIDIDEV ?= ''
 WIDTH ?= 1280
 HEIGHT ?= 720
 SHMIN=mono shader_minifier.exe
-INTRO=nikak
+INTRO=507
 
 DEPFLAGS = -MMD -MP
 COMPILE.c = $(CC) -std=gnu99 $(CFLAGS) $(DEPFLAGS) -MT $@ -MF $@.d
@@ -88,5 +88,31 @@ $(INTRO).dbg: intro_c.c 4klang.o
 	$(CC) -m32 -O0 -g -Wall -Wno-unknown-pragmas \
 		`pkg-config --cflags --libs sdl` -lGL \
 		$^ -o $@
+
+$(INTRO).capture: blur_reflection.h  composite.h  dof_tap.h  header.h  out.h  post.h  raymarch.h intro_c.c
+	$(CC) -O3 -Wall -Wno-unknown-pragmas \
+		-DCAPTURE `pkg-config --cflags --libs sdl` -lGL \
+		$^ -o $@
+
+capture: $(INTRO)_$(WIDTH)_$(HEIGHT).mp4
+
+$(INTRO)_$(WIDTH)_$(HEIGHT).mp4: $(INTRO).capture sound.raw
+	./$(INTRO).capture | ffmpeg \
+	-y -f rawvideo -vcodec rawvideo \
+	-s $(WIDTH)x$(HEIGHT) -pix_fmt rgb24 \
+	-framerate 60 \
+	-i - \
+	-f f32le -ar 44100 -ac 2 \
+	-i sound.raw \
+	-c:a aac -b:a 160k \
+	-c:v libx264 -vf vflip \
+	-movflags +faststart \
+	-level 4.1 -preset placebo -crf 21.0 \
+	-x264-params keyint=600:bframes=3:scenecut=60:ref=3:qpmin=10:qpstep=8:vbv-bufsize=24000:vbv-maxrate=24000:merange=32 \
+	$@
+
+	# "//-crf 18 -preset slow -vf vflip  \
+	# " -level:v 4.2 -profile:v high -preset slower -crf 20.0 -pix_fmt yuv420p"
+
 
 .PHONY: all clean run_tool debug_tool
