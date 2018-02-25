@@ -6,7 +6,7 @@ extern "C" {
 
 typedef void(*audio_callback_f)(void *userdata, float *samples, int nsamples);
 typedef void(*midi_callback_f)(void *userdata, const unsigned char *data, int bytes);
-int audioOpen(void *userdata, audio_callback_f acb, const char *dev, midi_callback_f mcb);
+int audioOpen(int samplerate, int channels, void *userdata, audio_callback_f acb, const char *dev, midi_callback_f mcb);
 void audioClose();
 
 #if defined(AUDIO_IMPLEMENT)
@@ -25,6 +25,7 @@ static struct {
 	midi_callback_f mcb;
 	pthread_t thread;
 	int should_exit;
+	int channels;
 } audio_;
 
 #define AUDIO_BUFFER_SIZE 256
@@ -47,9 +48,9 @@ static void *audio_Thread(void *data) {
 				audio_.mcb(data, midibuf, err);
 		}
 
-		audio_.acb(data, buffer, AUDIO_BUFFER_SIZE);
+		audio_.acb(data, buffer, AUDIO_BUFFER_SIZE / audio_.channels);
 
-		int err = snd_pcm_writei(audio_.pcm, buffer, AUDIO_BUFFER_SIZE);
+		int err = snd_pcm_writei(audio_.pcm, buffer, AUDIO_BUFFER_SIZE / audio_.channels);
 		if (err < 0) err = snd_pcm_recover(audio_.pcm, err, 0);
 		if (err < 0) {
 			printf("recover error: %s\n", snd_strerror(err));
@@ -60,7 +61,7 @@ static void *audio_Thread(void *data) {
 	return NULL;
 }
 
-int audioOpen(void *userdata, audio_callback_f acb, const char *midi, midi_callback_f mcb) {
+int audioOpen(int samplerate, int channels, void *userdata, audio_callback_f acb, const char *midi, midi_callback_f mcb) {
 	int err = snd_pcm_open(&audio_.pcm, "default", SND_PCM_STREAM_PLAYBACK, 0);
 	if (err < 0) {
 		printf("Playback open error: %s\n", snd_strerror(err));
@@ -70,7 +71,7 @@ int audioOpen(void *userdata, audio_callback_f acb, const char *midi, midi_callb
 	err = snd_pcm_set_params(audio_.pcm,
 			SND_PCM_FORMAT_FLOAT_LE,
 			SND_PCM_ACCESS_RW_INTERLEAVED,
-			1, 44100, 1, 10000);
+			channels, samplerate, 1, 10000);
 	if (err < 0) {
 		printf("set_params error: %s\n", snd_strerror(err));
 		return -2;
@@ -86,6 +87,7 @@ int audioOpen(void *userdata, audio_callback_f acb, const char *midi, midi_callb
 		audio_.midi = NULL;
 	}
 
+	audio_.channels = channels;
 	audio_.should_exit = 0;
 	audio_.acb = acb;
 	audio_.mcb = mcb;

@@ -1,5 +1,7 @@
 .SUFFIXES:
 .DEFAULT:
+#MAKEFLAGS += -rR --no-print-directory -j4
+MAKEFLAGS += -r --no-print-directory -j $(shell nproc)
 
 CC ?= cc
 CXX ?= c++
@@ -11,7 +13,7 @@ MIDIDEV ?= ''
 WIDTH ?= 1280
 HEIGHT ?= 720
 SHMIN=mono shader_minifier.exe
-INTRO=507
+INTRO=wip
 
 DEPFLAGS = -MMD -MP
 COMPILE.c = $(CC) -std=gnu99 $(CFLAGS) $(DEPFLAGS) -MT $@ -MF $@.d
@@ -23,23 +25,26 @@ $(OBJDIR)/%.c.o: %.c
 	@mkdir -p $(dir $@)
 	$(COMPILE.c) -c $< -o $@
 
+$(OBJDIR)/%.c.o32: %.c
+	@mkdir -p $(dir $@)
+	$(COMPILE.c) -m32 -c $< -o $@
+
 $(OBJDIR)/%.cc.o: %.cc
 	@mkdir -p $(dir $@)
 	$(COMPILE.cc) -c $< -o $@
+
+$(OBJDIR)/4klang.o32: 4klang.asm 4klang_linux/4klang.inc
+	nasm -f elf32 -I4klang_linux/ 4klang.asm -o $@
 
 TOOL_EXE = $(OBJDIR)/tool/tool
 TOOL_SRCS = \
 	atto/src/app_linux.c \
 	atto/src/app_x11.c \
-	tool/syntmash.c \
-	tool/syntasm.c \
-	tool/parser.c \
-	tool/Automation.c \
-	tool/video.c \
-	tool/fileres.c \
 	tool/tool.c \
-	tool/audio.c \
-	tool/timeline.c
+	tool/fileres.c \
+	tool/video.c \
+	tool/audio_raw.c
+
 TOOL_OBJS = $(TOOL_SRCS:%=$(OBJDIR)/%.o)
 TOOL_DEPS = $(TOOL_OBJS:%=%.d)
 
@@ -48,14 +53,30 @@ TOOL_DEPS = $(TOOL_OBJS:%=%.d)
 $(TOOL_EXE): $(TOOL_OBJS)
 	$(CXX) $(LIBS) $^ -o $@
 
+tool: $(TOOL_EXE)
+
+DUMP_AUDIO_EXE = $(OBJDIR)/dump_audio
+DUMP_AUDIO_SRCS = dump_audio.c
+DUMP_AUDIO_OBJS = $(DUMP_AUDIO_SRCS:%=$(OBJDIR)/%.o32)
+DUMP_AUDIO_DEPS = $(DUMP_AUDIO_OBJS:%=%.d)
+
+-include $(DUMP_AUDIO_DEPS)
+
+$(DUMP_AUDIO_EXE): $(DUMP_AUDIO_OBJS) $(OBJDIR)/4klang.o32
+	$(CC) -m32 $(LIBS) $^ -o $@
+
+audio.raw: $(DUMP_AUDIO_EXE)
+	$(DUMP_AUDIO_EXE) $@
+
 clean:
 	rm -f $(TOOL_OBJS) $(TOOL_DEPS) $(TOOL_EXE)
+	rm -f $(DUMP_AUDIO_OBJS) $(DUMP_AUDIO_DEPS) $(DUMP_AUDIO_EXE) audio.raw
 	rm -f $(INTRO).sh $(INTRO).gz $(INTRO).elf $(INTRO) $(INTRO).dbg
 
-run_tool: $(TOOL_EXE)
+run_tool: $(TOOL_EXE) audio.raw
 	$(TOOL_EXE) -w $(WIDTH) -h $(HEIGHT) -m $(MIDIDEV)
 
-debug_tool: $(TOOL_EXE)
+debug_tool: $(TOOL_EXE) audio.raw
 	gdb --args $(TOOL_EXE) -w $(WIDTH) -h $(HEIGHT) -m $(MIDIDEV)
 
 $(INTRO).sh: linux_header $(INTRO).gz
@@ -67,9 +88,6 @@ $(INTRO).gz: $(INTRO).elf
 
 %.h: %.glsl
 	$(SHMIN) -o $@ --no-renaming-list Z,T,P,X,k,F,t,E,PI,main --preserve-externals $<
-
-4klang.o: 4klang.asm 4klang.inc
-	nasm -f elf32 4klang.asm -o 4klang.o
 
 #.h.seq: timepack
 #	timepack $< $@
@@ -103,7 +121,7 @@ $(INTRO)_$(WIDTH)_$(HEIGHT).mp4: $(INTRO).capture sound.raw
 	-framerate 60 \
 	-i - \
 	-f f32le -ar 44100 -ac 2 \
-	-i sound.raw \
+	-i audio.raw \
 	-c:a aac -b:a 160k \
 	-c:v libx264 -vf vflip \
 	-movflags +faststart \

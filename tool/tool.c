@@ -1,4 +1,5 @@
 #include "common.h"
+#include "../4klang.h"
 
 #include "atto/app.h"
 #define AUDIO_IMPLEMENT
@@ -7,23 +8,9 @@
 #include <stdlib.h> // atoi
 #include <string.h>
 
-static struct {
-	unsigned int samples, sample;
-	int channels;
-	unsigned int samplerate;
-	int paused;
-	float *buffer;
-} audio;
-
 static void audioCallback(void *userdata, float *samples, int nsamples) {
 	(void)(userdata);
-	memset(samples, 0, nsamples * 4);
-	if (audio.paused)
-		return;
-	for(int i = 0; i < nsamples; ++i) {
-		samples[i] = audio.buffer[2*(audio.sample % audio.samples)];
-		audio.sample = (1 + audio.sample) % audio.samples;
-	}
+	audioRawWrite(samples, nsamples);
 }
 
 static void midiCallback(void *userdata, const unsigned char *data, int bytes) {
@@ -47,15 +34,15 @@ static void midiCallback(void *userdata, const unsigned char *data, int bytes) {
 
 static void paint(ATimeUs ts, float dt) {
 	(void)dt;
-	resourcesUpdate();
-
 	(void)ts;
 	//const float now = 1e-6f * ts;
+
+	resourcesUpdate();
 
 	{
 		float signals[32];
 		memset(signals, 0, sizeof(signals));
-		signals[0] = (float)audio.sample / audio.samplerate;
+		signals[0] = audioRawGetTimeBar();
 		//for (unsigned long i = 0; i < COUNTOF(signals); ++i) printf("%lu=%.1f ", i, signals[i]); printf("\n");
 
 		videoOutputResize(a_app_state->width, a_app_state->height);
@@ -68,9 +55,9 @@ static void key(ATimeUs ts, AKey key, int down) {
 	if (!down)
 		return;
 	switch (key) {
-		case AK_Space: audio.paused ^= 1; break;
-		case AK_Right: audio.sample += audio.samplerate * 4; break;
-		case AK_Left: audio.sample -= audio.samplerate * 4; break;
+		case AK_Space: audioRawTogglePause(); break;
+		case AK_Right: audioRawSeek(audioRawGetTimeBar() + 4.); break;
+		case AK_Left: audioRawSeek(audioRawGetTimeBar() - 4.); break;
 		case AK_Q: aAppTerminate(0);
 		default: break;
 	}
@@ -105,20 +92,12 @@ void attoAppInit(struct AAppProctable *ptbl) {
 			midi_device = a_app_state->argv[++iarg];
 	}
 
-	FILE* f = fopen("sound.raw", "rb");
-	fseek(f, 0L, SEEK_END);
-	audio.samples = ftell(f) / 8;
-	printf("%p %d\n", (void*)f, audio.samples);
-	fseek(f, 0L, SEEK_SET);
-	audio.buffer = malloc(audio.samples * 8);
-	fread(audio.buffer, 1, audio.samples * 8, f);
-	fclose(f);
-	audio.samplerate = 44100;
-	audio.sample = 0;
-	audio.paused = 0;
-
 	resourcesInit();
+
+	if (!audioRawInit("audio.raw", SAMPLE_RATE, 2, BPM))
+		aAppTerminate(-2);
+
 	videoInit(width, height);
-	if (1 != audioOpen(NULL, audioCallback, midi_device, midiCallback))
+	if (1 != audioOpen(SAMPLE_RATE, 2, NULL, audioCallback, midi_device, midiCallback))
 		aAppTerminate(-1);
 }

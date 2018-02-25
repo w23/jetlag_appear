@@ -245,4 +245,6 @@ _Pvt_Extensions
 *.dd
 *.o
 *.d
-tool/tool
+.obj
+audio.raw
+tags

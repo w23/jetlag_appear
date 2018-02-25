@@ -1,6 +1,7 @@
 #pragma once
 
 #include <stdint.h>
+#include <string.h>
 
 #define COUNTOF(a) (sizeof(a) / sizeof(*(a)))
 
@@ -30,9 +31,18 @@ void videoInit(int width, int height);
 void videoOutputResize(int width, int height);
 void videoPaint(float *signals, int num_signals, int force_redraw);
 
+/*
 void audioInit(const char *synth_src, int samplerate);
 void audioSynthesize(float *samples, int num_samples);
 void audioCheckUpdate();
+*/
+
+int audioRawInit(const char *filename, int samplerate, int channels, int bpm);
+void audioRawWrite(float *samples, int num_samples);
+int audioRawTogglePause();
+void audioRawSeek(float bar);
+float audioRawGetTimeBar();
+
 
 #define MAX_DIAG_SIGNALS 16
 #define MAX_DIAG_SAMPLES 65536
