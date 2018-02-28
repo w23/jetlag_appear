@@ -27,6 +27,7 @@ void resourceClose(VolatileResource *handle);
 void resourcesInit();
 void resourcesUpdate();
 
+//void videoInit();
 void videoInit(int width, int height);
 void videoOutputResize(int width, int height);
 void videoPaint(float *signals, int num_signals, int force_redraw);
@@ -43,7 +44,7 @@ int audioRawTogglePause();
 void audioRawSeek(float bar);
 float audioRawGetTimeBar();
 
-
+/*
 #define MAX_DIAG_SIGNALS 16
 #define MAX_DIAG_SAMPLES 65536
 typedef struct {
@@ -77,9 +78,10 @@ typedef struct {
 	int x, y, dx, dy;
 } Event;
 void timelineEdit(const Event *event);
+*/
 
 #define PARSER_MAX_TOKEN_LENGTH 32
-#define PARSER_MAX_LINE_TOKENS 16
+#define PARSER_MAX_LINE_TOKENS 32
 
 typedef struct {
 	const char *line, *prev_line;

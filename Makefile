@@ -40,8 +40,9 @@ TOOL_EXE = $(OBJDIR)/tool/tool
 TOOL_SRCS = \
 	atto/src/app_linux.c \
 	atto/src/app_x11.c \
-	tool/tool.c \
 	tool/fileres.c \
+	tool/parser.c \
+	tool/tool.c \
 	tool/video.c \
 	tool/audio_raw.c
 

@@ -167,7 +167,6 @@ int symasmCompile(SymaRunContext *ctx_inout, const char *source) {
 				result, parser.ctx.line_number);
 			return 0;
 		}
-
 	}
 
 	ctx_inout->program_size = asm_context.ops_count;
