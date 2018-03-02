@@ -87,8 +87,8 @@ static int renderParseAddTexture(const ParserCallbackParams *params) {
 	RenderTexture *tex = scene->texture + scene->textures;
 	tex->name = strMakeCopy(params->args[0].s);
 
-	glGenTextures(1, &tex->glname);
-	glActiveTexture(GL_TEXTURE0 + scene->textures);
+	GL(GenTextures(1, &tex->glname));
+	GL(ActiveTexture(GL_TEXTURE0 + scene->textures));
 	++scene->textures;
 
 	if (params->line_param0 == RenderLine_TextureNoise) {
@@ -131,7 +131,7 @@ static void renderTextureDtor(RenderTexture *tex) {
 		free((char*)tex->name);
 
 	if (tex->glname)
-		glDeleteTextures(1, &tex->glname);
+		GL(DeleteTextures(1, &tex->glname));
 }
 
 static int renderFindSource(RenderScene *scene, const char *name) {
@@ -221,7 +221,7 @@ static int renderTextureFind(const RenderScene *scene, const char *name) {
 
 static void renderPassDtor(RenderPass *pass) {
 	if (pass->fb)
-		glDeleteFramebuffers(1, &pass->fb);
+		GL(DeleteFramebuffers(1, &pass->fb));
 }
 
 static int renderParseAddPass(const ParserCallbackParams *params) {
@@ -242,7 +242,7 @@ static int renderParseAddPass(const ParserCallbackParams *params) {
 	pass->targets = params->num_args - 1;
 	pass->fb = 0;
 	if (pass->targets > 0) {
-		glGenFramebuffers(1, &pass->fb);
+		GL(GenFramebuffers(1, &pass->fb));
 		GL(BindFramebuffer(GL_FRAMEBUFFER, pass->fb));
 	}
 
@@ -276,7 +276,13 @@ static struct {
 	VolatileResource *scene_source;
 	RenderScene *scene;
 	int width, height;
-	int output_width, output_height;
+
+	struct {
+		VolatileResource *program_source;
+		AGLProgram program;
+		int width, height;
+		GLuint tex, fb;
+	} output;
 } g;
 
 static void renderSceneDtor(RenderScene *scene) {
@@ -334,17 +340,51 @@ int videoInit(int width, int height, const char *filename) {
 		return 0;
 	}
 
-	g.width = g.output_width = width;
-	g.height = g.output_height = height;
+	g.width = g.output.width = width;
+	g.height = g.output.height = height;
 
 	g.scene = 0;
+
+	GL(GenTextures(1, &g.output.tex));
+	GL(ActiveTexture(GL_TEXTURE0 + RENDER_MAX_TEXTURES));
+	renderInitTexture(g.output.tex, g.width, g.height, GL_RGBA, GL_UNSIGNED_BYTE, NULL, GL_CLAMP_TO_BORDER);
+	
+	GL(GenFramebuffers(1, &g.output.fb));
+	GL(BindFramebuffer(GL_FRAMEBUFFER, g.output.fb));
+	GL(FramebufferTexture2D(GL_FRAMEBUFFER,
+			GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, g.output.tex, 0));
+	const int status = glCheckFramebufferStatus(GL_FRAMEBUFFER);
+	ATTO_ASSERT(status == GL_FRAMEBUFFER_COMPLETE);
+
+	g.output.program = 0;
+	g.output.program_source = resourceOpenFile("out.glsl");
+	if (!g.output.program_source) {
+		MSG("Cannot open out.glsl");
+		return 0;
+	}
 
 	return 1;
 }
 
 void videoOutputResize(int width, int height) {
-	g.output_width = width;
-	g.output_height = height;
+	g.output.width = width;
+	g.output.height = height;
+}
+
+static int renderReloadProgram(AGLProgram *prog, const char * const *vertex, const char * const *fragment) {
+	AGLProgram new_program = aGLProgramCreate(vertex, fragment);
+
+	if (new_program < 0) {
+		MSG("shader error: %s", a_gl_error);
+		return 0;
+	}
+
+	if (*prog > 0)
+		aGLProgramDestroy(*prog);
+
+	*prog = new_program;
+	MSG("New program: %d", new_program);
+	return 1;
 }
 
 void renderProgramCheckUpdate(RenderProgram *prog) {
@@ -369,17 +409,7 @@ void renderProgramCheckUpdate(RenderProgram *prog) {
 	MSG("Reloading %s", prog->name);
 
 	const char *const vertex[] = { fs_vtx_source, NULL };
-	AGLProgram new_program = aGLProgramCreate(vertex, fragment);
-
-	if (new_program < 0) {
-		MSG("shader error: %s", a_gl_error);
-		return;
-	}
-
-	if (prog->program > 0)
-		aGLProgramDestroy(prog->program);
-
-	prog->program = new_program;
+	renderReloadProgram(&prog->program, vertex, fragment);
 }
 
 void videoPaint() {
@@ -388,10 +418,16 @@ void videoPaint() {
 		return;
 	}
 
+	if (g.output.program_source->updated) {
+		const char * vertex[] = { fs_vtx_source, NULL };
+		const char * fragment[] = { g.output.program_source->bytes, NULL };
+		renderReloadProgram(&g.output.program, vertex, fragment);
+	}
+
 	if (!g.scene)
 		return;
 
-	int can_draw = 1;
+	int can_draw = (g.output.program > 0);
 	for (int i = 0; i < g.scene->programs; ++i) {
 		RenderProgram *prog = g.scene->program + i;
 		renderProgramCheckUpdate(prog);
@@ -407,43 +443,48 @@ void videoPaint() {
 	for (int i = 0; i < RENDER_MAX_TEXTURES; ++i)
 		samplers[i] = i;
 
+	GL(Viewport(0, 0, g.width, g.height));
 	for (int i = 0; i < g.scene->passs; ++i) {
 		const RenderPass *pass = g.scene->pass + i;
 		const RenderProgram *prog = g.scene->program + pass->program_index;
 
-		GL(UseProgram(prog->program));
-		GL(BindFramebuffer(GL_FRAMEBUFFER, pass->fb));
+		static const GLuint bufs[] = {
+			GL_COLOR_ATTACHMENT0, GL_COLOR_ATTACHMENT1, GL_COLOR_ATTACHMENT2, GL_COLOR_ATTACHMENT3};
 
 		if (pass->fb > 0) {
-			GL(Viewport(0, 0, g.width, g.height));
-
-			const int Vloc = glGetUniformLocation(prog->program, "VIEWPORT");
-			if (Vloc >= 0) {
-				const float V[] = { (float)g.width, (float)g.height };
-				GL(Uniform2fv(Vloc, 1, V));
-			}
-
-			const GLuint bufs[] = { GL_COLOR_ATTACHMENT0, GL_COLOR_ATTACHMENT1, GL_COLOR_ATTACHMENT2, GL_COLOR_ATTACHMENT3 };
+			GL(BindFramebuffer(GL_FRAMEBUFFER, pass->fb));
 			GL(DrawBuffers(pass->targets, bufs));
 		} else {
-			GL(Viewport(0, 0, g.output_width, g.output_height));
-
-			int Vloc = glGetUniformLocation(prog->program, "VIEWPORT");
-			if (Vloc >= 0) {
-				const float V[] = { (float)g.output_width, (float)g.output_height };
-				GL(Uniform2fv(Vloc, 1, V));
-			}
+			GL(BindFramebuffer(GL_FRAMEBUFFER, g.output.fb));
+			GL(DrawBuffers(1, bufs));
 		}
+
+		GL(UseProgram(prog->program));
+		GL(Uniform1iv(glGetUniformLocation(prog->program, "S"), g.scene->textures, samplers));
 
 		// FIXME
 		//const int itime = signals[0] * 8 * 44100;
 		static int itime = 0;
 		itime += 8 * 44100 / 280;
-
-		GL(Uniform1iv(glGetUniformLocation(prog->program, "S"), g.scene->textures, samplers));
 		//GL(Uniform1fv(glGetUniformLocation(pass->program, "F"), num_signals, signals));
 		GL(Uniform1iv(glGetUniformLocation(prog->program, "F"), 1, &itime));
+
 		GL(Rects(-1,-1,1,1));
 	}
+
+	GL(BindFramebuffer(GL_FRAMEBUFFER, 0));
+	GL(Viewport(0, 0, g.output.width, g.output.height));
+
+	GL(UseProgram(g.output.program));
+	GL(Uniform1iv(glGetUniformLocation(g.output.program, "S"), g.scene->textures, samplers));
+	GL(Uniform1i(glGetUniformLocation(g.output.program, "OUTPUT"), RENDER_MAX_TEXTURES));
+
+	int Vloc = glGetUniformLocation(g.output.program, "VIEWPORT");
+	if (Vloc >= 0) {
+		const float V[] = { (float)g.output.width, (float)g.output.height };
+		GL(Uniform2fv(Vloc, 1, V));
+	}
+
+	GL(Rects(-1,-1,1,1));
 }
 
