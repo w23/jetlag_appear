@@ -80,7 +80,6 @@ static void parseProject() {
 	parser.line_table_length = COUNTOF(project_line_table);
 	parser.userdata = 0;
 
-	
 	for (;;) {
 		const int result = parserTokenizeLine(&parser);
 		if (result == Tokenize_End)
@@ -164,7 +163,7 @@ void attoAppInit(struct AAppProctable *ptbl) {
 		aAppTerminate(-1);
 	}
 
-	videoInit(width, height);
+	videoInit(width, height, "yo28.scene");
 
 	if (1 != audioOpen(SAMPLE_RATE, 2, NULL, audioCallback, midi_device, midiCallback))
 		aAppTerminate(-1);

@@ -27,10 +27,9 @@ void resourceClose(VolatileResource *handle);
 void resourcesInit();
 void resourcesUpdate();
 
-//void videoInit();
-void videoInit(int width, int height);
+int videoInit(int width, int height, const char *filename);
 void videoOutputResize(int width, int height);
-void videoPaint(float *signals, int num_signals, int force_redraw);
+void videoPaint();
 
 /*
 void audioInit(const char *synth_src, int samplerate);

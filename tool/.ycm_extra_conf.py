@@ -3,6 +3,6 @@ def FlagsForFile(filename, **kwargs):
         std = 'c++11'
     else:
         std = 'c99'
-    return {'flags': ['-Werror', '-Wextra', '-pedantic', 
+    return {'flags': ['-Werror', '-Wextra', '-pedantic',
                       '-std=' + std,
-                      '-I../atto']}
+                      '-I../atto', '-Iatto']}
