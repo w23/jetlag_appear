@@ -8,7 +8,7 @@ void mutableStringInit(MutableString *ms) {
 	ms->capacity = 0;
 }
 
-void mutableStringAppend(MutableString *ms, StringView sv) {
+void mutableStringAppendSV(MutableString *ms, StringView sv) {
 	const int new_length = ms->length + sv.length;
 	if (new_length >= ms->capacity) {
 		int new_capacity = ms->capacity + 1;
@@ -28,6 +28,15 @@ void mutableStringAppend(MutableString *ms, StringView sv) {
 	memcpy(ms->str + ms->length, sv.str, sv.length);
 	ms->str[new_length] = '\0';
 	ms->length = new_length;
+}
+
+void mutableStringAppend(MutableString *ms, const char *str, int length) {
+	const StringView sv = {str, length};
+	mutableStringAppendSV(ms, sv);
+}
+
+void mutableStringAppendZ(MutableString *ms, const char *str) {
+	mutableStringAppend(ms, str, strlen(str));
 }
 
 void mutableStringDestroy(MutableString *ms) {

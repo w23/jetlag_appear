@@ -55,6 +55,7 @@ typedef struct {
 	const char *name;
 #define RENDER_MAX_PROGRAM_SOURCES 4
 	int source_index[RENDER_MAX_PROGRAM_SOURCES];
+	const char *header;
 	AGLProgram program;
 } RenderProgram;
 
@@ -198,6 +199,9 @@ static void renderProgramDtor(RenderProgram *prog) {
 	if (prog->name)
 		free((char*)prog->name);
 
+	if (prog->header)
+		free((char*)prog->header);
+
 	aGLProgramDestroy(prog->program);
 }
 
@@ -213,6 +217,7 @@ static int renderParseAddProgram(const ParserCallbackParams *params) {
 	++scene->programs;
 
 	prog->name = strMakeCopy(params->args[0].s);
+	prog->header = NULL;
 
 	for (int i = 0; i < RENDER_MAX_PROGRAM_SOURCES; ++i)
 		prog->source_index[i] = -1;
@@ -419,13 +424,13 @@ static int renderReloadProgram(AGLProgram *prog, const char * const *vertex, con
 }
 
 void renderProgramCheckUpdate(RenderProgram *prog) {
-	const char *fragment[RENDER_MAX_PROGRAM_SOURCES + 1];
+	const char *fragment[RENDER_MAX_PROGRAM_SOURCES + 2];
 
 	int updated = 0;
 	int ready = 1;
 	for (int i = 0; i < RENDER_MAX_PROGRAM_SOURCES; ++i) {
 		if (prog->source_index[i] < 0) {
-			fragment[i] = NULL;
+			fragment[i+1] = NULL;
 			break;
 		}
 
@@ -446,10 +451,10 @@ void renderProgramCheckUpdate(RenderProgram *prog) {
 				const char *var = str, *end = str;
 				while (*var && !(var[0] == '$' && var[1] == '(')) ++var;
 
+				mutableStringAppend(&processed, str, var - str);
+
 				if (!*var) {
 					// no further variables found
-					const StringView sv = { str, var - str };
-					mutableStringAppend(&processed, sv);
 					break;
 				}
 
@@ -482,7 +487,7 @@ void renderProgramCheckUpdate(RenderProgram *prog) {
 				}
 
 				const char *vend = vname_end;
-				while (*vend && isspace(vend)) ++vend;
+				while (*vend && isspace(*vend)) ++vend;
 				end = vend;
 				if (*vend != ')')
 					goto malformed;
@@ -516,14 +521,9 @@ void renderProgramCheckUpdate(RenderProgram *prog) {
 					goto malformed;
 				}
 
-				StringView sv = { "var_", 4 };
-				mutableStringAppend(&processed, sv);
-				sv.str = src->var_prefix;
-				sv.length = strlen(src->var_prefix);
-				mutableStringAppend(&processed, sv);
-				sv.str = vname;
-				sv.length = vname_length;
-				mutableStringAppend(&processed, sv);
+				mutableStringAppendZ(&processed, "var_");
+				mutableStringAppendZ(&processed, src->var_prefix);
+				mutableStringAppend(&processed, vname, vname_length);
 
 				memcpy(src->var + src->vars, &new_var, sizeof(new_var));
 				++src->vars;
@@ -550,7 +550,7 @@ void renderProgramCheckUpdate(RenderProgram *prog) {
 			break;
 		}
 
-		fragment[i] = src->processed_source;
+		fragment[i+1] = src->processed_source;
 	}
 
 	if (!ready) {
@@ -560,6 +560,40 @@ void renderProgramCheckUpdate(RenderProgram *prog) {
 
 	if (!updated)
 		return;
+
+	MutableString var_header;
+	mutableStringInit(&var_header);
+	mutableStringAppendZ(&var_header, "#version 130\n");
+	for (int i = 0; i < RENDER_MAX_PROGRAM_SOURCES; ++i) {
+		if (prog->source_index[i] < 0)
+			break;
+		const RenderSource *src = g.scene->source + prog->source_index[i];
+
+		for (int j = 0; j < src->vars; ++j) {
+			const Variable *v = src->var + j;
+			mutableStringAppendZ(&var_header, "uniform ");
+			const char *vtype = "";
+			switch (v->type) {
+			case VarType_Float: vtype = "float"; break;
+			case VarType_Vec2: vtype = "vec2"; break;
+			case VarType_Vec3: vtype = "vec3"; break;
+			case VarType_Vec4: vtype = "vec4"; break;
+			}
+			mutableStringAppendZ(&var_header, vtype);
+			mutableStringAppendZ(&var_header, " var_");
+			mutableStringAppendZ(&var_header, src->var_prefix);
+			mutableStringAppendZ(&var_header, src->var[j].name);
+			mutableStringAppendZ(&var_header, ";\n");
+		}
+	}
+
+	if (prog->header)
+		free((char*)prog->header);
+
+	prog->header = var_header.str;
+	fragment[0] = prog->header ? prog->header : "";
+
+	MSG("%s", prog->header);
 
 	MSG("Reloading %s", prog->name);
 

@@ -28,7 +28,9 @@ typedef struct {
 } MutableString;
 
 void mutableStringInit(MutableString *ms);
-void mutableStringAppend(MutableString *ms, StringView sv);
+void mutableStringAppendSV(MutableString *ms, StringView sv);
+void mutableStringAppend(MutableString *ms, const char *, int length);
+void mutableStringAppendZ(MutableString *ms, const char *);
 void mutableStringDestroy(MutableString *ms);
 
 typedef struct VolatileResource_t {
