@@ -5,6 +5,9 @@
 #define ATTO_GL_H_IMPLEMENT
 #include "atto/gl.h"
 
+#include <ctype.h>
+#include <stdio.h>
+
 #define GL(F) AGL__CALL(gl##F)
 
 static const char fs_vtx_source[] =
@@ -25,8 +28,27 @@ typedef struct {
 } RenderTexture;
 
 typedef struct {
+#define MAX_VARIABLE_NAME_LENGTH 31
+	char name[MAX_VARIABLE_NAME_LENGTH + 1];
+	enum {
+		VarType_Float,
+		VarType_Vec2,
+		VarType_Vec3,
+		VarType_Vec4
+	} type;
+	float x, y, z, w;
+} Variable;
+
+#define RENDER_MAX_SOURCE_VARIABLES 32
+
+typedef struct {
 	const char *name;
-	VolatileResource *file;
+	VolatileResource *source;
+	int source_sequence;
+	char var_prefix[3];
+	int vars;
+	Variable var[RENDER_MAX_SOURCE_VARIABLES];
+	const char *processed_source;
 } RenderSource;
 
 typedef struct {
@@ -146,10 +168,14 @@ static int renderFindSource(RenderScene *scene, const char *name) {
 	}
 
 	RenderSource *src = scene->source + scene->sources;
+	snprintf(src->var_prefix, 3, "%d", scene->sources);
+	src->processed_source = NULL;
 	src->name = strMakeCopy(name);
-	src->file = resourceOpenFile(name);
+	src->source = resourceOpenFile(name);
+	src->source_sequence = 0;
+	src->vars = 0;
 
-	if (!src->file) {
+	if (!src->source) {
 		MSG("Cannot open resource %s", name);
 		return -1;
 	}
@@ -161,8 +187,11 @@ static void renderSourceDtor(RenderSource *src) {
 	if (src->name)
 		free((char*)src->name);
 
-	if (src->file)
-		resourceClose(src->file);
+	if (src->source)
+		resourceClose(src->source);
+
+	if (src->processed_source)
+		free((char*)src->processed_source);
 }
 
 static void renderProgramDtor(RenderProgram *prog) {
@@ -279,6 +308,7 @@ static struct {
 
 	struct {
 		VolatileResource *program_source;
+		int program_sequence;
 		AGLProgram program;
 		int width, height;
 		GLuint tex, fb;
@@ -356,6 +386,7 @@ int videoInit(int width, int height, const char *filename) {
 	const int status = glCheckFramebufferStatus(GL_FRAMEBUFFER);
 	ATTO_ASSERT(status == GL_FRAMEBUFFER_COMPLETE);
 
+	g.output.program_sequence = 0;
 	g.output.program = 0;
 	g.output.program_source = resourceOpenFile("out.glsl");
 	if (!g.output.program_source) {
@@ -374,7 +405,7 @@ void videoOutputResize(int width, int height) {
 static int renderReloadProgram(AGLProgram *prog, const char * const *vertex, const char * const *fragment) {
 	AGLProgram new_program = aGLProgramCreate(vertex, fragment);
 
-	if (new_program < 0) {
+	if (new_program < 1) {
 		MSG("shader error: %s", a_gl_error);
 		return 0;
 	}
@@ -391,16 +422,140 @@ void renderProgramCheckUpdate(RenderProgram *prog) {
 	const char *fragment[RENDER_MAX_PROGRAM_SOURCES + 1];
 
 	int updated = 0;
+	int ready = 1;
 	for (int i = 0; i < RENDER_MAX_PROGRAM_SOURCES; ++i) {
 		if (prog->source_index[i] < 0) {
 			fragment[i] = NULL;
 			break;
 		}
 
-		const RenderSource *src = g.scene->source + prog->source_index[i];
+		RenderSource *src = g.scene->source + prog->source_index[i];
 
-		updated |= src->file->updated;
-		fragment[i] = src->file->bytes;
+		if (src->source->updated && src->source->sequence != src->source_sequence) {
+			if (src->processed_source) {
+				free((char*)src->processed_source);
+				src->processed_source = NULL;
+			}
+
+			src->vars = 0;
+			const char *str = src->source->bytes;
+
+			MutableString processed;
+			mutableStringInit(&processed);
+			for (;;) {
+				const char *var = str, *end = str;
+				while (*var && !(var[0] == '$' && var[1] == '(')) ++var;
+
+				if (!*var) {
+					// no further variables found
+					const StringView sv = { str, var - str };
+					mutableStringAppend(&processed, sv);
+					break;
+				}
+
+				const char *vtype = var + 2;
+				while (*vtype && isspace(*vtype)) ++vtype;
+				if (!*vtype) {
+					end = vtype;
+					goto malformed;
+				}
+
+				const char *vtype_end = vtype;
+				while (*vtype_end && (isalnum(*vtype_end) || *vtype_end == '_')) ++vtype_end;
+				if (!*vtype_end) {
+					end = vtype_end;
+					goto malformed;
+				}
+
+				const char *vname = vtype_end + 1;
+				while (*vname && isspace(*vname)) ++vname;
+				if (!*vname) {
+					end = vname;
+					goto malformed;
+				}
+
+				const char *vname_end = vname;
+				while (*vname_end && (isalnum(*vname_end) || *vname_end == '_')) ++vname_end;
+				if (!*vname_end) {
+					end = vname_end;
+					goto malformed;
+				}
+
+				const char *vend = vname_end;
+				while (*vend && isspace(vend)) ++vend;
+				end = vend;
+				if (*vend != ')')
+					goto malformed;
+
+				Variable new_var;
+				const int vtype_length = vtype_end - vtype;
+				if (strncmp("float", vtype, vtype_length) == 0) {
+					new_var.type = VarType_Float;
+				} else if (strncmp("vec2", vtype, vtype_length) == 0) {
+					new_var.type = VarType_Vec2;
+				} else if (strncmp("vec3", vtype, vtype_length) == 0) {
+					new_var.type = VarType_Vec3;
+				} else if (strncmp("vec4", vtype, vtype_length) == 0) {
+					new_var.type = VarType_Vec4;
+				} else {
+					MSG("Invalid variable type %.*s", vtype_length, vtype);
+					goto malformed;
+				}
+
+				const int vname_length = vname_end - vname;
+				if (vname_length > MAX_VARIABLE_NAME_LENGTH) {
+					MSG("Variable name %.*s (%d) is too long, limit %d", vname_length, vname, MAX_VARIABLE_NAME_LENGTH);
+					goto malformed;
+				}
+
+				memcpy(new_var.name, vname, vname_length);
+				new_var.name[vname_length] = '\0';
+
+				if (src->vars >= RENDER_MAX_SOURCE_VARIABLES) {
+					MSG("Too many variables, limit %d", RENDER_MAX_SOURCE_VARIABLES);
+					goto malformed;
+				}
+
+				StringView sv = { "var_", 4 };
+				mutableStringAppend(&processed, sv);
+				sv.str = src->var_prefix;
+				sv.length = strlen(src->var_prefix);
+				mutableStringAppend(&processed, sv);
+				sv.str = vname;
+				sv.length = vname_length;
+				mutableStringAppend(&processed, sv);
+
+				memcpy(src->var + src->vars, &new_var, sizeof(new_var));
+				++src->vars;
+				str = vend + 1;
+				continue;
+
+				malformed:
+				MSG("Error parsing variable %.*s", end - var, var);
+				mutableStringDestroy(&processed);
+				break;
+			} // for (;;) search for vars
+
+			if (processed.length > 0) {
+				src->processed_source = processed.str;
+				src->source_sequence = src->source->sequence;
+				//MSG("Source:\n%s", src->processed_source);
+				updated |= 1;
+			}
+		} // if source updated
+
+		if (!src->processed_source) {
+			MSG("Source %s is not ready", src->name);
+			ready = 0;
+			break;
+		}
+
+		fragment[i] = src->processed_source;
+	}
+
+	if (!ready) {
+		MSG("Program %s is not ready", prog->name);
+		return;
 	}
 
 	if (!updated)
@@ -418,10 +573,11 @@ void videoPaint() {
 		return;
 	}
 
-	if (g.output.program_source->updated) {
+	if (g.output.program_source->sequence != g.output.program_sequence) {
 		const char * vertex[] = { fs_vtx_source, NULL };
 		const char * fragment[] = { g.output.program_source->bytes, NULL };
 		renderReloadProgram(&g.output.program, vertex, fragment);
+		g.output.program_sequence = g.output.program_source->sequence;
 	}
 
 	if (!g.scene)

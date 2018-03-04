@@ -40,11 +40,12 @@ TOOL_EXE = $(OBJDIR)/tool/tool
 TOOL_SRCS = \
 	atto/src/app_linux.c \
 	atto/src/app_x11.c \
+	tool/audio_raw.c \
 	tool/fileres.c \
 	tool/parser.c \
 	tool/tool.c \
-	tool/video.c \
-	tool/audio_raw.c
+	tool/util.c \
+	tool/video.c
 
 TOOL_OBJS = $(TOOL_SRCS:%=$(OBJDIR)/%.o)
 TOOL_DEPS = $(TOOL_OBJS:%=%.d)

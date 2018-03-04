@@ -16,8 +16,24 @@ extern "C" {
 
 void aAppDebugPrintf(const char *fmt, ...);
 
+typedef struct {
+	const char *str;
+	int length;
+} StringView;
+
+typedef struct {
+	char *str;
+	int length;
+	int capacity;
+} MutableString;
+
+void mutableStringInit(MutableString *ms);
+void mutableStringAppend(MutableString *ms, StringView sv);
+void mutableStringDestroy(MutableString *ms);
+
 typedef struct VolatileResource_t {
 	int updated;
+	int sequence;
 	const void *bytes;
 	int size;
 } VolatileResource;

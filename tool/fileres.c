@@ -140,6 +140,7 @@ static void resourcePoll(ResourceEntry *e) {
 
 	e->prev_time = new_time;
 	e->public.updated = 1;
+	++e->public.sequence;
 
 	MSG("Reread file %s", e->filename);
 }
