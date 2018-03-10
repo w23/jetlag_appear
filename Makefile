@@ -45,6 +45,7 @@ TOOL_SRCS = \
 	tool/parser.c \
 	tool/tool.c \
 	tool/util.c \
+	tool/vars.c \
 	tool/video.c
 
 TOOL_OBJS = $(TOOL_SRCS:%=$(OBJDIR)/%.o)

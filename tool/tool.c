@@ -50,7 +50,7 @@ static int parseAudioRaw(const ParserCallbackParams *params) {
 }
 
 static int parseVariablesFile(const ParserCallbackParams *params) {
-	MSG("TODO variables file: %s", params->args[0].s);
+	varInit(params->args[0].s);
 	return 0;
 }
 
@@ -103,13 +103,12 @@ static void paint(ATimeUs ts, float dt) {
 		parseProject();
 
 	{
-		float signals[32];
-		memset(signals, 0, sizeof(signals));
-		signals[0] = audioRawGetTimeBar();
+		const float bars = audioRawGetTimeBar();
+		varFrame(bars);
 		//for (unsigned long i = 0; i < COUNTOF(signals); ++i) printf("%lu=%.1f ", i, signals[i]); printf("\n");
 
 		videoOutputResize(a_app_state->width, a_app_state->height);
-		videoPaint(signals, COUNTOF(signals), 1);
+		videoPaint();
 	}
 }
 

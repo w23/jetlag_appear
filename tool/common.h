@@ -3,6 +3,8 @@
 #include <stdint.h>
 #include <string.h>
 
+#include "atto/math.h"
+
 #define COUNTOF(a) (sizeof(a) / sizeof(*(a)))
 
 #define ASSERT(c) (void)(c)
@@ -16,10 +18,20 @@ extern "C" {
 
 void aAppDebugPrintf(const char *fmt, ...);
 
+char *strMakeCopy(const char *str);
+
 typedef struct {
 	const char *str;
 	int length;
 } StringView;
+
+static inline StringView stringView(const char *str, int length) {
+	StringView sv = { str, length }; return sv;
+}
+
+static inline StringView stringViewZ(const char *str) {
+	StringView sv = { str, strlen(str) }; return sv;
+}
 
 typedef struct {
 	char *str;
@@ -48,6 +60,34 @@ void resourcesUpdate();
 int videoInit(int width, int height, const char *filename);
 void videoOutputResize(int width, int height);
 void videoPaint();
+
+typedef enum {
+	VarType_None,
+	VarType_Float,
+	VarType_Vec2,
+	VarType_Vec3,
+	VarType_Vec4
+} VarType;
+typedef struct {
+#define MAX_VARIABLE_NAME_LENGTH 31
+	char name[MAX_VARIABLE_NAME_LENGTH + 1];
+	VarType type;
+	// TODO:
+	// - semantic
+	// - range
+	// - interpolation
+} VarDesc;
+
+typedef struct {
+	int bar, tick;
+} Timecode;
+
+VarType varGetType(StringView sv);
+const char *varGetTypeName(VarType type);
+
+void varInit(const char *filename);
+void varFrame(float bar);
+int varGet(const VarDesc *desc, AVec4f *value);
 
 /*
 void audioInit(const char *synth_src, int samplerate);
@@ -135,9 +175,7 @@ typedef struct {
 	union {
 		int i;
 		float f;
-		struct {
-			int bar, tick;
-		} time;
+		Timecode time;
 	} value;
 } ParserArg;
 

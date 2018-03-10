@@ -27,27 +27,14 @@ typedef struct {
 	int width, height;
 } RenderTexture;
 
-typedef struct {
-#define MAX_VARIABLE_NAME_LENGTH 31
-	char name[MAX_VARIABLE_NAME_LENGTH + 1];
-	enum {
-		VarType_Float,
-		VarType_Vec2,
-		VarType_Vec3,
-		VarType_Vec4
-	} type;
-	float x, y, z, w;
-} Variable;
-
 #define RENDER_MAX_SOURCE_VARIABLES 32
 
 typedef struct {
 	const char *name;
 	VolatileResource *source;
 	int source_sequence;
-	char var_prefix[3];
 	int vars;
-	Variable var[RENDER_MAX_SOURCE_VARIABLES];
+	VarDesc var[RENDER_MAX_SOURCE_VARIABLES];
 	const char *processed_source;
 } RenderSource;
 
@@ -93,7 +80,7 @@ static void renderInitTexture(GLuint tex, int w, int h, int comp, int type, void
 	GL(TexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, wrap));
 }
 
-static char *strMakeCopy(const char *str) {
+char *strMakeCopy(const char *str) {
 	const int len = strlen(str);
 	char *buf = malloc(len + 1);
 	memcpy(buf, str, len + 1);
@@ -169,7 +156,6 @@ static int renderFindSource(RenderScene *scene, const char *name) {
 	}
 
 	RenderSource *src = scene->source + scene->sources;
-	snprintf(src->var_prefix, 3, "%d", scene->sources);
 	src->processed_source = NULL;
 	src->name = strMakeCopy(name);
 	src->source = resourceOpenFile(name);
@@ -232,7 +218,7 @@ static int renderParseAddProgram(const ParserCallbackParams *params) {
 		}
 	}
 
-	prog->program = 0;
+	prog->program = -1;
 
 	return 0;
 }
@@ -492,24 +478,16 @@ void renderProgramCheckUpdate(RenderProgram *prog) {
 				if (*vend != ')')
 					goto malformed;
 
-				Variable new_var;
-				const int vtype_length = vtype_end - vtype;
-				if (strncmp("float", vtype, vtype_length) == 0) {
-					new_var.type = VarType_Float;
-				} else if (strncmp("vec2", vtype, vtype_length) == 0) {
-					new_var.type = VarType_Vec2;
-				} else if (strncmp("vec3", vtype, vtype_length) == 0) {
-					new_var.type = VarType_Vec3;
-				} else if (strncmp("vec4", vtype, vtype_length) == 0) {
-					new_var.type = VarType_Vec4;
-				} else {
-					MSG("Invalid variable type %.*s", vtype_length, vtype);
+				VarDesc new_var;
+				new_var.type = varGetType(stringView(vtype, vtype_end - vtype));
+				if (new_var.type == VarType_None) {
+					MSG("Invalid variable type %.*s", vtype_end - vtype, vtype);
 					goto malformed;
 				}
 
 				const int vname_length = vname_end - vname;
 				if (vname_length > MAX_VARIABLE_NAME_LENGTH) {
-					MSG("Variable name %.*s (%d) is too long, limit %d", vname_length, vname, MAX_VARIABLE_NAME_LENGTH);
+					MSG("VarDesc name %.*s (%d) is too long, limit %d", vname_length, vname, MAX_VARIABLE_NAME_LENGTH);
 					goto malformed;
 				}
 
@@ -521,8 +499,6 @@ void renderProgramCheckUpdate(RenderProgram *prog) {
 					goto malformed;
 				}
 
-				mutableStringAppendZ(&processed, "var_");
-				mutableStringAppendZ(&processed, src->var_prefix);
 				mutableStringAppend(&processed, vname, vname_length);
 
 				memcpy(src->var + src->vars, &new_var, sizeof(new_var));
@@ -539,7 +515,7 @@ void renderProgramCheckUpdate(RenderProgram *prog) {
 			if (processed.length > 0) {
 				src->processed_source = processed.str;
 				src->source_sequence = src->source->sequence;
-				//MSG("Source:\n%s", src->processed_source);
+				MSG("Source:\n%s", src->processed_source);
 				updated |= 1;
 			}
 		} // if source updated
@@ -570,18 +546,17 @@ void renderProgramCheckUpdate(RenderProgram *prog) {
 		const RenderSource *src = g.scene->source + prog->source_index[i];
 
 		for (int j = 0; j < src->vars; ++j) {
-			const Variable *v = src->var + j;
-			mutableStringAppendZ(&var_header, "uniform ");
+			const VarDesc *v = src->var + j;
 			const char *vtype = "";
 			switch (v->type) {
-			case VarType_Float: vtype = "float"; break;
-			case VarType_Vec2: vtype = "vec2"; break;
-			case VarType_Vec3: vtype = "vec3"; break;
-			case VarType_Vec4: vtype = "vec4"; break;
+			case VarType_None: /* FIXME assert */ continue;
+			case VarType_Float: vtype = "float "; break;
+			case VarType_Vec2: vtype = "vec2 "; break;
+			case VarType_Vec3: vtype = "vec3 "; break;
+			case VarType_Vec4: vtype = "vec4 "; break;
 			}
+			mutableStringAppendZ(&var_header, "uniform ");
 			mutableStringAppendZ(&var_header, vtype);
-			mutableStringAppendZ(&var_header, " var_");
-			mutableStringAppendZ(&var_header, src->var_prefix);
 			mutableStringAppendZ(&var_header, src->var[j].name);
 			mutableStringAppendZ(&var_header, ";\n");
 		}
@@ -652,12 +627,30 @@ void videoPaint() {
 		GL(UseProgram(prog->program));
 		GL(Uniform1iv(glGetUniformLocation(prog->program, "S"), g.scene->textures, samplers));
 
-		// FIXME
-		//const int itime = signals[0] * 8 * 44100;
-		static int itime = 0;
-		itime += 8 * 44100 / 280;
-		//GL(Uniform1fv(glGetUniformLocation(pass->program, "F"), num_signals, signals));
-		GL(Uniform1iv(glGetUniformLocation(prog->program, "F"), 1, &itime));
+		for (int i = 0; i < RENDER_MAX_PROGRAM_SOURCES; ++i) {
+			if (prog->source_index[i] < 0)
+				break;
+			const RenderSource *src = g.scene->source + prog->source_index[i];
+
+			for (int j = 0; j < src->vars; ++j) {
+				const VarDesc *var = src->var + j;
+				AVec4f v;
+				varGet(var, &v);
+
+				const int loc = glGetUniformLocation(prog->program, var->name);
+				MSG("%s %d %f %f %f %f", var->name, loc, v.x, v.y, v.z, v.w);
+				if (loc < 0)
+					continue;
+
+				switch (var->type) {
+				case VarType_None: continue;
+				case VarType_Float: GL(Uniform1f(loc, v.x)); break;
+				case VarType_Vec2: GL(Uniform2f(loc, v.x, v.y)); break;
+				case VarType_Vec3: GL(Uniform3f(loc, v.x, v.y, v.z)); break;
+				case VarType_Vec4: GL(Uniform4f(loc, v.x, v.y, v.z, v.w)); break;
+				}
+			} // for src->vars
+		} // for src in program sources
 
 		GL(Rects(-1,-1,1,1));
 	}
