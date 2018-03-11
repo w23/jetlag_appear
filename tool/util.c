@@ -44,3 +44,11 @@ void mutableStringDestroy(MutableString *ms) {
 		free(ms->str);
 	mutableStringInit(ms);
 }
+
+char *mutableStringRelease(MutableString *ms) {
+	char *retval = ms->str;
+	ms->str = NULL;
+	ms->capacity = 0;
+	ms->length = 0;
+	return retval;
+}

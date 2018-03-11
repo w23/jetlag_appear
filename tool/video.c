@@ -513,7 +513,7 @@ void renderProgramCheckUpdate(RenderProgram *prog) {
 			} // for (;;) search for vars
 
 			if (processed.length > 0) {
-				src->processed_source = processed.str;
+				src->processed_source = mutableStringRelease(&processed);
 				src->source_sequence = src->source->sequence;
 				MSG("Source:\n%s", src->processed_source);
 				updated |= 1;
@@ -565,7 +565,7 @@ void renderProgramCheckUpdate(RenderProgram *prog) {
 	if (prog->header)
 		free((char*)prog->header);
 
-	prog->header = var_header.str;
+	prog->header = mutableStringRelease(&var_header);
 	fragment[0] = prog->header ? prog->header : "";
 
 	MSG("%s", prog->header);
@@ -638,7 +638,7 @@ void videoPaint() {
 				varGet(var, &v);
 
 				const int loc = glGetUniformLocation(prog->program, var->name);
-				MSG("%s %d %f %f %f %f", var->name, loc, v.x, v.y, v.z, v.w);
+				//MSG("%s %d %f %f %f %f", var->name, loc, v.x, v.y, v.z, v.w);
 				if (loc < 0)
 					continue;
 
