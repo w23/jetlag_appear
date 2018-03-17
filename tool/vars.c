@@ -145,6 +145,11 @@ static struct {
 
 	float bar;
 	int frame_sequence;
+
+	struct {
+		int override;
+		AVec4f value;
+	} scratch[VAR_MAX_VARS];
 } g;
 
 static int varParse(const char *source) {
@@ -196,10 +201,12 @@ int varGet(const VarDesc *desc, AVec4f *value) {
 	VarScene *scene = g.scene + g.active_scene;
 
 	VarData *data = NULL;
+	int var_index = -1;
 	for (int i = 0; i < scene->table.vars; ++i) {
 		VarData *vd = scene->table.var + i;
 		if (strcmp(vd->desc.name, desc->name) == 0) {
 			// FIXME check type
+			var_index = i;
 			data = vd;
 			break;
 		}
@@ -210,9 +217,16 @@ int varGet(const VarDesc *desc, AVec4f *value) {
 			return -1;
 
 		data = scene->table.var + scene->table.vars;
+		g.scratch[scene->table.vars].override = 0;
+		var_index = scene->table.vars;
 		++scene->table.vars;
 		data->desc = *desc;
 		data->points = 0;
+	} else {
+		if (g.scratch[var_index].override) {
+			*value = g.scratch[var_index].value;
+			return 0;
+		}
 	}
 
 	float bar;
@@ -241,4 +255,115 @@ int varGet(const VarDesc *desc, AVec4f *value) {
 	*value = v;
 	//MSG("%f, %s = %f %f %f %f", g.bar, data->desc.name, v.x, v.y, v.z, v.w);
 	return 0;
+}
+
+static struct {
+	int selected;
+	AVec3f pos, up, dir;
+	AMat3f axes;
+	int forward, right, run;
+} tool_camera;
+
+void toolCameraRecompute() {
+	tool_camera.dir = aVec3fNormalize(tool_camera.dir);
+	const struct AVec3f
+			z = aVec3fNeg(tool_camera.dir),
+			x = aVec3fNormalize(aVec3fCross(tool_camera.up, z)),
+			y = aVec3fCross(z, x);
+	tool_camera.axes = aMat3fv(x, y, z);
+}
+
+int toolCameraInput(const InputEvent *evt) {
+	if (!tool_camera.selected) {
+		if (evt->type == Input_Key && evt->e.key.code == AK_C) {
+			{
+				AVec4f v;
+				VarDesc vd = { "cam_pos", VarType_Vec3 };
+				varGet(&vd, &v);
+				tool_camera.pos = aVec3f(v.x, v.y, v.z);
+			}
+			{
+				AVec4f v;
+				VarDesc vd = { "cam_at", VarType_Vec3 };
+				varGet(&vd, &v);
+				tool_camera.dir = aVec3fSub(aVec3f(v.x, v.y, v.z), tool_camera.pos);
+			}
+			tool_camera.up = aVec3f(0, 1, 0);
+			toolCameraRecompute();
+
+			tool_camera.selected = 1;
+			return 1;
+		}
+
+		return 0;
+	}
+
+	if (evt->type == Input_Key) {
+		const int pressed = evt->e.key.down;
+		switch (evt->e.key.code) {
+			case AK_W: tool_camera.forward += pressed?1:-1; return 1;
+			case AK_S: tool_camera.forward += pressed?-1:1; return 1;
+			case AK_A: tool_camera.right += pressed?-1:1; return 1;
+			case AK_D: tool_camera.right += pressed?1:-1; return 1;
+			case AK_LeftShift: tool_camera.run = pressed; return 1;
+			case AK_Esc: tool_camera.selected = tool_camera.forward = tool_camera.right = tool_camera.run = 0; return -1;
+			default: return 0;
+		}
+	} else if (evt->type == Input_Pointer) {
+		int changed = 0;
+		if (evt->e.pointer.dx != 0) {
+			const struct AMat3f rot = aMat3fRotateAxis(tool_camera.up, evt->e.pointer.dx * 4e-3f);
+			tool_camera.dir = aVec3fMulMat(rot, tool_camera.dir);
+			changed = 1;
+		}
+		if (evt->e.pointer.dy != 0) {
+			const struct AMat3f rot = aMat3fRotateAxis(tool_camera.axes.X, evt->e.pointer.dy * -4e-3f);
+			tool_camera.dir = aVec3fMulMat(rot, tool_camera.dir);
+			changed = 1;
+		}
+
+		if (changed) {
+			toolCameraRecompute();
+			return 1;
+		}
+	}
+
+	return 0;
+}
+
+void updateOverrides(int result) {
+VarScene *scene = g.scene + g.active_scene;
+for (int i = 0; i < scene->table.vars; ++i) {
+	VarData *vd = scene->table.var + i;
+	if (strcmp(vd->desc.name, "cam_pos") == 0) {
+		g.scratch[i].override = result > 0;
+		g.scratch[i].value = aVec4f3(tool_camera.pos, 0.);
+	} else if (strcmp(vd->desc.name, "cam_dir") == 0) {
+		g.scratch[i].override = result > 0;
+		g.scratch[i].value = aVec4f3(tool_camera.dir, 0.);
+	} else if (strcmp(vd->desc.name, "cam_up") == 0) {
+		g.scratch[i].override = result > 0;
+		g.scratch[i].value = aVec4f3(tool_camera.up, 0.);
+	}
+}
+}
+
+void varUpdate(float dt) {
+	//MSG("cam %d %d %d", tool_camera.selected, tool_camera.forward, tool_camera.right);
+	//MSG("cam %f %f %f %f", tool_camera.pos.x, tool_camera.pos.y, tool_camera.pos.z);
+	if (tool_camera.selected && (tool_camera.forward  || tool_camera.right)) {
+		dt *= -10.f;
+		const AVec3f v = { tool_camera.right * (1 + 9 * tool_camera.run), 0, tool_camera.forward * (1 + 9 * tool_camera.run) };
+		tool_camera.pos = aVec3fAdd(tool_camera.pos, aVec3fMulf(tool_camera.axes.X, v.x * dt));
+		tool_camera.pos = aVec3fAdd(tool_camera.pos, aVec3fMulf(tool_camera.axes.Y, v.y * dt));
+		tool_camera.pos = aVec3fAdd(tool_camera.pos, aVec3fMulf(tool_camera.axes.Z, v.z * dt));
+		updateOverrides(1);
+	}
+}
+
+void varInput(const InputEvent *evt) {
+	const int result = toolCameraInput(evt);
+	if (result != 0) {
+		updateOverrides(result);
+	}
 }

@@ -94,26 +94,31 @@ static void parseProject() {
 }
 
 static void paint(ATimeUs ts, float dt) {
-	(void)dt; (void)ts;
-	//const float now = 1e-6f * ts;
+	(void)ts;
 
 	resourcesUpdate();
 
 	if (g.project->updated)
 		parseProject();
 
-	{
-		const float bars = audioRawGetTimeBar();
-		varFrame(bars);
-		//for (unsigned long i = 0; i < COUNTOF(signals); ++i) printf("%lu=%.1f ", i, signals[i]); printf("\n");
+	const float bars = audioRawGetTimeBar();
+	varFrame(bars);
 
-		videoOutputResize(a_app_state->width, a_app_state->height);
-		videoPaint();
-	}
+	varUpdate(dt);
+
+	videoOutputResize(a_app_state->width, a_app_state->height);
+	videoPaint();
 }
 
 static void key(ATimeUs ts, AKey key, int down) {
 	(void)(ts);
+	{
+		InputEvent e;
+		e.type = Input_Key;
+		e.e.key.code = key;
+		e.e.key.down = down;
+		varInput(&e);
+	}
 	if (!down)
 		return;
 	switch (key) {
@@ -121,15 +126,20 @@ static void key(ATimeUs ts, AKey key, int down) {
 		case AK_Right: audioRawSeek(audioRawGetTimeBar() + 4.); break;
 		case AK_Left: audioRawSeek(audioRawGetTimeBar() - 4.); break;
 		case AK_Q: aAppTerminate(0);
-		default: break;
+		default:
+			break;
 	}
 }
 
 static void pointer(ATimeUs ts, int dx, int dy, unsigned int buttons_changed_bits) {
 	(void)(ts);
-	(void)(dx);
-	(void)(dy);
-	(void)(buttons_changed_bits);
+	InputEvent e;
+	e.type = Input_Pointer;
+	e.e.pointer.x = e.e.pointer.y = 0;
+	e.e.pointer.dx = dx;
+	e.e.pointer.dy = dy;
+	e.e.pointer.buttons_xor = buttons_changed_bits;
+	varInput(&e);
 }
 
 static void appClose() {

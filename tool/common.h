@@ -3,6 +3,7 @@
 #include <stdint.h>
 #include <string.h>
 
+#include "atto/app.h"
 #include "atto/math.h"
 
 #define COUNTOF(a) (sizeof(a) / sizeof(*(a)))
@@ -90,6 +91,27 @@ void varInit(const char *filename);
 void varFrame(float bar);
 int varGet(const VarDesc *desc, AVec4f *value);
 
+typedef struct {
+	enum {
+		Input_Key,
+		Input_Pointer,
+		Input_MidiCtl,
+	} type;
+	union {
+		struct {
+			AKey code;
+			int down;
+		} key;
+		struct {
+			int x, y, dx, dy;
+			int buttons;
+			int buttons_xor;
+		} pointer;
+	} e;
+} InputEvent;
+
+void varInput(const InputEvent *evt);
+void varUpdate(float dt);
 /*
 void audioInit(const char *synth_src, int samplerate);
 void audioSynthesize(float *samples, int num_samples);
