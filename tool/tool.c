@@ -8,31 +8,119 @@
 #include <stdlib.h> // atoi
 #include <string.h>
 
+#define MAX_ACTIVE_TOOLS 4
+
 static struct {
 	VolatileResource *project;
+	struct {
+		Tool head;
+		Tool *stack[MAX_ACTIVE_TOOLS];
+	} tool_root;
 } g;
 
-static void audioCallback(void *userdata, float *samples, int nsamples) {
-	(void)(userdata);
-	audioRawWrite(samples, nsamples);
+int toolPush(Tool *t) {
+	if (g.tool_root.stack[MAX_ACTIVE_TOOLS-1]) {
+		MSG("Too many tools in stack, limit %d", MAX_ACTIVE_TOOLS);
+		return 0;
+	}
+
+	for (int i = 0; i < MAX_ACTIVE_TOOLS; ++i) {
+		if (g.tool_root.stack[i] == t) {
+			MSG("Tool %p already in use", t);
+			return 0;
+		}
+	}
+
+	for (int i = MAX_ACTIVE_TOOLS - 1; i > 0; --i) {
+		g.tool_root.stack[i] = g.tool_root.stack[i-1];
+	}
+
+	g.tool_root.stack[0] = t;
+	t->activate(t);
+	return 1;
 }
 
-static void midiCallback(void *userdata, const unsigned char *data, int bytes) {
-	(void)userdata;
+void toolPop(Tool *t) {
+	for (int i = 0; i < MAX_ACTIVE_TOOLS; ++i) {
+		if (g.tool_root.stack[i] == t) {
+			for (; i < MAX_ACTIVE_TOOLS - 1; ++i) {
+				g.tool_root.stack[i] = g.tool_root.stack[i+1];
+			}
+			if (t->deactivate)
+				t->deactivate(t);
+			return;
+		}
+	}
 
-	for (; bytes > 2; bytes -= 3, data += 3) {
-		//const int channel = data[0] & 0x0f;
-		switch(data[0] & 0xf0) {
-			case 0x80:
-			case 0x90:
-//				timelineMidiNote(data[1], data[2], !!(data[0] & 0x10));
+	MSG("Tool %p not found", t);
+}
+
+ToolResult toolMasterProcessEvent(struct Tool *tool, const ToolInputEvent *event) {
+	(void)tool;
+	assert(tool == &g.tool_root.head);
+
+	for (int i = 0; i < MAX_ACTIVE_TOOLS; ++i) {
+		Tool *t = g.tool_root.stack[i];
+		if (!t)
+			break;
+
+		if (!t->processEvent)
+			continue;
+
+		switch (t->processEvent(t, event)) {
+		case ToolResult_Ignored:
+			continue;
+		case ToolResult_Consumed:
+			return ToolResult_Consumed;
+		case ToolResult_Released:
+			toolPop(t);
+			return ToolResult_Released;
+		}
+	}
+
+	switch (event->type) {
+	case Input_Key:
+		if (!event->e.key.down)
+			return ToolResult_Ignored;
+		switch (event->e.key.code) {
+			case AK_Space:
+				audioRawTogglePause();
 				break;
-			case 0xb0:
-//				timelineMidiCtl(data[1], data[2]);
+			case AK_Right:
+				audioRawSeek(audioRawGetTimeBar() + 4.);
+				break;
+			case AK_Left:
+				audioRawSeek(audioRawGetTimeBar() - 4.);
+				break;
+			case AK_Q:
+				aAppTerminate(0);
+				break;
+			case AK_C:
+				toolPush(var_tools.camera);
 				break;
 			default:
-				MSG("%02x %02x %02x", data[0], data[1], data[2]);
+				return ToolResult_Ignored;
 		}
+		return ToolResult_Consumed;
+
+	case Input_Pointer:
+	case Input_MidiCtl:
+		return ToolResult_Ignored;
+	}
+
+	return ToolResult_Ignored;
+}
+
+void toolMasterUpdate(struct Tool *t, float dt) {
+	(void)t;
+	assert(t == &g.tool_root.head);
+	for (int i = 0; i < MAX_ACTIVE_TOOLS; ++i) {
+		Tool *t = g.tool_root.stack[i];
+		if (!t)
+			break;
+
+		if (t->update)
+			t->update(t, dt);
 	}
 }
 
@@ -104,7 +192,7 @@ static void paint(ATimeUs ts, float dt) {
 	const float bars = audioRawGetTimeBar();
 	varFrame(bars);
 
-	varUpdate(dt);
+	g.tool_root.head.update(&g.tool_root.head, dt);
 
 	videoOutputResize(a_app_state->width, a_app_state->height);
 	videoPaint();
@@ -112,34 +200,46 @@ static void paint(ATimeUs ts, float dt) {
 
 static void key(ATimeUs ts, AKey key, int down) {
 	(void)(ts);
-	{
-		InputEvent e;
-		e.type = Input_Key;
-		e.e.key.code = key;
-		e.e.key.down = down;
-		varInput(&e);
-	}
-	if (!down)
-		return;
-	switch (key) {
-		case AK_Space: audioRawTogglePause(); break;
-		case AK_Right: audioRawSeek(audioRawGetTimeBar() + 4.); break;
-		case AK_Left: audioRawSeek(audioRawGetTimeBar() - 4.); break;
-		case AK_Q: aAppTerminate(0);
-		default:
-			break;
-	}
+	ToolInputEvent e;
+	e.type = Input_Key;
+	e.e.key.code = key;
+	e.e.key.down = down;
+	g.tool_root.head.processEvent(&g.tool_root.head, &e);
 }
 
 static void pointer(ATimeUs ts, int dx, int dy, unsigned int buttons_changed_bits) {
 	(void)(ts);
-	InputEvent e;
+	ToolInputEvent e;
 	e.type = Input_Pointer;
 	e.e.pointer.x = e.e.pointer.y = 0;
 	e.e.pointer.dx = dx;
 	e.e.pointer.dy = dy;
 	e.e.pointer.buttons_xor = buttons_changed_bits;
-	varInput(&e);
+	g.tool_root.head.processEvent(&g.tool_root.head, &e);
+}
+
+static void audioCallback(void *userdata, float *samples, int nsamples) {
+	(void)(userdata);
+	audioRawWrite(samples, nsamples);
+}
+
+static void midiCallback(void *userdata, const unsigned char *data, int bytes) {
+	(void)userdata;
+
+	for (; bytes > 2; bytes -= 3, data += 3) {
+		//const int channel = data[0] & 0x0f;
+		switch(data[0] & 0xf0) {
+			case 0x80:
+			case 0x90:
+//				timelineMidiNote(data[1], data[2], !!(data[0] & 0x10));
+				break;
+			case 0xb0:
+//				timelineMidiCtl(data[1], data[2]);
+				break;
+			default:
+				MSG("%02x %02x %02x", data[0], data[1], data[2]);
+		}
+	}
 }
 
 static void appClose() {
@@ -164,6 +264,9 @@ void attoAppInit(struct AAppProctable *ptbl) {
 		else if (strcmp(argv, "-m") == 0)
 			midi_device = a_app_state->argv[++iarg];
 	}
+
+	g.tool_root.head.processEvent = toolMasterProcessEvent;
+	g.tool_root.head.update = toolMasterUpdate;
 
 	resourcesInit();
 

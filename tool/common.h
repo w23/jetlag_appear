@@ -108,10 +108,27 @@ typedef struct {
 			int buttons_xor;
 		} pointer;
 	} e;
-} InputEvent;
+} ToolInputEvent;
 
-void varInput(const InputEvent *evt);
-void varUpdate(float dt);
+typedef enum {
+	ToolResult_Ignored,
+	ToolResult_Consumed,
+	ToolResult_Released
+} ToolResult;
+
+typedef struct Tool {
+	void (*activate)(struct Tool *tool);
+	void (*deactivate)(struct Tool *tool);
+	ToolResult (*processEvent)(struct Tool *tool, const ToolInputEvent *event);
+	void (*update)(struct Tool *t, float dt);
+} Tool;
+
+typedef struct {
+	Tool *camera;
+} VarTools;
+
+extern VarTools var_tools;
+
 /*
 void audioInit(const char *synth_src, int samplerate);
 void audioSynthesize(float *samples, int num_samples);

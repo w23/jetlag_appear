@@ -6,7 +6,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-#define MAX_RESOURCES 16
+#define MAX_RESOURCES 32
 
 #if defined(__linux__)
 #include <unistd.h>
