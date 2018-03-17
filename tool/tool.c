@@ -181,6 +181,76 @@ static void parseProject() {
 	}
 }
 
+#define TOOL_MIDI_BUFFER_SIZE 4096
+
+static struct {
+	int top;
+	char data[TOOL_MIDI_BUFFER_SIZE];
+} midi_stack;
+
+static int midiStackPush(const char *data, int bytes) {
+	if (bytes >= TOOL_MIDI_BUFFER_SIZE)
+		return 0;
+
+	char reverse[TOOL_MIDI_BUFFER_SIZE];
+	for (int i = 0; i < bytes; ++i)
+		reverse[i] = data[bytes - i];
+
+	for (;;) {
+		int top = ATOMIC_FETCH(midi_stack.top);
+		if (top + bytes >= TOOL_MIDI_BUFFER_SIZE)
+			return 0;
+
+		memcpy(midi_stack.data + top, reverse, bytes);
+		if (ATOMIC_CAS(midi_stack.top, top, top + bytes))
+			return bytes;
+	}
+}
+
+static int midiStackPop(char *data, int size) {
+	for (;;) {
+		int top = ATOMIC_FETCH(midi_stack.top);
+		if (top > size) {
+			MSG("Buffer size %d is too small, at least %d is needed", size, top);
+			return 0;
+		}
+
+		for (int i = 0; i < top; ++i)
+			data[i] = midi_stack.data[top - i];
+
+		if (ATOMIC_CAS(midi_stack.top, top, 0))
+			return top;
+	}
+}
+
+static void processMidi() {
+	unsigned char buffer[TOOL_MIDI_BUFFER_SIZE];
+	int bytes = midiStackPop((char*)buffer, TOOL_MIDI_BUFFER_SIZE);
+	const unsigned char *data = buffer;
+
+	for (; bytes > 2; bytes -= 3, data += 3) {
+		const int channel = data[0] & 0x0f;
+		switch(data[0] & 0xf0) {
+		case 0x80:
+		case 0x90:
+//				timelineMidiNote(data[1], data[2], !!(data[0] & 0x10));
+//				break;
+		case 0xb0:
+			{
+				//timelineMidiCtl(data[1], data[2]);
+				ToolInputEvent e;
+				e.type = Input_MidiCtl;
+				e.e.midi_ctl.channel = channel;
+				e.e.midi_ctl.ctl = data[1];
+				e.e.midi_ctl.value = data[2];
+				g.tool_root.head.processEvent(&g.tool_root.head, &e);
+			}
+			//break;
+		default:
+			MSG("%02x %02x %02x", data[0], data[1], data[2]);
+		}
+	}
+}
 static void paint(ATimeUs ts, float dt) {
 	(void)ts;
 
@@ -191,6 +261,8 @@ static void paint(ATimeUs ts, float dt) {
 
 	const float bars = audioRawGetTimeBar();
 	varFrame(bars);
+
+	processMidi();
 
 	g.tool_root.head.update(&g.tool_root.head, dt);
 
@@ -225,21 +297,7 @@ static void audioCallback(void *userdata, float *samples, int nsamples) {
 
 static void midiCallback(void *userdata, const unsigned char *data, int bytes) {
 	(void)userdata;
-
-	for (; bytes > 2; bytes -= 3, data += 3) {
-		//const int channel = data[0] & 0x0f;
-		switch(data[0] & 0xf0) {
-			case 0x80:
-			case 0x90:
-//				timelineMidiNote(data[1], data[2], !!(data[0] & 0x10));
-				break;
-			case 0xb0:
-//				timelineMidiCtl(data[1], data[2]);
-				break;
-			default:
-				MSG("%02x %02x %02x", data[0], data[1], data[2]);
-		}
-	}
+	midiStackPush((char*)data, bytes);
 }
 
 static void appClose() {

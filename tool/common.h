@@ -107,6 +107,11 @@ typedef struct {
 			int buttons;
 			int buttons_xor;
 		} pointer;
+		struct {
+			int channel;
+			int ctl;
+			int value;
+		} midi_ctl;
 	} e;
 } ToolInputEvent;
 
@@ -278,7 +283,7 @@ static inline long __atomic_add_fetch(long volatile *value, long add) {
 	}
 }
 #define ATOMIC_ADD_AND_FETCH(value, add) __atomic_add_fetch(&(value), add)
-#define ATOMIC_CAS(value, expect, replace) (expect == InterlockedCompareExchange(&(value), replace, expect))
+#define ATOMIC_CAS(value, expect, replace) ((expect) == InterlockedCompareExchange(&(value), replace, expect))
 #endif
 
 #ifdef __cplusplus

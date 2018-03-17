@@ -140,6 +140,7 @@ typedef struct {
 	Tool head;
 	AVec3f pos, up, dir;
 	AMat3f axes;
+	float focus_distance;
 	int forward, right, run;
 } ToolCamera;
 
@@ -283,6 +284,12 @@ static void toolCameraActivate(Tool *tool) {
 		varGet(&vd, &v);
 		cam->dir = aVec3fSub(aVec3f(v.x, v.y, v.z), cam->pos);
 	}
+	{
+		AVec4f v;
+		VarDesc vd = { "focus_distance", VarType_Float };
+		varGet(&vd, &v);
+		cam->focus_distance = v.x;
+	}
 	cam->up = aVec3f(0, 1, 0);
 	toolCameraRecompute(cam);
 }
@@ -301,6 +308,9 @@ static ToolResult toolCameraEvent(Tool *tool, const ToolInputEvent *evt) {
 			case AK_Esc: return ToolResult_Released;
 			default: return ToolResult_Ignored;
 		}
+	} else if (evt->type == Input_MidiCtl) {
+		cam->focus_distance = evt->e.midi_ctl.value / 127.f * 20.f;
+		return ToolResult_Consumed;
 	} else if (evt->type == Input_Pointer) {
 		int changed = 0;
 		if (evt->e.pointer.dx != 0) {
@@ -336,6 +346,9 @@ static void toolCameraUpdateOverrides(ToolCamera *cam, int result) {
 		} else if (strcmp(vd->desc.name, "cam_up") == 0) {
 			g.scratch[i].override = result > 0;
 			g.scratch[i].value = aVec4f3(cam->up, 0.);
+		} else if (strcmp(vd->desc.name, "focus_distance") == 0) {
+			g.scratch[i].override = result > 0;
+			g.scratch[i].value.x = cam->focus_distance;
 		}
 	}
 }
