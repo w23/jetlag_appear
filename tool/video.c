@@ -369,7 +369,7 @@ int videoInit(int width, int height, const char *filename) {
 	GL(GenTextures(1, &g.output.tex));
 	GL(ActiveTexture(GL_TEXTURE0 + RENDER_MAX_TEXTURES));
 	renderInitTexture(g.output.tex, g.width, g.height, GL_RGBA, GL_UNSIGNED_BYTE, NULL, GL_CLAMP_TO_BORDER);
-	
+
 	GL(GenFramebuffers(1, &g.output.fb));
 	GL(BindFramebuffer(GL_FRAMEBUFFER, g.output.fb));
 	GL(FramebufferTexture2D(GL_FRAMEBUFFER,
@@ -494,16 +494,33 @@ void renderProgramCheckUpdate(RenderProgram *prog) {
 				memcpy(new_var.name, vname, vname_length);
 				new_var.name[vname_length] = '\0';
 
-				if (src->vars >= RENDER_MAX_SOURCE_VARIABLES) {
-					MSG("Too many variables, limit %d", RENDER_MAX_SOURCE_VARIABLES);
-					goto malformed;
+				int found = 0;
+				for (int j = 0; j < src->vars; ++j) {
+					const VarDesc *v = src->var + j;
+					if (strcmp(v->name, new_var.name) == 0) {
+						if (v->type == new_var.type) {
+							found = 1;
+							break;
+						} else {
+							MSG("Variable %s (type %s) was already defined with different type: %s",
+								new_var.name, varGetTypeName(new_var.type), varGetTypeName(v->type));
+							goto malformed;
+						}
+					}
 				}
 
-				mutableStringAppend(&processed, vname, vname_length);
+				if (!found) {
+					if (src->vars >= RENDER_MAX_SOURCE_VARIABLES) {
+						MSG("Too many variables, limit %d", RENDER_MAX_SOURCE_VARIABLES);
+						goto malformed;
+					}
 
-				memcpy(src->var + src->vars, &new_var, sizeof(new_var));
-				++src->vars;
+					memcpy(src->var + src->vars, &new_var, sizeof(new_var));
+					++src->vars;
+				}
+
 				str = vend + 1;
+				mutableStringAppend(&processed, vname, vname_length);
 				continue;
 
 				malformed:

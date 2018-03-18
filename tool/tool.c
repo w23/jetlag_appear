@@ -98,12 +98,19 @@ ToolResult toolMasterProcessEvent(struct Tool *tool, const ToolInputEvent *event
 			case AK_C:
 				toolPush(var_tools.camera);
 				break;
+			case AK_P:
+				varPrintOverrides();
+				break;
 			default:
 				return ToolResult_Ignored;
 		}
 		return ToolResult_Consumed;
 
 	case Input_Pointer:
+		if (event->e.pointer.buttons_xor) {
+			toolPush(var_tools.camera);
+			return ToolResult_Consumed;
+		}
 	case Input_MidiCtl:
 		return ToolResult_Ignored;
 	}

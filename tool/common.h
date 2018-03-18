@@ -90,6 +90,7 @@ const char *varGetTypeName(VarType type);
 void varInit(const char *filename);
 void varFrame(float bar);
 int varGet(const VarDesc *desc, AVec4f *value);
+void varPrintOverrides();
 
 typedef struct {
 	enum {
@@ -130,6 +131,7 @@ typedef struct Tool {
 
 typedef struct {
 	Tool *camera;
+	Tool *midi;
 } VarTools;
 
 extern VarTools var_tools;

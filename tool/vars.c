@@ -101,7 +101,7 @@ static int varParseAddPoint(const ParserCallbackParams *params) {
 	}
 
 	VarData *data = scene->table.var + scene->table.vars - 1;
-	
+
 	if (data->points == VAR_MAX_POINTS) {
 		MSG("Variable %s has too many points, limit %d", data->desc.name, VAR_MAX_POINTS);
 		return -1;
@@ -144,6 +144,26 @@ typedef struct {
 	int forward, right, run;
 } ToolCamera;
 
+#define VAR_MAX_MIDI_MAP 128
+
+typedef struct {
+	char var_name[MAX_VARIABLE_NAME_LENGTH];
+	int override;
+	int override_toggle_note;
+	int channel;
+	int component;
+	float min, max;
+	float value;
+} ToolMidiMap;
+
+typedef struct {
+	Tool head;
+	VolatileResource *map_source;
+
+	int active_map;
+	ToolMidiMap map[2];
+} ToolMidi;
+
 static struct {
 	const char *filename;
 	VolatileResource *source;
@@ -160,6 +180,7 @@ static struct {
 	} scratch[VAR_MAX_VARS];
 
 	ToolCamera tool_camera;
+	ToolMidi tool_midi;
 } g;
 
 static int varParse(const char *source) {
@@ -268,10 +289,7 @@ static void toolCameraRecompute(ToolCamera *cam) {
 	cam->axes = aMat3fv(x, y, z);
 }
 
-static void toolCameraActivate(Tool *tool) {
-	ToolCamera *cam = (ToolCamera*)tool;
-	cam->forward = cam->right = cam->run = 0;
-
+static void toolCameraReadVars(ToolCamera *cam) {
 	{
 		AVec4f v;
 		VarDesc vd = { "cam_pos", VarType_Vec3 };
@@ -294,43 +312,12 @@ static void toolCameraActivate(Tool *tool) {
 	toolCameraRecompute(cam);
 }
 
-static ToolResult toolCameraEvent(Tool *tool, const ToolInputEvent *evt) {
+static void toolCameraActivate(Tool *tool) {
 	ToolCamera *cam = (ToolCamera*)tool;
+	cam->forward = cam->right = cam->run = 0;
 
-	if (evt->type == Input_Key) {
-		const int pressed = evt->e.key.down;
-		switch (evt->e.key.code) {
-			case AK_W: cam->forward += pressed?1:-1; return 1;
-			case AK_S: cam->forward += pressed?-1:1; return 1;
-			case AK_A: cam->right += pressed?-1:1; return 1;
-			case AK_D: cam->right += pressed?1:-1; return 1;
-			case AK_LeftShift: cam->run = pressed; return 1;
-			case AK_Esc: return ToolResult_Released;
-			default: return ToolResult_Ignored;
-		}
-	} else if (evt->type == Input_MidiCtl) {
-		cam->focus_distance = evt->e.midi_ctl.value / 127.f * 20.f;
-		return ToolResult_Consumed;
-	} else if (evt->type == Input_Pointer) {
-		int changed = 0;
-		if (evt->e.pointer.dx != 0) {
-			const struct AMat3f rot = aMat3fRotateAxis(cam->up, evt->e.pointer.dx * 4e-3f);
-			cam->dir = aVec3fMulMat(rot, cam->dir);
-			changed = 1;
-		}
-		if (evt->e.pointer.dy != 0) {
-			const struct AMat3f rot = aMat3fRotateAxis(cam->axes.X, evt->e.pointer.dy * -4e-3f);
-			cam->dir = aVec3fMulMat(rot, cam->dir);
-			changed = 1;
-		}
-
-		if (changed) {
-			toolCameraRecompute(cam);
-			return ToolResult_Consumed;
-		}
-	}
-
-	return ToolResult_Ignored;
+	toolCameraReadVars(cam);
+	aAppGrabInput(1);
 }
 
 static void toolCameraUpdateOverrides(ToolCamera *cam, int result) {
@@ -353,9 +340,49 @@ static void toolCameraUpdateOverrides(ToolCamera *cam, int result) {
 	}
 }
 
-static void toolCameraDeactivate(Tool *tool) {
+static ToolResult toolCameraEvent(Tool *tool, const ToolInputEvent *evt) {
 	ToolCamera *cam = (ToolCamera*)tool;
-	toolCameraUpdateOverrides(cam, 0);
+
+	if (evt->type == Input_Key) {
+		const int pressed = evt->e.key.down;
+		switch (evt->e.key.code) {
+			case AK_W: cam->forward += pressed?1:-1; return ToolResult_Consumed;
+			case AK_S: cam->forward += pressed?-1:1; return ToolResult_Consumed;
+			case AK_A: cam->right += pressed?-1:1; return ToolResult_Consumed;
+			case AK_D: cam->right += pressed?1:-1; return ToolResult_Consumed;
+			case AK_Q: toolCameraUpdateOverrides(cam, 0); return ToolResult_Released;
+			case AK_LeftShift: cam->run = pressed; return ToolResult_Consumed;
+			case AK_Esc: return ToolResult_Released;
+			default: return ToolResult_Ignored;
+		}
+	} else if (evt->type == Input_MidiCtl) {
+		cam->focus_distance = evt->e.midi_ctl.value / 127.f * 20.f;
+		return ToolResult_Consumed;
+	} else if (evt->type == Input_Pointer) {
+		int changed = 0;
+		if (evt->e.pointer.dx != 0) {
+			const struct AMat3f rot = aMat3fRotateAxis(cam->up, evt->e.pointer.dx * -4e-3f);
+			cam->dir = aVec3fMulMat(rot, cam->dir);
+			changed = 1;
+		}
+		if (evt->e.pointer.dy != 0) {
+			const struct AMat3f rot = aMat3fRotateAxis(cam->axes.X, evt->e.pointer.dy * -4e-3f);
+			cam->dir = aVec3fMulMat(rot, cam->dir);
+			changed = 1;
+		}
+
+		if (changed) {
+			toolCameraRecompute(cam);
+			return ToolResult_Consumed;
+		}
+	}
+
+	return ToolResult_Ignored;
+}
+
+static void toolCameraDeactivate(Tool *tool) {
+	(void)tool;
+	aAppGrabInput(0);
 }
 
 static void toolCameraUpdate(Tool *tool, float dt) {
@@ -363,9 +390,11 @@ static void toolCameraUpdate(Tool *tool, float dt) {
 	//MSG("cam %d %d", cam->forward, cam->right);
 	//MSG("cam %f %f %f %f", cam->pos.x, cam->pos.y, cam->pos.z);
 	if (cam->forward  || cam->right) {
-		dt *= -10.f;
-		const AVec3f v = { (float)(cam->right * (1 + 9 * cam->run)), 0,
-			(float)(cam->forward * (1 + 9 * cam->run)) };
+		dt *= 10.f;
+		const AVec3f v = {
+			(float)(cam->right * (1 + 9 * cam->run)), 0,
+			(float)(-cam->forward * (1 + 9 * cam->run))
+		};
 		cam->pos = aVec3fAdd(cam->pos, aVec3fMulf(cam->axes.X, v.x * dt));
 		cam->pos = aVec3fAdd(cam->pos, aVec3fMulf(cam->axes.Y, v.y * dt));
 		cam->pos = aVec3fAdd(cam->pos, aVec3fMulf(cam->axes.Z, v.z * dt));
@@ -386,6 +415,20 @@ void varInit(const char *filename) {
 	g.tool_camera.head.update = toolCameraUpdate;
 }
 
+void varPrintOverrides() {
+	const VarTable *t = &g.scene[g.active_scene].table;
+	for (int i = 0; i < t->vars; ++i) {
+		if (g.scratch[i].override) {
+			MSG("override %s: %f %f %f %f", t->var[i].desc.name,
+				g.scratch[i].value.x,
+				g.scratch[i].value.y,
+				g.scratch[i].value.z,
+				g.scratch[i].value.w);
+		}
+	}
+}
+
 VarTools var_tools = {
-	&g.tool_camera.head
+	&g.tool_camera.head,
+	&g.tool_midi.head
 };
