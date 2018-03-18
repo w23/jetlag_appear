@@ -31,7 +31,7 @@ static inline StringView stringView(const char *str, int length) {
 }
 
 static inline StringView stringViewZ(const char *str) {
-	StringView sv = { str, strlen(str) }; return sv;
+	StringView sv = { str, (int)strlen(str) }; return sv;
 }
 
 typedef struct {

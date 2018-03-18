@@ -36,7 +36,7 @@ void mutableStringAppend(MutableString *ms, const char *str, int length) {
 }
 
 void mutableStringAppendZ(MutableString *ms, const char *str) {
-	mutableStringAppend(ms, str, strlen(str));
+	mutableStringAppend(ms, str, (int)strlen(str));
 }
 
 void mutableStringDestroy(MutableString *ms) {

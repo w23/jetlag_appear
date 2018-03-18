@@ -107,7 +107,9 @@ void audioClose() {
 	// TODO Close midi
 }
 #elif defined(_WIN32)
-int audioOpen(void *userdata, audio_callback_f acb, const char *dev, midi_callback_f mcb) { return 1;  }
+int audioOpen(int samplerate, int channels, void *userdata, audio_callback_f acb, const char *midi, midi_callback_f mcb) {
+	return 1;
+}
 void audioClose() {}
 
 #else

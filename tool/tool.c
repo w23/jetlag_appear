@@ -1,5 +1,4 @@
 #include "common.h"
-#include "../4klang.h"
 
 #include "atto/app.h"
 #define AUDIO_IMPLEMENT
@@ -7,6 +6,7 @@
 
 #include <stdlib.h> // atoi
 #include <string.h>
+#include <assert.h>
 
 #define MAX_ACTIVE_TOOLS 4
 
@@ -87,10 +87,10 @@ ToolResult toolMasterProcessEvent(struct Tool *tool, const ToolInputEvent *event
 				audioRawTogglePause();
 				break;
 			case AK_Right:
-				audioRawSeek(audioRawGetTimeBar() + 4.);
+				audioRawSeek(audioRawGetTimeBar() + 4.f);
 				break;
 			case AK_Left:
-				audioRawSeek(audioRawGetTimeBar() - 4.);
+				audioRawSeek(audioRawGetTimeBar() - 4.f);
 				break;
 			case AK_Q:
 				aAppTerminate(0);
@@ -131,7 +131,7 @@ enum {
 };
 
 static int parseAudioRaw(const ParserCallbackParams *params) {
-	if (!audioRawInit(params->args[0].s, SAMPLE_RATE, params->args[2].value.i, BPM))
+	if (!audioRawInit(params->args[0].s, 44100, params->args[2].value.i, 120))
 		aAppTerminate(-2);
 
 	return 0;
@@ -335,6 +335,6 @@ void attoAppInit(struct AAppProctable *ptbl) {
 
 	videoInit(width, height, "yo28.scene");
 
-	if (1 != audioOpen(SAMPLE_RATE, 2, NULL, audioCallback, midi_device, midiCallback))
+	if (1 != audioOpen(44100, 2, NULL, audioCallback, midi_device, midiCallback))
 		aAppTerminate(-1);
 }

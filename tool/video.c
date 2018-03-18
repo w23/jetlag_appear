@@ -81,7 +81,7 @@ static void renderInitTexture(GLuint tex, int w, int h, int comp, int type, void
 }
 
 char *strMakeCopy(const char *str) {
-	const int len = strlen(str);
+	const int len = (int)strlen(str);
 	char *buf = malloc(len + 1);
 	memcpy(buf, str, len + 1);
 	return buf;
@@ -437,7 +437,7 @@ void renderProgramCheckUpdate(RenderProgram *prog) {
 				const char *var = str, *end = str;
 				while (*var && !(var[0] == '$' && var[1] == '(')) ++var;
 
-				mutableStringAppend(&processed, str, var - str);
+				mutableStringAppend(&processed, str, (int)(var - str));
 
 				if (!*var) {
 					// no further variables found
@@ -479,13 +479,13 @@ void renderProgramCheckUpdate(RenderProgram *prog) {
 					goto malformed;
 
 				VarDesc new_var;
-				new_var.type = varGetType(stringView(vtype, vtype_end - vtype));
+				new_var.type = varGetType(stringView(vtype, (int)(vtype_end - vtype)));
 				if (new_var.type == VarType_None) {
 					MSG("Invalid variable type %.*s", vtype_end - vtype, vtype);
 					goto malformed;
 				}
 
-				const int vname_length = vname_end - vname;
+				const int vname_length = (int)(vname_end - vname);
 				if (vname_length > MAX_VARIABLE_NAME_LENGTH) {
 					MSG("VarDesc name %.*s (%d) is too long, limit %d", vname_length, vname, MAX_VARIABLE_NAME_LENGTH);
 					goto malformed;

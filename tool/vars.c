@@ -364,7 +364,8 @@ static void toolCameraUpdate(Tool *tool, float dt) {
 	//MSG("cam %f %f %f %f", cam->pos.x, cam->pos.y, cam->pos.z);
 	if (cam->forward  || cam->right) {
 		dt *= -10.f;
-		const AVec3f v = { cam->right * (1 + 9 * cam->run), 0, cam->forward * (1 + 9 * cam->run) };
+		const AVec3f v = { (float)(cam->right * (1 + 9 * cam->run)), 0,
+			(float)(cam->forward * (1 + 9 * cam->run)) };
 		cam->pos = aVec3fAdd(cam->pos, aVec3fMulf(cam->axes.X, v.x * dt));
 		cam->pos = aVec3fAdd(cam->pos, aVec3fMulf(cam->axes.Y, v.y * dt));
 		cam->pos = aVec3fAdd(cam->pos, aVec3fMulf(cam->axes.Z, v.z * dt));
