@@ -101,6 +101,9 @@ ToolResult toolMasterProcessEvent(struct Tool *tool, const ToolInputEvent *event
 			case AK_P:
 				varPrintOverrides();
 				break;
+			case AK_M:
+				audioRawToggleMute();
+				break;
 			default:
 				return ToolResult_Ignored;
 		}

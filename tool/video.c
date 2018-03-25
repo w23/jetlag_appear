@@ -50,6 +50,10 @@ typedef struct {
 	int program_index;
 	GLuint fb;
 	int targets;
+	struct {
+		int frames;
+		float time;
+	} stats;
 } RenderPass;
 
 #define DECLARE_TABLE(type,name,max) \
@@ -627,8 +631,10 @@ void videoPaint() {
 
 	GL(Viewport(0, 0, g.width, g.height));
 	for (int i = 0; i < g.scene->passs; ++i) {
-		const RenderPass *pass = g.scene->pass + i;
+		RenderPass *pass = g.scene->pass + i;
 		const RenderProgram *prog = g.scene->program + pass->program_index;
+
+		const ATimeUs time_start = aAppTime();
 
 		static const GLuint bufs[] = {
 			GL_COLOR_ATTACHMENT0, GL_COLOR_ATTACHMENT1, GL_COLOR_ATTACHMENT2, GL_COLOR_ATTACHMENT3};
@@ -670,6 +676,17 @@ void videoPaint() {
 		} // for src in program sources
 
 		GL(Rects(-1,-1,1,1));
+		GL(Finish());
+
+		++pass->stats.frames;
+		pass->stats.time += (aAppTime() - time_start) * 1e-6f;
+
+		if (pass->stats.frames % 60 == 0) {
+			if (i == 0) MSG("-----");
+			MSG("Pass %d avg time %.2fms", i, 1000.f * pass->stats.time / pass->stats.frames);
+			pass->stats.time = 0;
+			pass->stats.frames = 0;
+		}
 	}
 
 	GL(BindFramebuffer(GL_FRAMEBUFFER, 0));

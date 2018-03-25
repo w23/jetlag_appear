@@ -145,6 +145,7 @@ void audioCheckUpdate();
 int audioRawInit(const char *filename, int samplerate, int channels, int bpm);
 void audioRawWrite(float *samples, int num_samples);
 int audioRawTogglePause();
+int audioRawToggleMute();
 void audioRawSeek(float bar);
 float audioRawGetTimeBar();
 

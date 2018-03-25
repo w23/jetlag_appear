@@ -9,6 +9,7 @@ static struct {
 	int samplerate;
 	int bpm;
 	int paused;
+	int muted;
 } state;
 
 int audioRawInit(const char *filename, int samplerate, int channels, int bpm) {
@@ -52,13 +53,17 @@ void audioRawWrite(float *samples, int num_samples) {
 		state.sample %= state.samples;
 		if (state.buffer)
 			for (int j = 0; j < state.channels; ++j)
-				samples[i*state.channels + j] = state.buffer[state.channels * state.sample + j];
+				samples[i*state.channels + j] = state.buffer[state.channels * state.sample + j] * (state.muted ^ 1);
 		++state.sample;
 	}
 }
 
 int audioRawTogglePause() {
 	return state.paused ^= 1;
+}
+
+int audioRawToggleMute() {
+	return state.muted ^= 1;
 }
 
 void audioRawSeek(float bar) {

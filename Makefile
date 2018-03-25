@@ -68,8 +68,8 @@ DUMP_AUDIO_DEPS = $(DUMP_AUDIO_OBJS:%=%.d)
 $(DUMP_AUDIO_EXE): $(DUMP_AUDIO_OBJS) $(OBJDIR)/4klang.o32
 	$(CC) -m32 $(LIBS) $^ -o $@
 
-audio.raw: $(DUMP_AUDIO_EXE)
-	$(DUMP_AUDIO_EXE) $@
+#audio.raw: $(DUMP_AUDIO_EXE)
+#	$(DUMP_AUDIO_EXE) $@
 
 clean:
 	rm -f $(TOOL_OBJS) $(TOOL_DEPS) $(TOOL_EXE)

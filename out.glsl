@@ -21,8 +21,20 @@ void main() {
 #if TEXTURE
 	gl_FragColor = texture2D(S[TEXTURE], gl_FragCoord.xy / textureSize(S[TEXTURE],0));
 #else
-	//gl_FragColor = K * texture2D(S[TEXTURE], gl_FragCoord.xy / VIEWPORT);
 	gl_FragColor = K * texture2D(OUTPUT, gl_FragCoord.xy / VIEWPORT);
+	/*
+	vec2 tex_size = textureSize(OUTPUT, 0);
+	float tex_aspect = tex_size.x / tex_size.y;
+	float viewport_aspect = VIEWPORT.x / VIEWPORT.y;
+	vec2 uv = gl_FragCoord.xy / VIEWPORT;
+	float aspect_d = viewport_aspect - tex_aspect;
+	if (aspect_d > 0.) {
+		uv.x = uv.x * tex_aspect / viewport_aspect - aspect_d / viewport_aspect * .5;
+	} else{
+		uv.y = uv.y * tex_aspect / viewport_aspect - aspect_d / viewport_aspect * .5;
+	}
+	gl_FragColor = K * texture2D(OUTPUT, uv);
+	*/
 	//gl_FragColor = 1.*texture2D(S[TEXTURE], gl_FragCoord.xy / textureSize(S[TEXTURE],0)).wwww;
 #endif
 	//gl_FragColor.z += step(T(6,gl_FragCoord.xy).x,0.);
