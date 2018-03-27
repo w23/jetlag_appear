@@ -8,6 +8,18 @@
 #include <string.h>
 #include <assert.h>
 
+static struct {
+	int width, height;
+	const char *project_filename;
+	const char *midi_device;
+	int export_only;
+} settings = {
+	1280, 720,
+	"intro.proj",
+	"",
+	0
+};
+
 #define MAX_ACTIVE_TOOLS 4
 
 static struct {
@@ -17,6 +29,11 @@ static struct {
 		Tool *stack[MAX_ACTIVE_TOOLS];
 	} tool_root;
 } g;
+
+static int doExport() {
+	MSG("Export not implemented");
+	return -1;
+}
 
 int toolPush(Tool *t) {
 	if (g.tool_root.stack[MAX_ACTIVE_TOOLS-1]) {
@@ -104,6 +121,9 @@ ToolResult toolMasterProcessEvent(struct Tool *tool, const ToolInputEvent *event
 			case AK_M:
 				audioRawToggleMute();
 				break;
+			case AK_E:
+				doExport();
+				break;
 			default:
 				return ToolResult_Ignored;
 		}
@@ -153,9 +173,12 @@ static int parseVariablesFile(const ParserCallbackParams *params) {
 }
 
 static int parseScene(const ParserCallbackParams *params) {
-	MSG("TODO add scene at %d:%d from file %s",
+	MSG("add scene at %d:%d from file %s",
 			params->args[0].value.time.bar, params->args[0].value.time.tick,
 			params->args[1].s);
+
+	const char *scene = params->args[1].s;
+	videoInit(settings.width, settings.height, scene);
 	return 0;
 }
 
@@ -320,17 +343,18 @@ void attoAppInit(struct AAppProctable *ptbl) {
 	ptbl->paint = paint;
 	ptbl->close = appClose;
 
-	const char *project = "intro.proj";
-	int width = 1280, height = 720;
-	const char* midi_device = "";
 	for (int iarg = 1; iarg < a_app_state->argc; ++iarg) {
 		const char *argv = a_app_state->argv[iarg];
 		if (strcmp(argv, "-w") == 0)
-			width = atoi(a_app_state->argv[++iarg]);
+			settings.width = atoi(a_app_state->argv[++iarg]);
 		else if (strcmp(argv, "-h") == 0)
-			height = atoi(a_app_state->argv[++iarg]);
+			settings.height = atoi(a_app_state->argv[++iarg]);
 		else if (strcmp(argv, "-m") == 0)
-			midi_device = a_app_state->argv[++iarg];
+			settings.midi_device = a_app_state->argv[++iarg];
+		else if (strcmp(argv, "-e") == 0)
+			settings.export_only = 1;
+		else
+			settings.project_filename = argv;
 	}
 
 	g.tool_root.head.processEvent = toolMasterProcessEvent;
@@ -338,13 +362,17 @@ void attoAppInit(struct AAppProctable *ptbl) {
 
 	resourcesInit();
 
-	if (!(g.project = resourceOpenFile(project))) {
-		MSG("Cannot open project file %s", project);
+	if (!(g.project = resourceOpenFile(settings.project_filename))) {
+		MSG("Cannot open project file %s", settings.project_filename);
 		aAppTerminate(-1);
 	}
 
-	videoInit(width, height, "yo28.scene");
+	if (settings.export_only) {
+		const int code = doExport();
+		MSG("Export result code = %d", code);
+		aAppTerminate(code);
+	}
 
-	if (1 != audioOpen(44100, 2, NULL, audioCallback, midi_device, midiCallback))
+	if (1 != audioOpen(44100, 2, NULL, audioCallback, settings.midi_device, midiCallback))
 		aAppTerminate(-1);
 }
