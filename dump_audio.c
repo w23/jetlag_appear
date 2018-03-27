@@ -1,3 +1,7 @@
+#ifndef _CRT_SECURE_NO_WARNINGS
+#define _CRT_SECURE_NO_WARNINGS
+#endif
+
 #include "4klang.h"
 #include <string.h>
 #include <stdio.h>
@@ -36,8 +40,10 @@ int main(int argc, char *argv[]) {
 	memset(&sa, 0, sizeof(sa));
 	sa.sa_handler = handleCrash;
 	sigaction(SIGSEGV, &sa, NULL);
-#endif
 	__4klang_render(sound_buffer);
+#else
+	_4klang_render(sound_buffer);
+#endif
 	write_buffer();
 	return 0;
 }
