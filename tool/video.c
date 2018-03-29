@@ -30,11 +30,21 @@ typedef struct {
 #define RENDER_MAX_SOURCE_VARIABLES 32
 
 typedef struct {
+	int var_index;
+	int offset, length;
+} RenderSourceVarLoc;
+
+typedef struct {
 	const char *name;
 	VolatileResource *source;
 	int source_sequence;
+
 	int vars;
 	VarDesc var[RENDER_MAX_SOURCE_VARIABLES];
+
+	int var_locs;
+	RenderSourceVarLoc loc[RENDER_MAX_SOURCE_VARIABLES];
+
 	const char *processed_source;
 } RenderSource;
 
@@ -165,6 +175,7 @@ static int renderFindSource(RenderScene *scene, const char *name) {
 	src->source = resourceOpenFile(name);
 	src->source_sequence = 0;
 	src->vars = 0;
+	src->var_locs = 0;
 
 	if (!src->source) {
 		MSG("Cannot open resource %s", name);
@@ -413,7 +424,213 @@ static int renderReloadProgram(AGLProgram *prog, const char * const *vertex, con
 	return 1;
 }
 
-void renderProgramCheckUpdate(RenderProgram *prog) {
+static int sourceCheckUpdate(RenderSource *src) {
+	if (!src->source->updated || src->source->sequence == src->source_sequence)
+		return 0;
+
+	if (src->processed_source) {
+		free((char*)src->processed_source);
+		src->processed_source = NULL;
+	}
+
+	src->vars = 0;
+	src->var_locs = 0;
+	const char * const str_begin = src->source->bytes;
+	const char *str = src->source->bytes;
+
+	MutableString processed;
+	mutableStringInit(&processed);
+	for (;;) {
+		const char *var = str, *end = str;
+		while (*var && !(var[0] == '$' && var[1] == '(')) ++var;
+
+		mutableStringAppend(&processed, str, (int)(var - str));
+
+		if (!*var)
+			// no further variables found
+			break;
+
+		const char *vtype = var + 2;
+		while (*vtype && isspace(*vtype)) ++vtype;
+		if (!*vtype) {
+			end = vtype;
+			goto malformed;
+		}
+
+		const char *vtype_end = vtype;
+		while (*vtype_end && (isalnum(*vtype_end) || *vtype_end == '_')) ++vtype_end;
+		if (!*vtype_end) {
+			end = vtype_end;
+			goto malformed;
+		}
+
+		const char *vname = vtype_end + 1;
+		while (*vname && isspace(*vname)) ++vname;
+		if (!*vname) {
+			end = vname;
+			goto malformed;
+		}
+
+		const char *vname_end = vname;
+		while (*vname_end && (isalnum(*vname_end) || *vname_end == '_')) ++vname_end;
+		if (!*vname_end) {
+			end = vname_end;
+			goto malformed;
+		}
+
+		const char *vend = vname_end;
+		while (*vend && isspace(*vend)) ++vend;
+		end = vend;
+		if (*vend != ')')
+			goto malformed;
+
+		VarDesc new_var;
+		new_var.type = varGetType(stringView(vtype, (int)(vtype_end - vtype)));
+		if (new_var.type == VarType_None) {
+			MSG("Invalid variable type %.*s", vtype_end - vtype, vtype);
+			goto malformed;
+		}
+
+		const int vname_length = (int)(vname_end - vname);
+		if (vname_length > MAX_VARIABLE_NAME_LENGTH) {
+			MSG("VarDesc name %.*s (%d) is too long, limit %d", vname_length, vname, MAX_VARIABLE_NAME_LENGTH);
+			goto malformed;
+		}
+
+		memcpy(new_var.name, vname, vname_length);
+		new_var.name[vname_length] = '\0';
+
+		int var_index = -1;
+		for (int j = 0; j < src->vars; ++j) {
+			const VarDesc *v = src->var + j;
+			if (strcmp(v->name, new_var.name) == 0) {
+				if (v->type == new_var.type) {
+					var_index = j;
+					break;
+				} else {
+					MSG("Variable %s (type %s) was already defined with different type: %s",
+						new_var.name, varGetTypeName(new_var.type), varGetTypeName(v->type));
+					goto malformed;
+				}
+			}
+		}
+
+		if (var_index < 0) {
+			if (src->vars >= RENDER_MAX_SOURCE_VARIABLES) {
+				MSG("Too many variables, limit %d", RENDER_MAX_SOURCE_VARIABLES);
+				goto malformed;
+			}
+
+			memcpy(src->var + src->vars, &new_var, sizeof(new_var));
+			var_index = src->vars;
+			++src->vars;
+		}
+
+		if (src->var_locs >= RENDER_MAX_SOURCE_VARIABLES) {
+			MSG("Too many variable locations, limit %d", RENDER_MAX_SOURCE_VARIABLES);
+			goto malformed;
+		}
+
+		src->loc[src->var_locs].var_index = var_index;
+		src->loc[src->var_locs].offset = var - str_begin;
+		src->loc[src->var_locs].length = vend + 1 - var;
+		++src->var_locs;
+
+		str = vend + 1;
+		mutableStringAppend(&processed, vname, vname_length);
+		continue;
+
+malformed:
+		MSG("Error parsing variable %.*s", end - var, var);
+		mutableStringDestroy(&processed);
+		break;
+	} // for (;;) search for vars
+
+	if (processed.length > 0) {
+		src->processed_source = mutableStringRelease(&processed);
+		src->source_sequence = src->source->sequence;
+		MSG("Source:\n%s", src->processed_source);
+		return 1;
+	}
+
+	return 0;
+}
+
+static int renderSourceExport(const RenderSource *src) {
+	if (!src->processed_source) {
+		MSG("Source %s is not ready for export", src->name);
+		return 0;
+	}
+
+	MutableString name;
+	mutableStringInit(&name);
+	mutableStringAppendZ(&name, src->name);
+	mutableStringAppendZ(&name, ".glsl");
+	FILE *f = fopen(name.str, "w");
+	if (!f) {
+		MSG("Cannot open file %s for writing", name.str);
+		mutableStringDestroy(&name);
+		return 0;
+	}
+	mutableStringDestroy(&name);
+
+	const char *source = src->source->bytes;
+	int offset = 0;
+	for (int i = 0; i < src->var_locs; ++i) {
+		const RenderSourceVarLoc *loc = src->loc + i;
+		const int segment = loc->offset - offset;
+		fwrite(source + offset, 1, segment, f);
+		offset = loc->offset + loc->length;
+
+		const VarDesc *var = src->var + loc->var_index;
+		AVec4f value;
+		const int uniform_offset = varExportGetVarOffset(var, &value);
+		if (uniform_offset < 0) {
+			switch (var->type) {
+			case VarType_None: /* FIXME assert */ continue;
+			case VarType_Float:
+#define VAR_FMT "%.3f"
+				fprintf(f, VAR_FMT, value.x);
+				break;
+			case VarType_Vec2:
+				fprintf(f, "vec2(" VAR_FMT "," VAR_FMT ")", value.x, value.y);
+				break;
+			case VarType_Vec3:
+				fprintf(f, "vec3(" VAR_FMT "," VAR_FMT "," VAR_FMT ")", value.x, value.y, value.z);
+				break;
+			case VarType_Vec4:
+				fprintf(f, "vec4(" VAR_FMT "," VAR_FMT "," VAR_FMT "," VAR_FMT ")", value.x, value.y, value.z, value.w);
+				break;
+			}
+		} else {
+			switch (var->type) {
+			case VarType_None: /* FIXME assert */ continue;
+			case VarType_Float:
+				fprintf(f, "F[%d]", uniform_offset);
+				break;
+			case VarType_Vec2:
+				fprintf(f, "vec2(F[%d],F[%d])", uniform_offset, uniform_offset + 1);
+				break;
+			case VarType_Vec3:
+				fprintf(f, "vec2(F[%d],F[%d],F[%d])", uniform_offset, uniform_offset + 1, uniform_offset + 2);
+				break;
+			case VarType_Vec4:
+				fprintf(f, "vec2(F[%d],F[%d],F[%d],F[%d])", uniform_offset, uniform_offset + 1, uniform_offset + 2, uniform_offset + 3);
+				break;
+			}
+		}
+	}
+
+	if (offset < src->source->size) {
+		const int segment = src->source->size - offset;
+		fwrite(source + offset, 1, segment, f);
+	}
+
+	fclose(f);
+	return 1;
+}
+
+static void renderProgramCheckUpdate(RenderProgram *prog) {
 	const char *fragment[RENDER_MAX_PROGRAM_SOURCES + 2];
 
 	int updated = 0;
@@ -425,121 +642,7 @@ void renderProgramCheckUpdate(RenderProgram *prog) {
 		}
 
 		RenderSource *src = g.scene->source + prog->source_index[i];
-
-		if (src->source->updated && src->source->sequence != src->source_sequence) {
-			if (src->processed_source) {
-				free((char*)src->processed_source);
-				src->processed_source = NULL;
-			}
-
-			src->vars = 0;
-			const char *str = src->source->bytes;
-
-			MutableString processed;
-			mutableStringInit(&processed);
-			for (;;) {
-				const char *var = str, *end = str;
-				while (*var && !(var[0] == '$' && var[1] == '(')) ++var;
-
-				mutableStringAppend(&processed, str, (int)(var - str));
-
-				if (!*var) {
-					// no further variables found
-					break;
-				}
-
-				const char *vtype = var + 2;
-				while (*vtype && isspace(*vtype)) ++vtype;
-				if (!*vtype) {
-					end = vtype;
-					goto malformed;
-				}
-
-				const char *vtype_end = vtype;
-				while (*vtype_end && (isalnum(*vtype_end) || *vtype_end == '_')) ++vtype_end;
-				if (!*vtype_end) {
-					end = vtype_end;
-					goto malformed;
-				}
-
-				const char *vname = vtype_end + 1;
-				while (*vname && isspace(*vname)) ++vname;
-				if (!*vname) {
-					end = vname;
-					goto malformed;
-				}
-
-				const char *vname_end = vname;
-				while (*vname_end && (isalnum(*vname_end) || *vname_end == '_')) ++vname_end;
-				if (!*vname_end) {
-					end = vname_end;
-					goto malformed;
-				}
-
-				const char *vend = vname_end;
-				while (*vend && isspace(*vend)) ++vend;
-				end = vend;
-				if (*vend != ')')
-					goto malformed;
-
-				VarDesc new_var;
-				new_var.type = varGetType(stringView(vtype, (int)(vtype_end - vtype)));
-				if (new_var.type == VarType_None) {
-					MSG("Invalid variable type %.*s", vtype_end - vtype, vtype);
-					goto malformed;
-				}
-
-				const int vname_length = (int)(vname_end - vname);
-				if (vname_length > MAX_VARIABLE_NAME_LENGTH) {
-					MSG("VarDesc name %.*s (%d) is too long, limit %d", vname_length, vname, MAX_VARIABLE_NAME_LENGTH);
-					goto malformed;
-				}
-
-				memcpy(new_var.name, vname, vname_length);
-				new_var.name[vname_length] = '\0';
-
-				int found = 0;
-				for (int j = 0; j < src->vars; ++j) {
-					const VarDesc *v = src->var + j;
-					if (strcmp(v->name, new_var.name) == 0) {
-						if (v->type == new_var.type) {
-							found = 1;
-							break;
-						} else {
-							MSG("Variable %s (type %s) was already defined with different type: %s",
-								new_var.name, varGetTypeName(new_var.type), varGetTypeName(v->type));
-							goto malformed;
-						}
-					}
-				}
-
-				if (!found) {
-					if (src->vars >= RENDER_MAX_SOURCE_VARIABLES) {
-						MSG("Too many variables, limit %d", RENDER_MAX_SOURCE_VARIABLES);
-						goto malformed;
-					}
-
-					memcpy(src->var + src->vars, &new_var, sizeof(new_var));
-					++src->vars;
-				}
-
-				str = vend + 1;
-				mutableStringAppend(&processed, vname, vname_length);
-				continue;
-
-				malformed:
-				MSG("Error parsing variable %.*s", end - var, var);
-				mutableStringDestroy(&processed);
-				break;
-			} // for (;;) search for vars
-
-			if (processed.length > 0) {
-				src->processed_source = mutableStringRelease(&processed);
-				src->source_sequence = src->source->sequence;
-				MSG("Source:\n%s", src->processed_source);
-				updated |= 1;
-			}
-		} // if source updated
+		updated |= sourceCheckUpdate(src);
 
 		if (!src->processed_source) {
 			MSG("Source %s is not ready", src->name);
@@ -705,3 +808,14 @@ void videoPaint() {
 	GL(Rects(-1,-1,1,1));
 }
 
+void videoExport() {
+	const RenderScene *scene = g.scene;
+	if (!g.scene) {
+		MSG("Render is not ready");
+		return;
+	}
+
+	for (int i = 0; i < scene->sources; ++i) {
+		renderSourceExport(scene->source + i);
+	}
+}

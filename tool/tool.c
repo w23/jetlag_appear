@@ -30,9 +30,18 @@ static struct {
 	} tool_root;
 } g;
 
+static void parseProject();
+
 static int doExport() {
-	MSG("Export not implemented");
-	return -1;
+	resourcesUpdate();
+	if (g.project->updated)
+		parseProject();
+	resourcesUpdate();
+
+	varExportBegin();
+	videoExport();
+	varExportEnd();
+	return 0;
 }
 
 int toolPush(Tool *t) {

@@ -62,6 +62,7 @@ void resourcesUpdate();
 int videoInit(int width, int height, const char *filename);
 void videoOutputResize(int width, int height);
 void videoPaint();
+void videoExport();
 
 typedef enum {
 	VarType_None,
@@ -91,6 +92,9 @@ void varInit(const char *filename);
 void varFrame(float bar);
 int varGet(const VarDesc *desc, AVec4f *value);
 void varPrintOverrides();
+void varExportBegin();
+int varExportGetVarOffset(const VarDesc *desc, AVec4f *value);
+void varExportEnd();
 
 typedef struct {
 	enum {
