@@ -1,8 +1,6 @@
 float t = $(float time);
 uniform sampler2D S;
-
 vec3 E = vec3(0.,.001,1.);
-
 vec4 noise(vec2 v) { return texture2D(S, (v + .5)/textureSize(S,0)); }
 
 vec4 cseed;
@@ -28,7 +26,7 @@ float world(vec3 p) {
 	float vd = min2 - min1;
 
 	cseed = noise(TC);
-	d = min(d, max(p.y - cseed.x, (.3 - vd) * .5));
+	d = min(d, max(p.y - cseed.x * 2., (.3 - vd) * .5));
 	return d;
 }
 
@@ -41,7 +39,7 @@ float march(vec3 o, vec3 d, float l, float maxl) {
 	float mind=10., minl = l;
 	for (int i = 0; i < 99; ++i) {
 		float d = world(o + d * l);
-		l += d * .9;
+		l += d * .7;
 		if (d < .001 * l || l > maxl) return l;
 
 		//if (l > maxl) break;
@@ -76,7 +74,7 @@ const float g = .76;
 const float g2 = g * g;
 const float Hr = 8e3;
 const float Hm = 1.2e3;
-const float I = 10.;
+const float I = 5.;
 
 vec3 C = vec3(0., -R0, 0.);
 vec3 bR = vec3(5.8e-6, 13.5e-6, 33.1e-6);
