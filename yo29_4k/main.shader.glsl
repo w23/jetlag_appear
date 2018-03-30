@@ -79,8 +79,8 @@ const float Hm = 1.2e3;
 const float I = 10.;
 
 vec3 C = vec3(0., -R0, 0.);
-vec3 bM = vec3(21e-6);
 vec3 bR = vec3(5.8e-6, 13.5e-6, 33.1e-6);
+vec3 bM = vec3(21e-6);
 
 // by iq
 float noise(in vec3 v) {
@@ -116,16 +116,16 @@ float cloud(vec3 p) {
 	return cld;
 }
 
-void densities(in vec3 pos, out float rayleigh, out float mie) {
+vec2 densitiesRM(vec3 pos) {
 	float h = length(pos - C) - R0;
-	rayleigh =  exp(-h/Hr);
+	vec2 retRM = vec2(exp(-h/Hr), exp(-h/Hm));
 
-	float cld = 0.;
 	if (5e3 < h && h < 10e3) {
-		cld = cloud(pos+vec3(23175.7, 0.,-t*3e3));
-		cld *= sin(3.1415*(h-5e3)/5e3);
+		retRM.y += cloud(pos+vec3(23175.7, 0.,-t*3e3))
+			* sin(3.1415*(h-5e3)/5e3);
 	}
-	mie = exp(-h/Hm) + cld;
+
+	return retRM;
 }
 
 float escape(in vec3 p, in vec3 d, in float R) {
@@ -140,49 +140,44 @@ float escape(in vec3 p, in vec3 d, in float R) {
 }
 
 // this can be explained: http://www.scratchapixel.com/lessons/3d-advanced-lessons/simulating-the-colors-of-the-sky/atmospheric-scattering/
-vec3 scatter(vec3 o, vec3 d, float L) {
-	float mu = dot(d, sundir);
-	float opmu2 = 1. + mu*mu;
-	float phaseR = .0596831 * opmu2;
-	float phaseM = .1193662 * (1. - g2) * opmu2 / ((2. + g2) * pow(1. + g2 - 2.*g*mu, 1.5));
-
-	float depthR = 0., depthM = 0.;
-	vec3 R = vec3(0.), M = vec3(0.);
+vec3 scatter(vec3 o, vec3 d, float L, vec3 Lo) {
+	vec2 totalDepthRM = vec2(0., 0.);
+	vec3 LiR = vec3(0.), LiM = vec3(0.);
 
 	float dl = L / float(steps);
 	for (int i = 0; i < steps; ++i) {
-		float l = float(i) * dl;
-		vec3 p = o + d * l;
-
-		float dR, dM;
-		densities(p, dR, dM);
-		dR *= dl; dM *= dl;
-		depthR += dR;
-		depthM += dM;
+		vec3 p = o + d * float(i) * dl;
+		vec2 dRM = densitiesRM(p) * dl;
+		totalDepthRM += dRM;
 
 		float Ls = escape(p, sundir, Ra);
 		if (Ls > 0.) {
 			float dls = Ls / float(stepss);
-			float depthRs = 0., depthMs = 0.;
+			vec2 depthRMs = vec2(0.);
 			for (int j = 0; j < stepss; ++j) {
-				float ls = float(j) * dls;
-				vec3 ps = p + sundir * ls;
-				float dRs, dMs;
-				densities(ps, dRs, dMs);
-				depthRs += dRs * dls;
-				depthMs += dMs * dls;
+				vec3 ps = p + sundir * float(j) * dls;
+				depthRMs += densitiesRM(ps) * dls;
 			}
 
-			vec3 A = exp(-(bR * (depthRs + depthR) + bM * (depthMs + depthM)));
-			R += A * dR;
-			M += A * dM;
+			vec2 depthRMsum = depthRMs + totalDepthRM;
+			vec3 A = exp(-(bR * depthRMsum.x + bM * depthRMsum.y));
+			LiR += A * dRM.x;
+			LiM += A * dRM.y;
 		} else {
 			return vec3(0.);
 		}
 	}
 
-	return I * (R * bR * phaseR + M * bM * phaseM);
+	float mu = dot(d, sundir);
+	float opmu2 = 1. + mu*mu;
+	vec2 phaseRM = vec2(
+		.0596831 * opmu2,
+		.1193662 * (1. - g2) * opmu2 / ((2. + g2) * pow(1. + g2 - 2.*g*mu, 1.5)));
+
+	return Lo * exp(-(bR * totalDepthRM.x + bM * totalDepthRM.y))
+		+ I * (LiR * bR * phaseRM.x + LiM * bM * phaseRM.y);
 }
+
 void main() {
 	const vec2 res = vec2(640.,360.);
 	vec2 uv = gl_FragCoord.xy/res * 2. - 1.; uv.x *= res.x / res.y;
@@ -195,7 +190,7 @@ void main() {
 	D = mat3(x, normalize(cross(D, x)), D) * normalize(vec3(uv, -1.));
 	vec3 color = vec3(0.);
 
-	const float md = 50.;
+	const float md = 150.;
 	float l = march(O, D, 0., md);
 	if (l < md) {
 		P = O + D * l;
@@ -205,10 +200,12 @@ void main() {
 		m_shine = 10. + flr * 90.;
 		color = (vec3(1.) + .04 *cseed.xyz) * (.5 + .5 * flr);
 		color *= dirlight(sundir);
-		//color *= scatter(O, D, l*100.);
+		l *= 100.;
 	} else {
-		color = scatter(O, D, escape(O, D, Ra));
+		l = escape(O*100., D, Ra);
 	}
+
+	color = scatter(O*100., D, l, color);
 
 	gl_FragColor = vec4(sqrt(color),0.);
 }
