@@ -1,6 +1,6 @@
 #version 130
 uniform float F[1];
-float t = 0.;//F[0];
+float t = F[0];
 uniform sampler2D S;
 vec3 E = vec3(0.,.01,1.);
 vec4 noise24(vec2 v) { return texture2D(S, (v + .5)/textureSize(S,0)); }
@@ -11,7 +11,7 @@ float world(vec3 p) {
 	//if (d > 10.)
 	//	return d + 10.;
 	p /= 100.;
-	d = p.y;
+	d = p.y - 2.*noise24(p.xz/10.).x;
 	vec2 C = floor(p.xz), TC = C;
 	float min1 = 10., min2 = 10.;
 	for (float x = -1.; x <= 1.; x+=1.)

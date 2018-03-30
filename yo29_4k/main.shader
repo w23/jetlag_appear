@@ -4,12 +4,21 @@ vec3 E = vec3(0.,.01,1.);
 vec4 noise24(vec2 v) { return texture2D(S, (v + .5)/textureSize(S,0)); }
 
 vec4 cseed, macroseed;
+float mi;
+vec3 mp;
 float world(vec3 p) {
+	mi = 0.;
 	float d = p.y - 400.;
 	//if (d > 10.)
 	//	return d + 10.;
+	float r = length(p.xz);
 	p /= 100.;
-	d = p.y;
+	float baseh = 0.;//8.*noise24(p.xz/10.).x - 2.;
+	float maxh = smoothstep(10000., 1000., r);
+	if (maxh <= 0.) {
+		mi = 1.;
+	}
+	d = p.y - baseh;
 	vec2 C = floor(p.xz), TC = C;
 	float min1 = 10., min2 = 10.;
 	for (float x = -1.; x <= 1.; x+=1.)
@@ -32,10 +41,18 @@ float world(vec3 p) {
 	float vd = min2 - min1;
 
 	cseed = noise24(TC);
-	macroseed = noise24(floor(TC / 10.));
-	float height = .1 + 3. * macroseed.y;// * macroseed.y;
-	d = min(d, max(p.y - cseed.x * height, (.3 - vd) * .5));
-	return 100. * max(d, length(p)-200.);
+	macroseed = noise24((TC / 10.));
+	float height = maxh * (4. * smoothstep(.2, 1., macroseed.y));// * macroseed.y;
+	float walls = (.3 - vd) * .5;
+	float building = max(p.y - baseh - cseed.x * height, walls);
+	if (building < d) {
+		d = building;
+		mi = 2.;
+		mp = (p - vec3(TC.x, 0., TC.y)) * 100.;
+	} else {
+		mp.x = 100. * walls;
+	}
+	return 100. * max(d, length(p)-100.);
 }
 
 vec3 normal(vec3 p) {
@@ -47,7 +64,7 @@ float march(vec3 o, vec3 d, float l, float maxl) {
 	float mind=10., minl = l;
 	for (int i = 0; i < 99; ++i) {
 		float dd = world(o + d * l);
-		l += dd * .7;
+		l += dd * .37;
 		if (dd < .001 * l || l > maxl) return l;
 
 		//if (l > maxl) break;
@@ -106,7 +123,7 @@ float fnoise(in vec3 v) {
 }
 
 float cloud(vec3 p) {
-	float cld = fnoise(p*2e-4);
+	float cld = fnoise(p*4e-4);
 	cld = smoothstep(.4+.04, .6+.04, cld);
 	cld *= cld * 40.;
 	return cld;
@@ -189,16 +206,31 @@ void main() {
 
 	const float md = 5e4;
 	float l = march(O, D, 0., md);
+	vec3 emissive = vec3(0.);
 	if (l < md) {
 		P = O + D * l;
 		N = normal(P);
 
-		float flr = mod(P.y, 3.)/3.; //max(0., sin(P.y*40.));
-		m_shine = 10. + flr * 90.;
-		//color = (vec3(1.) + .04 *cseed.xyz) * (.5 + .5 * flr);
+		if (mi == 0.) {
+			color = mix(vec3(0., 1., 0.), vec3(.1), step(6., mp.x));
+			m_shine = 0.;
+		} else if (mi == 2.) {
+			m_shine = 100.;
+			vec2 rnd = noise24(vec2(floor(mp.y/2.), floor(atan(mp.x, mp.z) * 1000.))).zw;
+			color = vec3(.3);
+			emissive = vec3(1., .6, .2) * step(.8, rnd.x*rnd.x);
+		} else {
+			color = vec3(1., 0., 1.);
+			/*
+			float flr = mod(P.y, 3.)/3.; //max(0., sin(P.y*40.));
+			m_shine = 10. + flr * 90.;
+			color = (vec3(1.) + .04 *cseed.xyz) * (.5 + .5 * flr);
+			*/
+		}
 		//color = macroseed.rgb;
-		color = cseed.rgb;
+		//color = cseed.rgb;
 		color *= dirlight(sundir);
+		color += emissive;
 	} else {
 		l = escape(O, D, Ra);
 	}
