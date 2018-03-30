@@ -566,7 +566,7 @@ static int renderSourceExport(const RenderSource *src) {
 	mutableStringInit(&name);
 	mutableStringAppendZ(&name, src->name);
 	mutableStringAppendZ(&name, ".glsl");
-	FILE *f = fopen(name.str, "w");
+	FILE *f = fopen(name.str, "wb");
 	if (!f) {
 		MSG("Cannot open file %s for writing", name.str);
 		mutableStringDestroy(&name);

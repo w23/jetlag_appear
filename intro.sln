@@ -18,6 +18,8 @@ Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "intro_asm", "intro_asm.vcxp
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "dump_audio", "dump_audio.vcxproj", "{B4D27076-800C-44F5-8BE2-CB7A650969F4}"
 EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "yo29_c", "yo29_4k\yo29_c.vcxproj", "{6251A0A8-3D3A-43FC-854B-0B517BB1EFBD}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Capture|x64 = Capture|x64
@@ -113,6 +115,18 @@ Global
 		{B4D27076-800C-44F5-8BE2-CB7A650969F4}.ReleaseSlow|x64.Build.0 = Release|Win32
 		{B4D27076-800C-44F5-8BE2-CB7A650969F4}.ReleaseSlow|x86.ActiveCfg = Release|Win32
 		{B4D27076-800C-44F5-8BE2-CB7A650969F4}.ReleaseSlow|x86.Build.0 = Release|Win32
+		{6251A0A8-3D3A-43FC-854B-0B517BB1EFBD}.Capture|x64.ActiveCfg = Capture|Win32
+		{6251A0A8-3D3A-43FC-854B-0B517BB1EFBD}.Capture|x86.ActiveCfg = Capture|Win32
+		{6251A0A8-3D3A-43FC-854B-0B517BB1EFBD}.Capture|x86.Build.0 = Capture|Win32
+		{6251A0A8-3D3A-43FC-854B-0B517BB1EFBD}.Debug|x64.ActiveCfg = Debug|Win32
+		{6251A0A8-3D3A-43FC-854B-0B517BB1EFBD}.Debug|x86.ActiveCfg = Debug|Win32
+		{6251A0A8-3D3A-43FC-854B-0B517BB1EFBD}.Debug|x86.Build.0 = Debug|Win32
+		{6251A0A8-3D3A-43FC-854B-0B517BB1EFBD}.Release|x64.ActiveCfg = Release|Win32
+		{6251A0A8-3D3A-43FC-854B-0B517BB1EFBD}.Release|x86.ActiveCfg = Release|Win32
+		{6251A0A8-3D3A-43FC-854B-0B517BB1EFBD}.Release|x86.Build.0 = Release|Win32
+		{6251A0A8-3D3A-43FC-854B-0B517BB1EFBD}.ReleaseSlow|x64.ActiveCfg = ReleaseSlow|Win32
+		{6251A0A8-3D3A-43FC-854B-0B517BB1EFBD}.ReleaseSlow|x86.ActiveCfg = ReleaseSlow|Win32
+		{6251A0A8-3D3A-43FC-854B-0B517BB1EFBD}.ReleaseSlow|x86.Build.0 = ReleaseSlow|Win32
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

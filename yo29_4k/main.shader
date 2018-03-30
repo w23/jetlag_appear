@@ -1,18 +1,24 @@
 float t = $(float time);
 uniform sampler2D S;
-vec3 E = vec3(0.,.001,1.);
-vec4 noise(vec2 v) { return texture2D(S, (v + .5)/textureSize(S,0)); }
+vec3 E = vec3(0.,.01,1.);
+vec4 noise24(vec2 v) { return texture2D(S, (v + .5)/textureSize(S,0)); }
 
-vec4 cseed;
+vec4 cseed, macroseed;
 float world(vec3 p) {
-	float d = p.y;
+	float d = p.y - 400.;
+	//if (d > 10.)
+	//	return d + 10.;
+	p /= 100.;
+	d = p.y;
 	vec2 C = floor(p.xz), TC = C;
 	float min1 = 10., min2 = 10.;
 	for (float x = -1.; x <= 1.; x+=1.)
 	for (float y = -1.; y <= 1.; y+=1.) {
 		vec2 cn = C + vec2(x, y), c = cn + .5;
-		cseed = noise(cn);
-		c += (cseed.yz - .5) * .7;
+		vec2 macrocell = floor(cn / 10.);
+		macroseed = noise24(macrocell);
+		cseed = noise24(cn);
+		c += (cseed.yz - .5) * macroseed.x;
 		//float dist = length(c - p.xz);
 		float dist = abs(c.x - p.x) + abs(c.y - p.z);
 		if (dist < min1) {
@@ -25,9 +31,11 @@ float world(vec3 p) {
 
 	float vd = min2 - min1;
 
-	cseed = noise(TC);
-	d = min(d, max(p.y - cseed.x * 2., (.3 - vd) * .5));
-	return d;
+	cseed = noise24(TC);
+	macroseed = noise24(floor(TC / 10.));
+	float height = .1 + 3. * macroseed.y;// * macroseed.y;
+	d = min(d, max(p.y - cseed.x * height, (.3 - vd) * .5));
+	return 100. * max(d, length(p)-200.);
 }
 
 vec3 normal(vec3 p) {
@@ -38,14 +46,14 @@ vec3 normal(vec3 p) {
 float march(vec3 o, vec3 d, float l, float maxl) {
 	float mind=10., minl = l;
 	for (int i = 0; i < 99; ++i) {
-		float d = world(o + d * l);
-		l += d * .7;
-		if (d < .001 * l || l > maxl) return l;
+		float dd = world(o + d * l);
+		l += dd * .7;
+		if (dd < .001 * l || l > maxl) return l;
 
 		//if (l > maxl) break;
 
-		if (d < mind) {
-			mind = d; minl = l;
+		if (dd < mind) {
+			mind = dd; minl = l;
 		}
 
 	}
@@ -64,26 +72,24 @@ float dirlight(vec3 ld) {
 }
 vec3 sundir = normalize(vec3(1.,1.+sin(t*.1),1.));
 
-#define ANIMATE_CLOUDS 1
-
 const float R0 = 6360e3;
 const float Ra = 6380e3;
-const int steps = 128;
-const int stepss = 16;
+const int steps = 64;
+const int stepss = 32;
 const float g = .76;
 const float g2 = g * g;
 const float Hr = 8e3;
 const float Hm = 1.2e3;
-const float I = 5.;
+const float I = 10.;
 
 vec3 C = vec3(0., -R0, 0.);
-vec3 bR = vec3(5.8e-6, 13.5e-6, 33.1e-6);
+vec3 bR = vec3(58e-7, 135e-7, 331e-7);
 vec3 bM = vec3(21e-6);
 
 // by iq
-float noise(in vec3 v) {
+float noise31(in vec3 v) {
 	vec3 p = floor(v);
-    vec3 f = fract(v);
+  vec3 f = fract(v);
 	//f = f*f*(3.-2.*f);
 
 	vec2 uv = (p.xy+vec2(37.,17.)*p.z) + f.xy;
@@ -92,19 +98,11 @@ float noise(in vec3 v) {
 }
 
 float fnoise(in vec3 v) {
-#if ANIMATE_CLOUDS
 	return
-		.55 * noise(v) +
-		.225 * noise(v*2. + t *.4) +
-		.125 * noise(v*3.99) +
-		.0625 * noise(v*8.9);
-#else
-	return
-		.55 * noise(v) +
-		.225 * noise(v*2.) +
-		.125 * noise(v*3.99) +
-		.0625 * noise(v*8.9);
-#endif
+		.55 * noise31(v) +
+		.225 * noise31(v*2. + t *.4) +
+		.125 * noise31(v*3.99) +
+		.0625 * noise31(v*8.9);
 }
 
 float cloud(vec3 p) {
@@ -115,12 +113,13 @@ float cloud(vec3 p) {
 }
 
 vec2 densitiesRM(vec3 pos) {
-	float h = length(pos - C) - R0;
+	float h = max(0., length(pos - C) - R0);
 	vec2 retRM = vec2(exp(-h/Hr), exp(-h/Hm));
 
-	if (5e3 < h && h < 10e3) {
+	const float low = 5e3;
+	if (low < h && h < 10e3) {
 		retRM.y += cloud(pos+vec3(23175.7, 0.,-t*3e3))
-			* sin(3.1415*(h-5e3)/5e3);
+			* max(0., sin(3.1415*(h-low)/low));
 	}
 
 	return retRM;
@@ -182,28 +181,29 @@ void main() {
 
 	vec3 at = vec3(0.);
 
-	O = $(vec3 cam_pos); //10. * vec3(sin(t*.1), 0., cos(t*.1)) + vec3(0., 3. + 2. * sin(t*.2), 0.);
+	O = $(vec3 cam_pos) * 100.; //10. * vec3(sin(t*.1), 0., cos(t*.1)) + vec3(0., 3. + 2. * sin(t*.2), 0.);
 	D = -normalize($(vec3 cam_dir));//normalize(at - O);
 	vec3 x = normalize(cross(normalize(vec3(0.,1.,0.)), D));
 	D = mat3(x, normalize(cross(D, x)), D) * normalize(vec3(uv, -1.));
 	vec3 color = vec3(0.);
 
-	const float md = 150.;
+	const float md = 5e4;
 	float l = march(O, D, 0., md);
 	if (l < md) {
 		P = O + D * l;
 		N = normal(P);
 
-		float flr = max(0., sin(P.y*40.));
+		float flr = mod(P.y, 3.)/3.; //max(0., sin(P.y*40.));
 		m_shine = 10. + flr * 90.;
-		color = (vec3(1.) + .04 *cseed.xyz) * (.5 + .5 * flr);
+		//color = (vec3(1.) + .04 *cseed.xyz) * (.5 + .5 * flr);
+		//color = macroseed.rgb;
+		color = cseed.rgb;
 		color *= dirlight(sundir);
-		l *= 100.;
 	} else {
-		l = escape(O*100., D, Ra);
+		l = escape(O, D, Ra);
 	}
 
-	color = scatter(O*100., D, l, color);
+	color = scatter(O, D, l, color);
 
-	gl_FragColor = vec4(sqrt(color),0.);
+	gl_FragColor = vec4(pow(color, vec3(1./2.2)),0.);
 }
