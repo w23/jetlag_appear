@@ -79,8 +79,8 @@ const float Hm = 1.2e3;
 const float I = 10.;
 
 vec3 C = vec3(0., -R0, 0.);
-vec3 bM = vec3(21e-6);
 vec3 bR = vec3(5.8e-6, 13.5e-6, 33.1e-6);
+vec3 bM = vec3(21e-6);
 
 // by iq
 float noise(in vec3 v) {
@@ -116,16 +116,15 @@ float cloud(vec3 p) {
 	return cld;
 }
 
-void densities(in vec3 pos, out float rayleigh, out float mie) {
+vec2 densities(vec3 pos) {
 	float h = length(pos - C) - R0;
-	rayleigh =  exp(-h/Hr);
+	vec2 retRM = vec2(exp(-h/Hr), exp(-h/Hm));
 
-	float cld = 0.;
 	if (5e3 < h && h < 10e3) {
-		cld = cloud(pos+vec3(23175.7, 0.,-t*3e3));
-		cld *= sin(3.1415*(h-5e3)/5e3);
+		retRM.y += cloud(pos+vec3(23175.7, 0.,-t*3e3))
+			* sin(3.1415*(h-5e3)/5e3);
 	}
-	mie = exp(-h/Hm) + cld;
+	return retRM;
 }
 
 float escape(in vec3 p, in vec3 d, in float R) {
@@ -143,45 +142,40 @@ float escape(in vec3 p, in vec3 d, in float R) {
 vec3 scatter(vec3 o, vec3 d, float L) {
 	float mu = dot(d, sundir);
 	float opmu2 = 1. + mu*mu;
-	float phaseR = .0596831 * opmu2;
-	float phaseM = .1193662 * (1. - g2) * opmu2 / ((2. + g2) * pow(1. + g2 - 2.*g*mu, 1.5));
+	vec2 phaseRM = vec2(
+		.0596831 * opmu2,
+		.1193662 * (1. - g2) * opmu2 / ((2. + g2) * pow(1. + g2 - 2.*g*mu, 1.5)));
 
-	float depthR = 0., depthM = 0.;
+	vec2 depthRM = vec2(0., 0.);
 	vec3 R = vec3(0.), M = vec3(0.);
 
 	float dl = L / float(steps);
 	for (int i = 0; i < steps; ++i) {
 		float l = float(i) * dl;
 		vec3 p = o + d * l;
-
-		float dR, dM;
-		densities(p, dR, dM);
-		dR *= dl; dM *= dl;
-		depthR += dR;
-		depthM += dM;
+		vec2 dRM = densities(p) * dl;
+		depthRM += dRM;
 
 		float Ls = escape(p, sundir, Ra);
 		if (Ls > 0.) {
 			float dls = Ls / float(stepss);
-			float depthRs = 0., depthMs = 0.;
+			vec2 depthRMs = vec2(0.);
 			for (int j = 0; j < stepss; ++j) {
 				float ls = float(j) * dls;
 				vec3 ps = p + sundir * ls;
-				float dRs, dMs;
-				densities(ps, dRs, dMs);
-				depthRs += dRs * dls;
-				depthMs += dMs * dls;
+				depthRMs += densities(ps) * dls;
 			}
 
-			vec3 A = exp(-(bR * (depthRs + depthR) + bM * (depthMs + depthM)));
-			R += A * dR;
-			M += A * dM;
+			vec2 depthRMsum = depthRMs + depthRM;
+			vec3 A = exp(-(bR * depthRMsum.x + bM * depthRMsum.y));
+			R += A * dRM.x;
+			M += A * dRM.y;
 		} else {
 			return vec3(0.);
 		}
 	}
 
-	return I * (R * bR * phaseR + M * bM * phaseM);
+	return I * (R * bR * phaseRM.x + M * bM * phaseRM.y);
 }
 void main() {
 	const vec2 res = vec2(640.,360.);
