@@ -1,9 +1,9 @@
 float t = $(float time);
-uniform sampler2D S[1];
+uniform sampler2D S;
 
 vec3 E = vec3(0.,.001,1.);
 
-vec4 noise(vec2 v) { return texture2D(S[0], (v + .5)/textureSize(S[0],0)); }
+vec4 noise(vec2 v) { return texture2D(S, (v + .5)/textureSize(S,0)); }
 
 vec4 cseed;
 float world(vec3 p) {
@@ -64,92 +64,135 @@ float dirlight(vec3 ld) {
 		max(0., pow(dot(N, normalize(ld - D)), m_shine) * (m_shine + 8.) / 24.),
 		m_diffk.w);
 }
+vec3 sundir = normalize(vec3(1.,1.+sin(t*.1),1.));
 
-const float EPS = .01, FAR = 5000., SKY = FAR, GS = 32.;
-vec3 sundir = normalize(vec3(1.,sin(t*.1),1.));
-const float I=10.,g=.76,g2=g*g,R0=6360e3,R1=6420e3;
-const vec3 C=vec3(0.,-R0,0.),Km=vec3(21e-6),Kr=vec3(5.8,13.5,33.1)*1e-6;
-vec2 SD(vec3 O) {
-  float h = R0 - length(O - C);
-  return vec2(exp(h / 120.), exp(h / 8000.));
-}
-float ER(vec3 o, vec3 d, float r) {
-  o -= C;
-  float
-    b = dot(o, d),
-    c = dot(o, o) - r * r,
-    e = b * b - c,
-    p, q;
-  if (e < 0.) return -1.;
-  e = sqrt(e);
-  p = -b - e,
-  q = -b + e;
-  return (p >= 0.) ? p : q;
-}
+#define ANIMATE_CLOUDS 1
 
-vec2 Id(vec3 O, vec3 D, float L) {
-  float dx, bdx = L / 16., l = 0.;
-  vec3 p = O;
-  vec2 mr = vec2(0.);
-  for (int i = 0; i < 16; ++i) {
-    dx = bdx * (1. + noise(p.xz * 2e3).w);
-    p = O + D * (l + dx);
-    mr += SD(p) * dx;
-    l += bdx;
-  }
-  return mr;
-}
-vec3 scatter(vec3 O, vec3 D, float L, vec3 cc) {
-	float c = max(0., dot(D, sundir)),
-  Pr = .0596831 * (1. + c * c),
-  Pm = .1193662 * (1. - g2) * (1. + c * c) / ((2. + g2) * pow(1. + g2 - 2.*g*c, 1.5)),
-  dm = 0.,
-  dr = 0.,
-  ll = 0.,
-  bdx = L / 32., sL;
+const float R0 = 6360e3;
+const float Ra = 6380e3;
+const int steps = 128;
+const int stepss = 16;
+const float g = .76;
+const float g2 = g * g;
+const float Hr = 8e3;
+const float Hm = 1.2e3;
+const float I = 10.;
 
-  vec3 im = vec3(0.), ir = vec3(0.), p = O, Is;
-  vec2 mr;
-  for (int i = 0; i < 32; ++i) {
-    float dx = bdx * (1. + noise(p.xz * 2e3).w);
-    p = O + D * (ll + dx);
-    ll += bdx;
-    mr = SD(p) * dx;
-    dm += mr.x;
-    dr += mr.y;
+vec3 C = vec3(0., -R0, 0.);
+vec3 bM = vec3(21e-6);
+vec3 bR = vec3(5.8e-6, 13.5e-6, 33.1e-6);
 
-    // if shadowed by terrain
-    //float Lt = TT(p, sundir);
-    //if (Lt < Far) continue;
+// by iq
+float noise(in vec3 v) {
+	vec3 p = floor(v);
+    vec3 f = fract(v);
+	//f = f*f*(3.-2.*f);
 
-    sL = ER(p,sundir,R1);
-
-    vec2 dd = Id(p, sundir, sL);
-
-    Is = exp(-(
-        Km * (dd.x + dm) +
-        Kr * (dd.y + dr)
-      ));
-    im += mr.x * Is;
-    ir += mr.y * Is;
-  }
-
-  return max(vec3(0.),I * (
-      Km * Pm * im +
-      Kr * Pr * ir)
-    + cc * exp(-(Km * dm + Kr * dr)));
+	vec2 uv = (p.xy+vec2(37.,17.)*p.z) + f.xy;
+	vec2 rg = textureLod(S, (uv+.5)/textureSize(S,0), 0.).yx;
+	return mix(rg.x, rg.y, f.z);
 }
 
+float fnoise(in vec3 v) {
+#if ANIMATE_CLOUDS
+	return
+		.55 * noise(v) +
+		.225 * noise(v*2. + t *.4) +
+		.125 * noise(v*3.99) +
+		.0625 * noise(v*8.9);
+#else
+	return
+		.55 * noise(v) +
+		.225 * noise(v*2.) +
+		.125 * noise(v*3.99) +
+		.0625 * noise(v*8.9);
+#endif
+}
+
+float cloud(vec3 p) {
+	float cld = fnoise(p*2e-4);
+	cld = smoothstep(.4+.04, .6+.04, cld);
+	cld *= cld * 40.;
+	return cld;
+}
+
+void densities(in vec3 pos, out float rayleigh, out float mie) {
+	float h = length(pos - C) - R0;
+	rayleigh =  exp(-h/Hr);
+
+	float cld = 0.;
+	if (5e3 < h && h < 10e3) {
+		cld = cloud(pos+vec3(23175.7, 0.,-t*3e3));
+		cld *= sin(3.1415*(h-5e3)/5e3);
+	}
+	mie = exp(-h/Hm) + cld;
+}
+
+float escape(in vec3 p, in vec3 d, in float R) {
+	vec3 v = p - C;
+	float b = dot(v, d);
+	float c = dot(v, v) - R*R;
+	float det2 = b * b - c;
+	if (det2 < 0.) return -1.;
+	float det = sqrt(det2);
+	float t1 = -b - det, t2 = -b + det;
+	return (t1 >= 0.) ? t1 : t2;
+}
+
+// this can be explained: http://www.scratchapixel.com/lessons/3d-advanced-lessons/simulating-the-colors-of-the-sky/atmospheric-scattering/
+vec3 scatter(vec3 o, vec3 d, float L) {
+	float mu = dot(d, sundir);
+	float opmu2 = 1. + mu*mu;
+	float phaseR = .0596831 * opmu2;
+	float phaseM = .1193662 * (1. - g2) * opmu2 / ((2. + g2) * pow(1. + g2 - 2.*g*mu, 1.5));
+
+	float depthR = 0., depthM = 0.;
+	vec3 R = vec3(0.), M = vec3(0.);
+
+	float dl = L / float(steps);
+	for (int i = 0; i < steps; ++i) {
+		float l = float(i) * dl;
+		vec3 p = o + d * l;
+
+		float dR, dM;
+		densities(p, dR, dM);
+		dR *= dl; dM *= dl;
+		depthR += dR;
+		depthM += dM;
+
+		float Ls = escape(p, sundir, Ra);
+		if (Ls > 0.) {
+			float dls = Ls / float(stepss);
+			float depthRs = 0., depthMs = 0.;
+			for (int j = 0; j < stepss; ++j) {
+				float ls = float(j) * dls;
+				vec3 ps = p + sundir * ls;
+				float dRs, dMs;
+				densities(ps, dRs, dMs);
+				depthRs += dRs * dls;
+				depthMs += dMs * dls;
+			}
+
+			vec3 A = exp(-(bR * (depthRs + depthR) + bM * (depthMs + depthM)));
+			R += A * dR;
+			M += A * dM;
+		} else {
+			return vec3(0.);
+		}
+	}
+
+	return I * (R * bR * phaseR + M * bM * phaseM);
+}
 void main() {
-	const vec2 res = vec2(1280.,720.);
+	const vec2 res = vec2(640.,360.);
 	vec2 uv = gl_FragCoord.xy/res * 2. - 1.; uv.x *= res.x / res.y;
 
 	vec3 at = vec3(0.);
 
 	O = $(vec3 cam_pos); //10. * vec3(sin(t*.1), 0., cos(t*.1)) + vec3(0., 3. + 2. * sin(t*.2), 0.);
-	D = $(vec3 cam_dir);//normalize(at - O);
-	vec3 x = normalize(cross(vec3(0.,1.,0.), D));
-	D = mat3(x, cross(D, x), D) * normalize(vec3(uv, 1.));
+	D = -normalize($(vec3 cam_dir));//normalize(at - O);
+	vec3 x = normalize(cross(normalize(vec3(0.,1.,0.)), D));
+	D = mat3(x, normalize(cross(D, x)), D) * normalize(vec3(uv, -1.));
 	vec3 color = vec3(0.);
 
 	const float md = 50.;
@@ -162,8 +205,9 @@ void main() {
 		m_shine = 10. + flr * 90.;
 		color = (vec3(1.) + .04 *cseed.xyz) * (.5 + .5 * flr);
 		color *= dirlight(sundir);
+		//color *= scatter(O, D, l*100.);
 	} else {
-		color = scatter(O, D, ER(O, D, R1), vec3(0.));
+		color = scatter(O, D, escape(O, D, Ra));
 	}
 
 	gl_FragColor = vec4(sqrt(color),0.);
