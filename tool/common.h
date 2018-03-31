@@ -152,6 +152,7 @@ int audioRawTogglePause();
 int audioRawToggleMute();
 void audioRawSeek(float bar);
 float audioRawGetTimeBar();
+float audioRawGetTimeBar2(float dt);
 
 /*
 #define MAX_DIAG_SIGNALS 16

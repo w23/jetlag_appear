@@ -301,8 +301,8 @@ static void paint(ATimeUs ts, float dt) {
 	if (g.project->updated)
 		parseProject();
 
-	const float bars = audioRawGetTimeBar();
-	varFrame((float)ts / 1e6f);
+	const float bars = audioRawGetTimeBar2(dt);
+	varFrame(bars);
 
 	processMidi();
 

@@ -79,3 +79,13 @@ float audioRawGetTimeBar() {
 
 	return (float)(state.sample * state.bpm) / (state.samplerate * 60);
 }
+
+float audioRawGetTimeBar2(float dt) {
+	if (!state.bpm)
+		return 0;
+
+	state.sample += state.paused * dt * state.samplerate;
+	state.sample %= state.samples;
+
+	return (float)(state.sample * state.bpm) / (state.samplerate * 60);
+}

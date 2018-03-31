@@ -43,7 +43,7 @@ int _fltused = 1;
 #define oglUseProgram gl.UseProgram
 #define oglGetUniformLocation gl.GetUniformLocation
 #define oglUniform1i gl.Uniform1i
-#define oglUniform1fv gl.Uniform1fv
+//#define oglUniform1fv gl.Uniform1fv
 
 #elif defined(__linux__)
 #define GL_GLEXT_PROTOTYPES
@@ -105,7 +105,8 @@ FUNCLIST_DO(PFNGLLINKPROGRAMPROC, LinkProgram)
   FUNCLIST_DO(PFNGLUSEPROGRAMPROC, UseProgram) \
   FUNCLIST_DO(PFNGLGETUNIFORMLOCATIONPROC, GetUniformLocation) \
   FUNCLIST_DO(PFNGLUNIFORM1IPROC, Uniform1i) \
-  FUNCLIST_DO(PFNGLUNIFORM1FVPROC, Uniform1fv) \
+
+  //FUNCLIST_DO(PFNGLUNIFORM1FVPROC, Uniform1fv) \
 
 #ifndef DEBUG
 #define FUNCLIST_DBG
@@ -300,7 +301,7 @@ int itime;
 static void paint(GLuint prog) {
 	oglUniform1i(oglGetUniformLocation(prog, "S"), 0);
 	glGetError();
-	oglUniform1i(oglGetUniformLocation(prog, "F"), itime);
+	oglUniform1i(oglGetUniformLocation(prog, "F"), itime / SAMPLE_RATE);
 	glGetError();
 #if defined(CAPTURE) && defined(TILED)
 	{

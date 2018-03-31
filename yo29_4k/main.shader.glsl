@@ -1,5 +1,5 @@
 //#version 130
-//uniform float F[1];
+//uniform int F[1];
 float t = F[0];
 uniform sampler2D S;
 vec3 E = vec3(0.,.01,1.);
@@ -21,7 +21,7 @@ const vec3 bMs = vec3(2e-5);
 const vec3 bMe = bMs * 1.1;
 
 vec4 cseed, macroseed;
-vec3 local_coords;
+vec3 lc;
 float walls;
 float park;
 float world(vec3 p) {
@@ -30,8 +30,6 @@ float world(vec3 p) {
 	//	return d + 10.;
 	float r = length(p.xz);
 	p /= 100.;
-	float baseh = 0.;//8.*noise24(p.xz/10.).x - 2.;
-	d = p.y - baseh;
 	vec2 C = floor(p.xz), TC = C;
 	float min1 = 10., min2 = 10.;
 	for (float x = -1.; x <= 1.; x+=1.)
@@ -57,13 +55,12 @@ float world(vec3 p) {
 	float center_dist2 = dot(TC, TC);
 	cseed = noise24(TC);
 	macroseed = noise24((TC / 10.));
-	local_coords = p - vec3(TC.x, 0., TC.y);
+	lc = p - vec3(TC.x, 0., TC.y);
 	park = step(.8, macroseed.w);
 	float maxh = smoothstep(10000., 1000., r) * (1. - park);
-	float height = maxh * (1. + 4. * smoothstep(.2, 1., macroseed.y));
+	float height = maxh * (1. + 2. * smoothstep(.2, 1., macroseed.y));
 	walls = (.3 - vd) * .5;
-	float building = max(p.y - baseh - cseed.x * height, walls);
-	d = min(d, building);
+	d = min(p.y, max(p.y - cseed.x * height, walls));
 	return 100. * max(d, length(p)-100.);
 }
 
@@ -90,16 +87,16 @@ float march(vec3 o, vec3 d, float l, float maxl) {
 }
 
 vec3 O, D, N, P;
-vec4 m_diffk = vec4(1.,1.,1.,.5);
+float m_kd = .5;
 float m_shine = 10.;
 
 float dirlight(vec3 ld) {
 	return mix(
-		max(0., dot(N, ld)),
+		max(0., dot(N, ld)) / 3.,
 		max(0., pow(dot(N, normalize(ld - D)), m_shine) * (m_shine + 8.) / 24.),
-		m_diffk.w);
+		m_kd);
 }
-//vec3 sundir = normalize(vec3(1.,1.+sin(t*.1),1.));
+//vec3 sundir = normalize(vec3(1.,mix(.1, 1.1 + cos((t-64.)), step(64., t)),1.));
 vec3 sundir = normalize(vec3(1.,.8,1.));
 
 // by iq
@@ -116,7 +113,7 @@ float noise31(in vec3 v) {
 float fnoise(in vec3 v) {
 	return
 		.55 * noise31(v) +
-		.225 * noise31(v*2. + t *.4) +
+		.225 * noise31(v*2.) +
 		.125 * noise31(v*3.99) +
 		.0625 * noise31(v*8.9);
 }
@@ -134,7 +131,7 @@ vec2 densitiesRM(vec3 pos) {
 
 	const float low = 5e3;
 	if (low < h && h < 10e3) {
-		retRM.y += 1. * cloud(pos+vec3(23175.7, 0.,-t*3e3)) * max(0., sin(3.1415*(h-low)/low));
+		retRM.y += 1. * cloud(pos+vec3(23175.7, 0.,t*10.)) * max(0., sin(3.1415*(h-low)/low));
 	}
 
 	return retRM;
@@ -200,20 +197,41 @@ vec3 scatter(vec3 o, vec3 d, float L, vec3 Lo) {
 		+ I * (LiR * bR * phaseRM.x + LiM * bMs * phaseRM.y);
 }
 
+float saturate(float f) { return clamp(f, 0., 1.); }
+
 void main() {
 	const vec2 res = vec2(640.,360.);
 	vec2 uv = gl_FragCoord.xy/res * 2. - 1.; uv.x *= res.x / res.y;
+
+	if (gl_FragCoord.y < 10.) {
+		gl_FragColor = vec4(step(gl_FragCoord.x / res.x, t / 256.));
+		return;
+	}
 
 	//gl_FragColor = noise24(gl_FragCoord.xy);return;
 
 	t += .2 * noise24(gl_FragCoord.xy + t*100.*vec2(17.,39.)).x;
 
-	//O = vec3(-1.000,4.000,8.000) * 100.; D = -normalize(vec3(0.700,-0.170,0.670));
-
 	vec3 at = vec3(0.);
-	O = vec3(mod(t*100., 10000.) - 5000., 1000., mod(t*500., 10000.) - 5000.);
+	O = vec3(mod(t*10., 10000.) - 5000., 1000. + 500. * sin(t/60.), mod(t*50., 10000.) - 5000.);
+
+	if (t < 64.) {
+		sundir.y = .1;
+		at.y = 5000.;
+	} else if (t < 128.) {
+		float k = (t - 64.) / 64.;
+		sundir.y = .1 + 2. * k * k;
+	} else if (t < 192.) {
+		float k = 1. - (t - 128.) / 64.;
+		sundir.y = .1 + 2. * k * k;
+	} else {
+		sundir.y = .1;
+	}
+	sundir = normalize(sundir);
+
 	D = normalize(O - at);
-	vec3 x = normalize(cross(normalize(vec3(.3 * noise24(vec2(t*.1)).x,1.,0.)), D));
+	//O = vec3(-1.000,4.000,8.000) * 100.; D = -normalize(vec3(0.700,-0.170,0.670));
+	vec3 x = normalize(cross(normalize(vec3(.6 * (noise24(vec2(t/16.)).x-.5),1.,0.)), D));
 	D = mat3(x, normalize(cross(D, x)), D) * normalize(vec3(uv, -1.));
 	vec3 color = vec3(0.);
 
@@ -225,13 +243,27 @@ void main() {
 		N = normal(P);
 
 		vec3 albedo = vec3(.3 + .2 * cseed.w) + .03 * cseed.xyz;
-		m_shine = 100.;
+		float occlusion = 1. - .3 * saturate(.5 * ((10. - P.y) / 10. + (1. - walls) / 1.));
+		//occlusion = 1.;
+		m_shine = 200.;
 		if (park > 0.) {
-			albedo = vec3(.4,.9,.3) - vec3(.2 * noise24(P.xz).x);
-			m_shine = 10.;
+			float path = step(.1, walls);
+			albedo = .4 * mix(vec3(.4,.9,.3) - vec3(.2 * noise24(P.xz).x), .8*vec3(.6,.8,.2), path);
+			m_kd = .5 - .5 * (1. - path);
+			m_shine = 10. * (1. - path);
+			occlusion = 1.;
 		} else if (P.y < 1.) {
-			albedo = vec3(walls);
+			albedo = vec3(.01 + .04 * step(walls, .07)) + vec3(.7) * step(.145, walls);//mix(vec3(.05), vec3(.01), step(3., walls));
+			m_shine = 1.;
+		} else {
+			//float a = atan(lc.x, lc.z);
+			//albedo *= .8 + .2 * (step(2., mod(P.y, 4.)) * step(2., mod(lc.x*100., 4.)));
 		}
+
+		albedo *= occlusion;
+
+		//emissive += (1. - occlusion) * vec3(.4, .3, .1);
+
 		//vec4 rnd = noise24(vec2(floor(local_coord.y/2.), floor(atan(mp.x, mp.z) * 1000.)));
 		//	color = vec3(1., 0., 1.);
 		//color = macroseed.rgb;
@@ -239,7 +271,7 @@ void main() {
 		color += albedo * Lin(P, sundir, escape(P, sundir, Ra)) * I * dirlight(sundir);
 		vec3 opposite = vec3(-sundir.x, sundir.y, -sundir.z);
 		color += albedo * scatter(P, opposite, escape(P, opposite, Ra), vec3(0.)) * dirlight(opposite);
-		color += albedo * .01;
+		color += albedo * vec3(.07) * dirlight(normalize(vec3(1.)));
 		color += emissive;
 	} else {
 		l = escape(O, D, Ra);
@@ -247,5 +279,5 @@ void main() {
 
 	color = scatter(O, D, l, color);
 
-	gl_FragColor = vec4(pow(color, vec3(1./2.2)),0.);
+	gl_FragColor = vec4(pow(color, vec3(1./2.2)),.5);
 }
