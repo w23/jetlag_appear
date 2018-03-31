@@ -13,7 +13,7 @@ const float g = .76;
 const float g2 = g * g;
 const float Hr = 8e3;
 const float Hm = 1.2e3;
-const float I = 10.;
+float I = 10.;
 
 const vec3 C = vec3(0., -R0, 0.);
 const vec3 bR = vec3(58e-7, 135e-7, 331e-7);
@@ -58,7 +58,7 @@ float world(vec3 p) {
 	lc = p - vec3(TC.x, 0., TC.y);
 	park = step(.8, macroseed.w);
 	float maxh = smoothstep(10000., 1000., r) * (1. - park);
-	float height = maxh * (1. + 2. * smoothstep(.2, 1., macroseed.y));
+	float height = maxh * (1. + 4. * smoothstep(.8, 1., macroseed.x));
 	walls = (.3 - vd) * .5;
 	d = min(p.y, max(p.y - cseed.x * height, walls));
 	return 100. * max(d, length(p)-100.);
@@ -131,7 +131,7 @@ vec2 densitiesRM(vec3 pos) {
 
 	const float low = 5e3;
 	if (low < h && h < 10e3) {
-		retRM.y += 1. * cloud(pos+vec3(23175.7, 0.,t*300.)) * max(0., sin(3.1415*(h-low)/low));
+		retRM.y += step( length(pos), 50000.) * cloud(pos+vec3(23175.7, 0.,t*30.)) * max(0., sin(3.1415*(h-low)/low));
 	}
 
 	return retRM;
@@ -204,34 +204,49 @@ void main() {
 	vec2 uv = gl_FragCoord.xy/res * 2. - 1.; uv.x *= res.x / res.y;
 
 	if (gl_FragCoord.y < 10.) {
-		gl_FragColor = vec4(step(gl_FragCoord.x / res.x, t / 256.));
+		gl_FragColor = vec4(step(gl_FragCoord.x / res.x, t / 208.));
 		return;
 	}
 
 	//gl_FragColor = noise24(gl_FragCoord.xy);return;
 
-	t += .2 * noise24(gl_FragCoord.xy + t*100.*vec2(17.,39.)).x;
+	t += noise24(gl_FragCoord.xy + t*100.*vec2(17.,39.)).x;
 
 	vec3 at = vec3(0.);
-	O = vec3(mod(t*10., 10000.) - 5000., 1000. + 500. * sin(t/60.), mod(t*50., 10000.) - 5000.);
+	O = vec3(mod(t*2., 10000.) - 5000., 1000. + 500. * sin(t/60.), mod(t*10., 10000.) - 5000.);
+	vec3 up = vec3(.3 * (noise24(vec2(t/16.)).x-.5),1.,0.);
 
-	if (t < 64.) {
-		sundir.y = .1;
-		at.y = 5000.;
+	if (t < 48.) {
+		I = 10. * t / 48.;
+		sundir.y = .001;
+		at = vec3(10000., 15000., -10000.);
+	} else if (t < 64.) {
+		sundir.y = .001;
+		at = vec3(-10000., 10000., -10000.);
 	} else if (t < 128.) {
+		O.y = 1000.;
+		sundir.y = .001;
 		float k = (t - 64.) / 64.;
-		sundir.y = .1 + 2. * k * k * k * k;
-	} else if (t < 192.) {
-		float k = 1. - (t - 128.) / 64.;
-		sundir.y = .1 + 2. * k * k * k * k;
+		O = vec3(k * 1000., 1500., 3000.);
+		at = O+vec3(-300., 0., -300.);
+		at.y = 10.;
+		up = vec3(0.,1.,0.);
+		sundir.y = .001 + .01 * k * k * k;
+	} else if (t < 144.) {
+		sundir.y = .01;
+		up = vec3(0.,1.,0.);
 	} else {
-		sundir.y = .1;
+		float k = (t - 144.) / 64.;
+		O = vec3(mod(k*2., 10000.) - 500., 1000. - 200. * k, mod(k*10., 10000.) - 5000.);
+		at.y = 4000. * k;
+		sundir.y = .01 + .5* k;// * k * k * k;
+		I = 10. + 200. * max(0., (t - 196.) / 16.);
 	}
 	sundir = normalize(sundir);
 
 	D = normalize(O - at);
 	//O = $(vec3 cam_pos) * 100.; D = -normalize($(vec3 cam_dir));
-	vec3 x = normalize(cross(normalize(vec3(.6 * (noise24(vec2(t/16.)).x-.5),1.,0.)), D));
+	vec3 x = normalize(cross(normalize(up), D));
 	D = mat3(x, normalize(cross(D, x)), D) * normalize(vec3(uv, -1.));
 	vec3 color = vec3(0.);
 
@@ -248,7 +263,7 @@ void main() {
 		m_shine = 200.;
 		if (park > 0.) {
 			float path = step(.1, walls);
-			albedo = .4 * mix(vec3(.4,.9,.3) - vec3(.2 * noise24(P.xz).x), .8*vec3(.6,.8,.2), path);
+			albedo = .05 * mix(vec3(.4,.9,.3) - vec3(.2 * noise24(P.xz).x), .8*vec3(.6,.8,.2), path);
 			m_kd = .5 - .5 * (1. - path);
 			m_shine = 10. * (1. - path);
 			occlusion = 1.;
