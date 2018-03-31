@@ -107,10 +107,91 @@ void audioClose() {
 	// TODO Close midi
 }
 #elif defined(_WIN32)
+
+#include <stdlib.h>
+#include <windows.h>
+#include <mmsystem.h>
+#include <mmreg.h>
+
+#define NUM_BUFFERS 3
+#define BUFFER_SIZE 4096
+
+static struct {
+	audio_callback_f acb;
+	void *userdata;
+	int channels;
+	HWAVEOUT wout;
+	int nhdr;
+	WAVEHDR hdr[NUM_BUFFERS];
+	HANDLE sem;
+} audio_;
+
+static void headerInit(WAVEHDR *hdr, int size) {
+	memset(hdr, 0, sizeof(*hdr));
+	hdr->lpData = malloc(size);
+	hdr->dwBufferLength = size;
+	waveOutPrepareHeader(audio_.wout, hdr, sizeof(*hdr));
+}
+
+static void headerDtor(WAVEHDR *hdr) {
+	free(hdr->lpData);
+	waveOutUnprepareHeader(audio_.wout, hdr, sizeof(*hdr));
+}
+
+void CALLBACK waveCallback(HWAVEOUT hWave, UINT uMsg, DWORD dwUser,
+	DWORD dw1, DWORD dw2)
+{
+	if (uMsg == WOM_DONE)
+	{
+		ReleaseSemaphore((HANDLE)dwUser, 1, NULL);
+	}
+}
+
+static DWORD WINAPI audioThread(LPVOID unused) {
+	(void)unused;
+
+	for (;;) {
+		WaitForSingleObject(audio_.sem, INFINITE);
+
+		WAVEHDR *hdr = audio_.hdr + audio_.nhdr;
+		audio_.acb(audio_.userdata, (void*)hdr->lpData, hdr->dwBufferLength / audio_.channels / 4);
+		waveOutWrite(audio_.wout, hdr, sizeof(*hdr));
+		audio_.nhdr = (audio_.nhdr + 1) % NUM_BUFFERS;
+	}
+}
+
 int audioOpen(int samplerate, int channels, void *userdata, audio_callback_f acb, const char *midi, midi_callback_f mcb) {
+	audio_.userdata = userdata;
+	audio_.acb = acb;
+	audio_.channels = channels;
+
+	audio_.sem = CreateSemaphore(NULL, NUM_BUFFERS, NUM_BUFFERS, NULL);
+
+	const WAVEFORMATEX wave_fmt =
+	{
+		WAVE_FORMAT_IEEE_FLOAT,
+		channels,
+		samplerate,
+		samplerate * channels * sizeof(float), // bytes per sec
+		sizeof(float) * channels,             // block alignment;
+		sizeof(float) * 8,             // bits per sample
+		0                                    // extension not needed
+	};
+	waveOutOpen(&audio_.wout, WAVE_MAPPER, &wave_fmt, waveCallback, audio_.sem, CALLBACK_FUNCTION);
+
+	for (int i = 0; i < NUM_BUFFERS; ++i)
+		headerInit(audio_.hdr + i, BUFFER_SIZE);
+
+	CreateThread(NULL, 0, audioThread, NULL, 0, NULL);
+
 	return 1;
 }
-void audioClose() {}
+
+void audioClose() {
+	waveOutReset(audio_.wout);
+	waveOutClose(audio_.wout);
+	CloseHandle(audio_.sem);
+}
 
 #else
 #error NOT IMPLEMENTED
