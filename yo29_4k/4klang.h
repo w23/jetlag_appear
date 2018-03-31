@@ -2,7 +2,7 @@
 #define SAMPLE_RATE 44100
 #define BPM 60.000000
 #define MAX_INSTRUMENTS 11
-#define MAX_PATTERNS 58
+#define MAX_PATTERNS 57
 #define PATTERN_SIZE_SHIFT 4
 #define PATTERN_SIZE (1 << PATTERN_SIZE_SHIFT)
 #define MAX_TICKS (MAX_PATTERNS*PATTERN_SIZE)
@@ -14,9 +14,4 @@
 
 #define WINDOWS_OBJECT
 
-// declaration of the external synth render function, you'll always need that
 void  __stdcall	_4klang_render(void*);
-// declaration of the external envelope buffer. access only if you're song was exported with that option
-float _4klang_envelope_buffer;
-// declaration of the external note buffer. access only if you're song was exported with that option
-int   _4klang_note_buffer;

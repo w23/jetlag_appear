@@ -1,7 +1,7 @@
 #version 130
-uniform int F[1];
-float t = F[0] / 44100. / 8.;
+uniform int F;
 uniform sampler2D S;
+float t = F / 352800.;
 vec3 E = vec3(0.,.01,1.);
 vec4 noise24(vec2 v) { return texture2D(S, (v + .5)/textureSize(S,0)); }
 
@@ -96,8 +96,7 @@ float dirlight(vec3 ld) {
 		max(0., pow(dot(N, normalize(ld - D)), m_shine) * (m_shine + 8.) / 24.),
 		m_kd);
 }
-//vec3 sundir = normalize(vec3(1.,mix(.1, 1.1 + cos((t-64.)), step(64., t)),1.));
-vec3 sundir = normalize(vec3(1.,.8,1.));
+vec3 sundir = vec3(1.,.001,1.);
 
 // by iq
 float noise31(in vec3 v) {
@@ -209,27 +208,19 @@ void main() {
 
 	vec3 at = vec3(0.);
 	O = vec3(mod(t*2., 10000.) - 5000., 1000. + 500. * sin(t/60.), mod(t*10., 10000.) - 5000.);
-	vec3 up = vec3(.3 * (noise24(vec2(t/16.)).x-.5),1.,0.);
 
-	if (t < 48.) {
-		I = 10. * t / 48.;
-		sundir.y = .001;
+	if (t < 64.) {
+		I = 10. * t / 64.;
 		at = vec3(10000., 15000., -10000.);
-	} else if (t < 64.) {
-		sundir.y = .001;
-		at = vec3(-10000., 10000., -10000.);
 	} else if (t < 128.) {
 		O.y = 1000.;
-		sundir.y = .001;
 		float k = (t - 64.) / 64.;
 		O = vec3(k * 1000., 1500., 3000.);
 		at = O+vec3(-300., 0., -300.);
 		at.y = 10.;
-		up = vec3(0.,1.,0.);
-		sundir.y = .001 + .01 * k * k * k;
+		sundir.y += .01 * k * k * k;
 	} else if (t < 144.) {
 		sundir.y = .01;
-		up = vec3(0.,1.,0.);
 	} else {
 		float k = (t - 144.) / 64.;
 		O = vec3(mod(k*2., 10000.) - 500., 1000. - 200. * k, mod(k*10., 10000.) - 5000.);
@@ -241,7 +232,7 @@ void main() {
 
 	D = normalize(O - at);
 	//O = vec3(-1.000,4.000,8.000) * 100.; D = -normalize(vec3(0.700,-0.170,0.670));
-	vec3 x = normalize(cross(normalize(up), D));
+	vec3 x = normalize(cross(E.xzx, D));
 	D = mat3(x, normalize(cross(D, x)), D) * normalize(vec3(uv, -1.));
 	vec3 color = vec3(0.);
 
