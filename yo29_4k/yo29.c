@@ -301,7 +301,7 @@ int itime;
 static void paint(GLuint prog) {
 	oglUniform1i(oglGetUniformLocation(prog, "S"), 0);
 	glGetError();
-	oglUniform1i(oglGetUniformLocation(prog, "F"), itime / SAMPLE_RATE);
+	oglUniform1i(oglGetUniformLocation(prog, "F"), itime);
 	glGetError();
 #if defined(CAPTURE) && defined(TILED)
 	{
@@ -411,7 +411,10 @@ void entrypoint(void) {
 #ifndef CAPTURE
 	// initialize sound
 	HWAVEOUT hWaveOut;
+#ifndef _DEBUG
+	// 4klang crashes in debug with this music
 	CreateThread(0, 0, (LPTHREAD_START_ROUTINE)_4klang_render, sound_buffer, 0, 0);
+#endif
 	//_4klang_render(sound_buffer);
 	//soundRender(sound_buffer);
 	//MMSYSERR_INVALHANDLE

@@ -131,7 +131,7 @@ vec2 densitiesRM(vec3 pos) {
 
 	const float low = 5e3;
 	if (low < h && h < 10e3) {
-		retRM.y += 1. * cloud(pos+vec3(23175.7, 0.,t*10.)) * max(0., sin(3.1415*(h-low)/low));
+		retRM.y += 1. * cloud(pos+vec3(23175.7, 0.,t*300.)) * max(0., sin(3.1415*(h-low)/low));
 	}
 
 	return retRM;
@@ -220,10 +220,10 @@ void main() {
 		at.y = 5000.;
 	} else if (t < 128.) {
 		float k = (t - 64.) / 64.;
-		sundir.y = .1 + 2. * k * k;
+		sundir.y = .1 + 2. * k * k * k * k;
 	} else if (t < 192.) {
 		float k = 1. - (t - 128.) / 64.;
-		sundir.y = .1 + 2. * k * k;
+		sundir.y = .1 + 2. * k * k * k * k;
 	} else {
 		sundir.y = .1;
 	}
