@@ -5,20 +5,20 @@ float t = F / 352800.;
 vec3 E = vec3(0.,.01,1.);
 vec4 noise24(vec2 v) { return texture2D(S, (v + .5)/textureSize(S,0)); }
 
-const float R0 = 6360e3;
-const float Ra = 6380e3;
-const int steps = 128;
-const int stepss = 16;
-const float g = .76;
-const float g2 = g * g;
-const float Hr = 8e3;
-const float Hm = 1.2e3;
+float R0 = 6360e3;
+float Ra = 6380e3;
+int steps = 128;
+int stepss = 16;
+float g = .76;
+float g2 = g * g;
+float Hr = 8e3;
+float Hm = 1.2e3;
 float I = 10.;
 
-const vec3 C = vec3(0., -R0, 0.);
-const vec3 bR = vec3(58e-7, 135e-7, 331e-7);
-const vec3 bMs = vec3(2e-5);
-const vec3 bMe = bMs * 1.1;
+vec3 C = vec3(0., -R0, 0.);
+vec3 bR = vec3(58e-7, 135e-7, 331e-7);
+vec3 bM = vec3(21e-6);
+// vec3 bMe = bMs * 1.1;
 
 vec4 cseed, macroseed;
 vec3 lc;
@@ -128,7 +128,7 @@ vec2 densitiesRM(vec3 pos) {
 	float h = max(0., length(pos - C) - R0);
 	vec2 retRM = vec2(exp(-h/Hr), exp(-h/Hm));
 
-	const float low = 5e3;
+	 float low = 5e3;
 	if (low < h && h < 10e3) {
 		retRM.y += step( length(pos), 50000.) * cloud(pos+vec3(23175.7, 0.,t*30.)) * max(0., sin(3.1415*(h-low)/low));
 	}
@@ -154,7 +154,7 @@ vec3 Lin(vec3 o, vec3 d, float L) {
 		vec3 ps = o + d * float(j) * dls;
 		depthRMs += densitiesRM(ps) * dls;
 	}
-	return exp(-(bR * depthRMs.x + bMe * depthRMs.y));
+	return exp(-(bR * depthRMs.x + bM * depthRMs.y));
 }
 
 // this can be explained: http://www.scratchapixel.com/lessons/3d-advanced-lessons/simulating-the-colors-of-the-sky/atmospheric-scattering/
@@ -178,7 +178,7 @@ vec3 scatter(vec3 o, vec3 d, float L, vec3 Lo) {
 			}
 
 			vec2 depthRMsum = depthRMs + totalDepthRM;
-			vec3 A = exp(-(bR * depthRMsum.x + bMe * depthRMsum.y));
+			vec3 A = exp(-(bR * depthRMsum.x + bM * depthRMsum.y));
 			LiR += A * dRM.x;
 			LiM += A * dRM.y;
 		} else {
@@ -192,8 +192,8 @@ vec3 scatter(vec3 o, vec3 d, float L, vec3 Lo) {
 		.0596831 * opmu2,
 		.1193662 * (1. - g2) * opmu2 / ((2. + g2) * pow(1. + g2 - 2.*g*mu, 1.5)));
 
-	return Lo * exp(-(bR * totalDepthRM.x + bMe * totalDepthRM.y))
-		+ I * (LiR * bR * phaseRM.x + LiM * bMs * phaseRM.y);
+	return Lo * exp(-(bR * totalDepthRM.x + bM * totalDepthRM.y))
+		+ I * (LiR * bR * phaseRM.x + LiM * bM * phaseRM.y);
 }
 
 float saturate(float f) { return clamp(f, 0., 1.); }
@@ -236,7 +236,7 @@ void main() {
 	D = mat3(x, normalize(cross(D, x)), D) * normalize(vec3(uv, -1.));
 	vec3 color = vec3(0.);
 
-	const float md = 5e4;
+	 float md = 5e4;
 	float l = march(O, D, 0., md);
 	vec3 emissive = vec3(0.);
 	if (l < md) {
