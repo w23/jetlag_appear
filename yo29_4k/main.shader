@@ -204,12 +204,16 @@ void main() {
 	const vec2 res = vec2(640.,360.);
 	vec2 uv = gl_FragCoord.xy/res * 2. - 1.; uv.x *= res.x / res.y;
 
-	t += .2 * noise24(gl_FragCoord.xy + t*100.).x;
+	//gl_FragColor = noise24(gl_FragCoord.xy);return;
+
+	t += .2 * noise24(gl_FragCoord.xy + t*100.*vec2(17.,39.)).x;
+
+	//O = $(vec3 cam_pos) * 100.; D = -normalize($(vec3 cam_dir));
 
 	vec3 at = vec3(0.);
-	O = $(vec3 cam_pos) * 100.; //10. * vec3(sin(t*.1), 0., cos(t*.1)) + vec3(0., 3. + 2. * sin(t*.2), 0.);
-	D = -normalize($(vec3 cam_dir));//normalize(at - O);
-	vec3 x = normalize(cross(normalize(vec3(0.,1.,0.)), D));
+	O = vec3(mod(t*100., 10000.) - 5000., 1000., mod(t*500., 10000.) - 5000.);
+	D = normalize(O - at);
+	vec3 x = normalize(cross(normalize(vec3(.3 * noise24(vec2(t*.1)).x,1.,0.)), D));
 	D = mat3(x, normalize(cross(D, x)), D) * normalize(vec3(uv, -1.));
 	vec3 color = vec3(0.);
 
