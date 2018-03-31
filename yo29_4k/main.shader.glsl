@@ -1,6 +1,6 @@
-//#version 130
-//uniform int F[1];
-float t = F[0];
+#version 130
+uniform int F[1];
+float t = F[0] / 44100. / 8.;
 uniform sampler2D S;
 vec3 E = vec3(0.,.01,1.);
 vec4 noise24(vec2 v) { return texture2D(S, (v + .5)/textureSize(S,0)); }
@@ -200,13 +200,8 @@ vec3 scatter(vec3 o, vec3 d, float L, vec3 Lo) {
 float saturate(float f) { return clamp(f, 0., 1.); }
 
 void main() {
-	const vec2 res = vec2(640.,360.);
+	vec2 res = vec2(1280.,720.);
 	vec2 uv = gl_FragCoord.xy/res * 2. - 1.; uv.x *= res.x / res.y;
-
-	if (gl_FragCoord.y < 10.) {
-		gl_FragColor = vec4(step(gl_FragCoord.x / res.x, t / 208.));
-		return;
-	}
 
 	//gl_FragColor = noise24(gl_FragCoord.xy);return;
 
