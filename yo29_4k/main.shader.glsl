@@ -244,7 +244,7 @@ void main() {
 		N = normal(P);
 
 		vec3 albedo = vec3(.3 + .2 * cseed.w) + .03 * cseed.xyz;
-		float occlusion = 1. - .3 * saturate(.5 * ((10. - P.y) / 10. + (1. - walls) / 1.));
+	//	float occlusion = 1. - .3 * saturate(.5 * ((10. - P.y) / 10. + (1. - walls) / 1.));
 		//occlusion = 1.;
 		m_shine = 200.;
 		if (park > 0.) {
@@ -252,16 +252,12 @@ void main() {
 			albedo = .05 * mix(vec3(.4,.9,.3) - vec3(.2 * noise24(P.xz).x), .8*vec3(.6,.8,.2), path);
 			m_kd = .5 - .5 * (1. - path);
 			m_shine = 10. * (1. - path);
-			occlusion = 1.;
+	//		occlusion = 1.;
 		} else if (P.y < 1.) {
 			albedo = vec3(.01 + .04 * step(walls, .07)) + vec3(.7) * step(.145, walls);//mix(vec3(.05), vec3(.01), step(3., walls));
 			m_shine = 1.;
-		} else {
-			//float a = atan(lc.x, lc.z);
-			//albedo *= .8 + .2 * (step(2., mod(P.y, 4.)) * step(2., mod(lc.x*100., 4.)));
 		}
-
-		albedo *= occlusion;
+		//albedo *= occlusion;
 
 		//emissive += (1. - occlusion) * vec3(.4, .3, .1);
 
