@@ -125,7 +125,7 @@ void audioRawLoopToggle() {
 		MSG("Loop start: %d", state.loop.a / state.samples_per_bar);
 		break;
 	case LoopState_StartSet:
-		state.loop.b = nearestBarSample(4);
+		state.loop.b = nearestBarSample(4) + state.samples_per_bar * 4;
 		MEMORY_BARRIER();
 		state.loop.state = LoopState_Looping;
 		MSG("Loop: %d -> %d", state.loop.a / state.samples_per_bar, state.loop.b / state.samples_per_bar);
@@ -148,7 +148,7 @@ float audioRawGetTimeBar2(float dt) {
 	if (!state.bpm)
 		return 0;
 
-	state.sample += (state.paused ^ 1) * dt * state.samplerate;
+	state.sample += (float)(state.paused ^ 1) * dt * (float)state.samplerate;
 	state.sample %= state.samples;
 
 	return (float)state.sample / (float)state.samples_per_bar;
