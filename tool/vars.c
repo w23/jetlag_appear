@@ -113,6 +113,8 @@ static int varParseAddPoint(const ParserCallbackParams *params) {
 	VarPoint *pt = data->point + data->points;
 	pt->tc = params->args[0].value.time;
 
+	//MSG("%d:%d", pt->tc.bar, pt->tc.tick);
+
 	if ((int)data->desc.type != params->num_args - 1)
 		MSG("Warning: for var %s type %s point at %d:%d has invalid number of args %d",
 				data->desc.name, varGetTypeName(data->desc.type), pt->tc.bar, pt->tc.tick, params->num_args - 1);
@@ -267,13 +269,13 @@ int varGet(const VarDesc *desc, AVec4f *value) {
 	if (data->points) {
 		const VarPoint *p = data->point;
 		v = p->v;
-		bar = p->tc.bar + p->tc.tick * scene->bars_per_tick;
+		bar = p->tc.bar + p->tc.tick / scene->bars_per_tick;
 	} else
 		return 0;
 
 	for (int i = 1; i < data->points; ++i) {
 		const VarPoint *p = data->point + i;
-		const float p_bar = p->tc.bar + p->tc.tick * scene->bars_per_tick;
+		const float p_bar = p->tc.bar + p->tc.tick / scene->bars_per_tick;
 		if (p_bar >= g.bar) {
 			const float range = p_bar - bar;
 			const float t = fabs(range) > 1e-6 ? 1.f - (p_bar - g.bar) / range : 1.f;
