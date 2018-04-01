@@ -113,8 +113,8 @@ void audioClose() {
 #include <mmsystem.h>
 #include <mmreg.h>
 
-#define NUM_BUFFERS 3
-#define BUFFER_SIZE 4096
+#define NUM_BUFFERS 4
+#define BUFFER_SIZE (4 * 2 * 1024)
 
 static struct {
 	audio_callback_f acb;
@@ -149,6 +149,8 @@ void CALLBACK waveCallback(HWAVEOUT hWave, UINT uMsg, DWORD dwUser,
 
 static DWORD WINAPI audioThread(LPVOID unused) {
 	(void)unused;
+
+	SetThreadPriority(GetCurrentThread(), THREAD_PRIORITY_TIME_CRITICAL);
 
 	for (;;) {
 		WaitForSingleObject(audio_.sem, INFINITE);

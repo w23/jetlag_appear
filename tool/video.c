@@ -612,10 +612,10 @@ static int renderSourceExport(const RenderSource *src) {
 				fprintf(f, "vec2(F[%d],F[%d])", uniform_offset, uniform_offset + 1);
 				break;
 			case VarType_Vec3:
-				fprintf(f, "vec2(F[%d],F[%d],F[%d])", uniform_offset, uniform_offset + 1, uniform_offset + 2);
+				fprintf(f, "vec3(F[%d],F[%d],F[%d])", uniform_offset, uniform_offset + 1, uniform_offset + 2);
 				break;
 			case VarType_Vec4:
-				fprintf(f, "vec2(F[%d],F[%d],F[%d],F[%d])", uniform_offset, uniform_offset + 1, uniform_offset + 2, uniform_offset + 3);
+				fprintf(f, "vec4(F[%d],F[%d],F[%d],F[%d])", uniform_offset, uniform_offset + 1, uniform_offset + 2, uniform_offset + 3);
 				break;
 			}
 		}

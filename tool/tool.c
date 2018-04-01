@@ -113,10 +113,10 @@ ToolResult toolMasterProcessEvent(struct Tool *tool, const ToolInputEvent *event
 				audioRawTogglePause();
 				break;
 			case AK_Right:
-				audioRawSeek(audioRawGetTimeBar() + 4.f);
+				audioRawSeek(4.f);
 				break;
 			case AK_Left:
-				audioRawSeek(audioRawGetTimeBar() - 4.f);
+				audioRawSeek(-4.f);
 				break;
 			case AK_Q:
 				aAppTerminate(0);
@@ -132,6 +132,9 @@ ToolResult toolMasterProcessEvent(struct Tool *tool, const ToolInputEvent *event
 				break;
 			case AK_E:
 				doExport();
+				break;
+			case AK_L:
+				audioRawLoopToggle();
 				break;
 			default:
 				return ToolResult_Ignored;
@@ -170,7 +173,7 @@ enum {
 };
 
 static int parseAudioRaw(const ParserCallbackParams *params) {
-	if (!audioRawInit(params->args[0].s, 44100, params->args[2].value.i, 120))
+	if (!audioRawInit(params->args[0].s, 44100, params->args[2].value.i, params->args[3].value.i))
 		aAppTerminate(-2);
 
 	return 0;

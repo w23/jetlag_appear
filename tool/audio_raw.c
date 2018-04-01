@@ -8,8 +8,19 @@ static struct {
 	int channels;
 	int samplerate;
 	int bpm;
+	unsigned int samples_per_bar;
+
 	int paused;
 	int muted;
+
+	struct {
+		enum {
+			LoopState_Off,
+			LoopState_StartSet,
+			LoopState_Looping
+		} state;
+		unsigned int a, b;
+	} loop;
 } state;
 
 int audioRawInit(const char *filename, int samplerate, int channels, int bpm) {
@@ -36,6 +47,7 @@ int audioRawInit(const char *filename, int samplerate, int channels, int bpm) {
 	state.channels = channels;
 	state.samplerate = samplerate;
 	state.bpm = bpm;
+	state.samples_per_bar = state.samplerate * 60 / state.bpm;
 
 	state.sample = 0;
 	state.paused = 0;
@@ -49,13 +61,24 @@ void audioRawWrite(float *samples, int num_samples) {
 	if (state.paused || !state.samples)
 		return;
 
+	const unsigned int start = state.loop.state == LoopState_Looping ? state.loop.a : 0;
+	const unsigned int end = state.loop.state == LoopState_Looping ? state.loop.b : state.samples;
+	const unsigned int length = end - start;
+
+	if (state.sample < start)
+		state.sample = start;
+
+	unsigned int offset = state.sample - start;
+
 	for(int i = 0; i < num_samples; ++i) {
-		state.sample %= state.samples;
+		offset %= length;
 		if (state.buffer)
 			for (int j = 0; j < state.channels; ++j)
-				samples[i*state.channels + j] = state.buffer[state.channels * state.sample + j] * (state.muted ^ 1);
-		++state.sample;
+				samples[i*state.channels + j] = state.buffer[state.channels * (start + offset) + j] * (state.muted ^ 1);
+		++offset;
 	}
+
+	state.sample = start + offset;
 }
 
 int audioRawTogglePause() {
@@ -70,7 +93,48 @@ void audioRawSeek(float bar) {
 	if (!state.bpm)
 		return;
 
-	state.sample = (unsigned int)(bar * state.samplerate * 60 / state.bpm);
+	if (bar > 0) {
+		const unsigned int delta = (unsigned int)(bar * state.samples_per_bar);
+		if (state.samples - state.sample > delta)
+			state.sample += delta;
+	} else if (bar < 0) {
+		const unsigned int delta = (unsigned int)(-bar * state.samples_per_bar);
+		if (state.sample > delta)
+			state.sample -= delta;
+		else
+			state.sample = 0;
+	}
+
+	MSG("seek to bar %f", audioRawGetTimeBar());
+}
+
+unsigned int nearestBarSample(int gran) {
+	const unsigned int bar = (unsigned int)floorf(audioRawGetTimeBar());
+	return (bar - bar % gran) * state.samples_per_bar;
+}
+
+void audioRawLoopToggle() {
+	if (!state.bpm)
+		return;
+
+	switch (state.loop.state) {
+	case LoopState_Off:
+		state.loop.a = nearestBarSample(4);
+		MEMORY_BARRIER();
+		state.loop.state = LoopState_StartSet;
+		MSG("Loop start: %d", state.loop.a / state.samples_per_bar);
+		break;
+	case LoopState_StartSet:
+		state.loop.b = nearestBarSample(4);
+		MEMORY_BARRIER();
+		state.loop.state = LoopState_Looping;
+		MSG("Loop: %d -> %d", state.loop.a / state.samples_per_bar, state.loop.b / state.samples_per_bar);
+		break;
+	case LoopState_Looping:
+		state.loop.state = LoopState_Off;
+		MSG("Loop off");
+		break;
+	}
 }
 
 float audioRawGetTimeBar() {
@@ -87,5 +151,5 @@ float audioRawGetTimeBar2(float dt) {
 	state.sample += (state.paused ^ 1) * dt * state.samplerate;
 	state.sample %= state.samples;
 
-	return (float)(state.sample * state.bpm) / (state.samplerate * 60);
+	return (float)state.sample / (float)state.samples_per_bar;
 }

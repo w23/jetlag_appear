@@ -55,7 +55,7 @@ typedef struct {
 
 static int varParseTicksPerBar(const ParserCallbackParams *params) {
 	VarScene *scene = params->userdata;
-	scene->bars_per_tick = 1.f / params->args[0].value.i;
+	scene->bars_per_tick = params->args[0].value.i;
 	return 0;
 }
 
