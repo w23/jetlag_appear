@@ -385,10 +385,6 @@ void varExportEnd() {
 		for (int j = 0; j < var->points; ++j) {
 			for (int k = 0; k < (int)var->desc.type; ++k) {
 				const float f = (&var->point[j].v.x)[k];
-				/*const int value = f * 255.f / 32.f; //* 255.f / (2.f * 67.5f);
-				if (value > 255 || value < 0)
-					MSG("Var %s, point %d, comp %d, value %f invalid packed value %d", var->desc.name, j, k, f, value);*/
-
 				*(bvalues++) = f;
 			}
 		}

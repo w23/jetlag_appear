@@ -68,8 +68,8 @@ DUMP_AUDIO_DEPS = $(DUMP_AUDIO_OBJS:%=%.d)
 $(DUMP_AUDIO_EXE): $(DUMP_AUDIO_OBJS) $(OBJDIR)/4klang.o32
 	$(CC) -m32 $(LIBS) $^ -o $@
 
-#audio.raw: $(DUMP_AUDIO_EXE)
-#	$(DUMP_AUDIO_EXE) $@
+audio.raw: $(DUMP_AUDIO_EXE)
+	$(DUMP_AUDIO_EXE) $@
 
 clean:
 	rm -f $(TOOL_OBJS) $(TOOL_DEPS) $(TOOL_EXE)
@@ -99,13 +99,13 @@ $(INTRO).gz: $(INTRO).elf
 #	$(CC) -std=c99 -Wall -Werror -Wextra -pedantic -lm timepack.c -o timepack
 
 # '-nostartfiles -DCOMPACT' result in a libSDL crash on my machine (making older 1k/4k also crash) :(
-$(INTRO).elf: 4klang.o intro_c.c
+$(INTRO).elf: $(OBJDIR)/4klang.o32 intro_c.c
 	$(CC) -m32 -Os -Wall -Wno-unknown-pragmas \
 		-DFULLSCREEN `pkg-config --cflags --libs sdl` -lGL \
 		$^ -o $@
 	sstrip $@
 
-$(INTRO).dbg: intro_c.c 4klang.o
+$(INTRO).dbg: intro_c.c $(OBJDIR)/4klang.o32
 	$(CC) -m32 -O0 -g -Wall -Wno-unknown-pragmas \
 		`pkg-config --cflags --libs sdl` -lGL \
 		$^ -o $@

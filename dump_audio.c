@@ -3,6 +3,7 @@
 #endif
 
 #include "4klang.h"
+
 #include <string.h>
 #include <stdio.h>
 #ifdef __linux__
