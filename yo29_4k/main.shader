@@ -20,11 +20,146 @@ const vec3 bR = vec3(58e-7, 135e-7, 331e-7);
 const vec3 bMs = vec3(2e-5);
 const vec3 bMe = bMs * 1.1;
 
+vec3 sundir = vec3(1.,.001,1.);
+
+/*
+float noise31(vec3 v) {
+	vec3 p = floor(v);
+  vec3 f = fract(v);
+	f = f*f*(3.-2.*f);
+
+	vec2 uv = (p.xy+vec2(37.,197.)*p.z) + f.xy;
+	vec2 rg = textureLod(S, (uv+.5)/textureSize(S,0), 0.).yx;
+	return mix(rg.x, rg.y, f.z);
+}*/
+
+float noise31(vec3 v) {
+	return mix(noise24(v.xz).x, noise24(v.xy).y, .5);// fract(v.z));
+}
+
+float fnoise(vec3 v) {
+	return
+		.55 * noise31(v)
+		+ .225 * noise31(v*1.8)
+		+ .125 * noise31(v*4.3)
+		//+ .0625 * noise31(v*8.9)
+		;
+}
+
+float cloud(vec3 p) {
+	float cld = fnoise(p*6e-4);
+	cld = smoothstep(.4, .6, cld-.05);
+	return cld;
+}
+
+bool clouds = true;
+vec2 densitiesRM(vec3 p) {
+	float h = max(0., length(p - C) - R0);
+	vec2 retRM = vec2(exp(-h/Hr), exp(-h/Hm));
+
+	if (clouds) {
+		float r = length(p.xz);
+		if (r < 100. && p.y < 500.) {
+			retRM.y += 6e3 * smoothstep(.35, .55, fnoise(p*5e-2-vec3(0.,t*2.,0.))) * step(r, 8. + .3 * (p.y - 200.));
+		}
+
+		/*
+		float low = 5e3, hi = 10e3, border = 1e3;
+		if (low < h && h < hi) {
+			retRM.y +=
+				50. *
+				step(length(p), 50000.) *
+				smoothstep(low, low + border, h) *
+				//smoothstep(hi, hi - border, h) *
+				cloud(p+vec3(0., 0.,t*30.));
+		}*/
+	}
+
+	return retRM;
+}
+
+float escape(vec3 p, vec3 d, float R) {
+	vec3 v = p - C;
+	float b = dot(v, d);
+	float c = dot(v, v) - R*R;
+	float det2 = b * b - c;
+	if (det2 < 0.) return -1.;
+	float det = sqrt(det2);
+	float t1 = -b - det, t2 = -b + det;
+	return (t1 >= 0.) ? t1 : t2;
+}
+
+vec3 Lin(vec3 o, vec3 d, float L) {
+	float dls = L / float(stepss);
+	vec2 depthRMs = vec2(0.);
+	for (int j = 0; j < stepss; ++j) {
+		vec3 ps = o + d * float(j) * dls;
+		depthRMs += densitiesRM(ps) * dls;
+	}
+	return exp(-(bR * depthRMs.x + bMe * depthRMs.y));
+}
+
+vec3 scatter(vec3 o, vec3 d, float L, vec3 Lo) {
+	vec2 totalDepthRM = vec2(0., 0.);
+	vec3 LiR = vec3(0.), LiM = vec3(0.);
+
+	float l = 0.;
+	for (int i = 0; i < steps; ++i) {
+		float fi = float(i + 1) / float(steps);
+		fi *= fi;
+		fi *= fi;
+		float lp = L * fi;
+		float dl = lp - l;
+		vec3 p = o + d * lp;
+		l = lp;
+		vec2 dRM = densitiesRM(p) * dl;
+		totalDepthRM += dRM;
+
+		float Ls = escape(p, sundir, Ra);
+#if 1
+		float dls = Ls / float(stepss);
+#else
+		float ls = 0.;
+#endif
+		vec2 depthRMs = vec2(0.);
+		for (int j = 0; j < stepss; ++j) {
+#if 0
+			float fj = float(j + 1) / float(stepss);
+			fj *= fj;
+			float lps = Ls * fj;
+			float dls = lps - ls;
+			ls = lps;
+			vec3 ps = p + sundir * lps;
+#else
+			vec3 ps = p + sundir * float(j) * dls;
+#endif
+			depthRMs += densitiesRM(ps) * dls;
+		}
+
+		vec2 depthRMsum = depthRMs + totalDepthRM;
+		vec3 A = exp(-(bR * depthRMsum.x + bMe * depthRMsum.y));
+		LiR += A * dRM.x;
+		LiM += A * dRM.y;
+	}
+
+	float mu = dot(d, sundir);
+	float opmu2 = 1. + mu*mu;
+	vec2 phaseRM = vec2(
+		.0596831 * opmu2,
+		.1193662 * (1. - g2) * opmu2 / ((2. + g2) * pow(1. + g2 - 2.*g*mu, 1.5)));
+
+	return Lo * exp(-(bR * totalDepthRM.x + bMe * totalDepthRM.y))
+		+ I * (LiR * bR * phaseRM.x + LiM * bMs * phaseRM.y);
+}
+
+float saturate(float f) { return clamp(f, 0., 1.); }
+
 vec4 cseed, macroseed;
 vec3 lc;
 float walls;
 float park;
 float world(vec3 p) {
+	//return length(p.xz) - 10.;
 	float d = p.y - 400.;
 	//if (d > 10.)
 	//	return d + 10.;
@@ -61,7 +196,10 @@ float world(vec3 p) {
 	float height = maxh * (1. + 4. * smoothstep(.8, 1., macroseed.x));
 	walls = (.3 - vd) * .5;
 	d = min(p.y, max(p.y - cseed.x * height, walls));
-	return 100. * max(d, length(p)-100.);
+	d = 100. * max(d, length(p)-100.);
+	p *= 100.;
+	d = min(d, max(p.y - 200., length(p.xz) - 10.));
+	return d;
 }
 
 vec3 normal(vec3 p) {
@@ -83,7 +221,7 @@ float march(vec3 o, vec3 d, float l, float maxl) {
 		}
 
 	}
-	return minl;
+	return maxl;
 }
 
 vec3 O, D, N, P;
@@ -96,112 +234,10 @@ float dirlight(vec3 ld) {
 		max(0., pow(dot(N, normalize(ld - D)), m_shine) * (m_shine + 8.) / 24.),
 		m_kd);
 }
-vec3 sundir = vec3(1.,.001,1.);
 
-// by iq
-float noise31(vec3 v) {
-	vec3 p = floor(v);
-  vec3 f = fract(v);
-	f = f*f*(3.-2.*f);
-
-	vec2 uv = (p.xy+vec2(37.,197.)*p.z) + f.xy;
-	vec2 rg = textureLod(S, (uv+.5)/textureSize(S,0), 0.).yx;
-	return mix(rg.x, rg.y, f.z);
-}
-
-float fnoise(vec3 v) {
-	return
-		.55 * noise31(v) +
-		.225 * noise31(v*1.8) +
-		.125 * noise31(v*4.3) +
-		.0625 * noise31(v*8.9);
-}
-
-float cloud(vec3 p) {
-	float cld = fnoise(p*4e-4);
-	cld = smoothstep(.4+.04, .6+.04, cld);
-	cld *= cld * 40.;
-	return cld;
-}
-
-vec2 densitiesRM(vec3 pos) {
-	float h = max(0., length(pos - C) - R0);
-	vec2 retRM = vec2(exp(-h/Hr), exp(-h/Hm));
-
-	const float low = 5e3;
-	if (low < h && h < 10e3) {
-		retRM.y +=
-			step( length(pos), 50000.) *
-			cloud(pos+vec3(23175.7, 0.,t*30.)) * max(0., sin(3.1415*(h-low)/low));
-	}
-
-	return retRM;
-}
-
-float escape(vec3 p, vec3 d, float R) {
-	vec3 v = p - C;
-	float b = dot(v, d);
-	float c = dot(v, v) - R*R;
-	float det2 = b * b - c;
-	if (det2 < 0.) return -1.;
-	float det = sqrt(det2);
-	float t1 = -b - det, t2 = -b + det;
-	return (t1 >= 0.) ? t1 : t2;
-}
-
-vec3 Lin(vec3 o, vec3 d, float L) {
-	float dls = L / float(stepss);
-	vec2 depthRMs = vec2(0.);
-	for (int j = 0; j < stepss; ++j) {
-		vec3 ps = o + d * float(j) * dls;
-		depthRMs += densitiesRM(ps) * dls;
-	}
-	return exp(-(bR * depthRMs.x + bMe * depthRMs.y));
-}
-
-// this can be explained: http://www.scratchapixel.com/lessons/3d-advanced-lessons/simulating-the-colors-of-the-sky/atmospheric-scattering/
-vec3 scatter(vec3 o, vec3 d, float L, vec3 Lo) {
-	vec2 totalDepthRM = vec2(0., 0.);
-	vec3 LiR = vec3(0.), LiM = vec3(0.);
-
-	float dl = L / float(steps);
-	for (int i = 0; i < steps; ++i) {
-		vec3 p = o + d * float(i) * dl;
-		vec2 dRM = densitiesRM(p) * dl;
-		totalDepthRM += dRM;
-
-		float Ls = escape(p, sundir, Ra);
-		if (Ls > 0.) {
-			float dls = Ls / float(stepss);
-			vec2 depthRMs = vec2(0.);
-			for (int j = 0; j < stepss; ++j) {
-				vec3 ps = p + sundir * float(j) * dls;
-				depthRMs += densitiesRM(ps) * dls;
-			}
-
-			vec2 depthRMsum = depthRMs + totalDepthRM;
-			vec3 A = exp(-(bR * depthRMsum.x + bMe * depthRMsum.y));
-			LiR += A * dRM.x;
-			LiM += A * dRM.y;
-		} else {
-			return vec3(0.);
-		}
-	}
-
-	float mu = dot(d, sundir);
-	float opmu2 = 1. + mu*mu;
-	vec2 phaseRM = vec2(
-		.0596831 * opmu2,
-		.1193662 * (1. - g2) * opmu2 / ((2. + g2) * pow(1. + g2 - 2.*g*mu, 1.5)));
-
-	return Lo * exp(-(bR * totalDepthRM.x + bMe * totalDepthRM.y))
-		+ I * (LiR * bR * phaseRM.x + LiM * bMs * phaseRM.y);
-}
-
-float saturate(float f) { return clamp(f, 0., 1.); }
 
 void main() {
-	const vec2 res = vec2(1280., 720.);
+	const vec2 res = vec2(640., 360.);
 	vec2 uv = gl_FragCoord.xy/res * 2. - 1.; uv.x *= res.x / res.y;
 
 	if (gl_FragCoord.y < 10.) {
@@ -211,7 +247,7 @@ void main() {
 
 	//gl_FragColor = noise24(gl_FragCoord.xy);return;
 
-	t += noise24(gl_FragCoord.xy + t*100.*vec2(17.,39.)).x;
+	//t += noise24(gl_FragCoord.xy + t*100.*vec2(17.,39.)).x;
 
 	vec3 at = vec3(0.);
 	O = vec3(mod(t*2., 10000.) - 5000., 1000. + 500. * sin(t/60.), mod(t*10., 10000.) - 5000.);
@@ -238,7 +274,7 @@ void main() {
 	sundir = normalize(sundir);
 
 	D = normalize(O - at);
-	//O = $(vec3 cam_pos) * 100.; D = -normalize($(vec3 cam_dir));
+	O = $(vec3 cam_pos) * 100.; D = -normalize($(vec3 cam_dir));
 	vec3 x = normalize(cross(E.xzx, D));
 	D = mat3(x, normalize(cross(D, x)), D) * normalize(vec3(uv, -1.));
 	vec3 color = vec3(0.);
@@ -278,8 +314,11 @@ void main() {
 		//color = cseed.rgb;
 		color += albedo * Lin(P, sundir, escape(P, sundir, Ra)) * I * dirlight(sundir);
 		vec3 opposite = vec3(-sundir.x, sundir.y, -sundir.z);
+		m_shine = 0.;
+		clouds = false;
 		color += albedo * scatter(P, opposite, escape(P, opposite, Ra), vec3(0.)) * dirlight(opposite);
-		color += albedo * vec3(.07) * dirlight(normalize(vec3(1.)));
+		clouds = true;
+		//color += albedo * vec3(.07) * dirlight(normalize(vec3(1.)));
 		color += emissive;
 	} else {
 		l = escape(O, D, Ra);
