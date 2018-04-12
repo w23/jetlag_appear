@@ -99,21 +99,21 @@ float dirlight(vec3 ld) {
 vec3 sundir = vec3(1.,.001,1.);
 
 // by iq
-float noise31(in vec3 v) {
+float noise31(vec3 v) {
 	vec3 p = floor(v);
   vec3 f = fract(v);
-	//f = f*f*(3.-2.*f);
+	f = f*f*(3.-2.*f);
 
-	vec2 uv = (p.xy+vec2(37.,17.)*p.z) + f.xy;
+	vec2 uv = (p.xy+vec2(37.,197.)*p.z) + f.xy;
 	vec2 rg = textureLod(S, (uv+.5)/textureSize(S,0), 0.).yx;
 	return mix(rg.x, rg.y, f.z);
 }
 
-float fnoise(in vec3 v) {
+float fnoise(vec3 v) {
 	return
 		.55 * noise31(v) +
-		.225 * noise31(v*2.) +
-		.125 * noise31(v*3.99) +
+		.225 * noise31(v*1.8) +
+		.125 * noise31(v*4.3) +
 		.0625 * noise31(v*8.9);
 }
 
@@ -130,13 +130,15 @@ vec2 densitiesRM(vec3 pos) {
 
 	const float low = 5e3;
 	if (low < h && h < 10e3) {
-		retRM.y += step( length(pos), 50000.) * cloud(pos+vec3(23175.7, 0.,t*30.)) * max(0., sin(3.1415*(h-low)/low));
+		retRM.y +=
+			step( length(pos), 50000.) *
+			cloud(pos+vec3(23175.7, 0.,t*30.)) * max(0., sin(3.1415*(h-low)/low));
 	}
 
 	return retRM;
 }
 
-float escape(in vec3 p, in vec3 d, in float R) {
+float escape(vec3 p, vec3 d, float R) {
 	vec3 v = p - C;
 	float b = dot(v, d);
 	float c = dot(v, v) - R*R;
@@ -199,7 +201,7 @@ vec3 scatter(vec3 o, vec3 d, float L, vec3 Lo) {
 float saturate(float f) { return clamp(f, 0., 1.); }
 
 void main() {
-	const vec2 res = vec2(640.,360.);
+	const vec2 res = vec2(1280., 720.);
 	vec2 uv = gl_FragCoord.xy/res * 2. - 1.; uv.x *= res.x / res.y;
 
 	if (gl_FragCoord.y < 10.) {
