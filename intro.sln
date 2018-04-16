@@ -20,6 +20,8 @@ Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "dump_audio", "dump_audio.vc
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "yo29_c", "yo29_4k\yo29_c.vcxproj", "{6251A0A8-3D3A-43FC-854B-0B517BB1EFBD}"
 EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "yo29_asm", "yo29_4k\yo29_asm.vcxproj", "{AF95D3DD-C930-4615-A703-CBD8F08140BA}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Capture|x64 = Capture|x64
@@ -127,6 +129,18 @@ Global
 		{6251A0A8-3D3A-43FC-854B-0B517BB1EFBD}.ReleaseSlow|x64.ActiveCfg = ReleaseSlow|Win32
 		{6251A0A8-3D3A-43FC-854B-0B517BB1EFBD}.ReleaseSlow|x86.ActiveCfg = ReleaseSlow|Win32
 		{6251A0A8-3D3A-43FC-854B-0B517BB1EFBD}.ReleaseSlow|x86.Build.0 = ReleaseSlow|Win32
+		{AF95D3DD-C930-4615-A703-CBD8F08140BA}.Capture|x64.ActiveCfg = Capture|Win32
+		{AF95D3DD-C930-4615-A703-CBD8F08140BA}.Capture|x86.ActiveCfg = Capture|Win32
+		{AF95D3DD-C930-4615-A703-CBD8F08140BA}.Capture|x86.Build.0 = Capture|Win32
+		{AF95D3DD-C930-4615-A703-CBD8F08140BA}.Debug|x64.ActiveCfg = Debug|Win32
+		{AF95D3DD-C930-4615-A703-CBD8F08140BA}.Debug|x86.ActiveCfg = Debug|Win32
+		{AF95D3DD-C930-4615-A703-CBD8F08140BA}.Debug|x86.Build.0 = Debug|Win32
+		{AF95D3DD-C930-4615-A703-CBD8F08140BA}.Release|x64.ActiveCfg = Release|Win32
+		{AF95D3DD-C930-4615-A703-CBD8F08140BA}.Release|x86.ActiveCfg = Release|Win32
+		{AF95D3DD-C930-4615-A703-CBD8F08140BA}.Release|x86.Build.0 = Release|Win32
+		{AF95D3DD-C930-4615-A703-CBD8F08140BA}.ReleaseSlow|x64.ActiveCfg = ReleaseSlow|Win32
+		{AF95D3DD-C930-4615-A703-CBD8F08140BA}.ReleaseSlow|x86.ActiveCfg = ReleaseSlow|Win32
+		{AF95D3DD-C930-4615-A703-CBD8F08140BA}.ReleaseSlow|x86.Build.0 = ReleaseSlow|Win32
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

@@ -19,7 +19,7 @@
     </ProjectConfiguration>
   </ItemGroup>
   <PropertyGroup Label="Globals">
-    <ProjectGuid>{6251A0A8-3D3A-43FC-854B-0B517BB1EFBD}</ProjectGuid>
+    <ProjectGuid>{AF95D3DD-C930-4615-A703-CBD8F08140BA}</ProjectGuid>
     <RootNamespace>yo29</RootNamespace>
     <WindowsTargetPlatformVersion>8.1</WindowsTargetPlatformVersion>
   </PropertyGroup>
@@ -157,19 +157,19 @@
       <Outputs>%(Filename).h</Outputs>
       <Message>Minifying shader %(Identity) to %(Filename).h</Message>
       <LinkObjects>false</LinkObjects>
-      <Command Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">shader_minifier.exe --no-renaming-list O,D,P,N,S,F,main --preserve-externals -o %(Filename).h %(Identity)</Command>
-      <Command Condition="'$(Configuration)|$(Platform)'=='ReleaseSlow|Win32'">shader_minifier.exe --no-renaming-list O,D,P,N,S,F,main --preserve-externals -o %(Filename).h %(Identity)</Command>
-      <Command Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">shader_minifier.exe --no-renaming-list O,D,P,N,S,F,main --preserve-externals -o %(Filename).h %(Identity)</Command>
-      <Command Condition="'$(Configuration)|$(Platform)'=='Capture|Win32'">shader_minifier.exe --no-renaming-list O,D,P,N,S,F,main --preserve-externals -o %(Filename).h %(Identity)</Command>
+      <Command Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">shader_minifier.exe --no-renaming-list O,D,P,N,S,F,main --format nasm --preserve-externals -o %(Filename).inc %(Identity)</Command>
+      <Command Condition="'$(Configuration)|$(Platform)'=='ReleaseSlow|Win32'">shader_minifier.exe --no-renaming-list O,D,P,N,S,F,main --format nasm --preserve-externals -o %(Filename).inc %(Identity)</Command>
+      <Command Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">shader_minifier.exe --no-renaming-list O,D,P,N,S,F,main --format nasm --preserve-externals -o %(Filename).inc %(Identity)</Command>
+      <Command Condition="'$(Configuration)|$(Platform)'=='Capture|Win32'">shader_minifier.exe --no-renaming-list O,D,P,N,S,F,main --format nasm --preserve-externals -o %(Filename).inc %(Identity)</Command>
+      <Message Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">Minifying shader %(Identity) to %(Filename).inc</Message>
+      <Message Condition="'$(Configuration)|$(Platform)'=='ReleaseSlow|Win32'">Minifying shader %(Identity) to %(Filename).inc</Message>
+      <Message Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">Minifying shader %(Identity) to %(Filename).inc</Message>
+      <Message Condition="'$(Configuration)|$(Platform)'=='Capture|Win32'">Minifying shader %(Identity) to %(Filename).inc</Message>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">%(Filename).inc</Outputs>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='ReleaseSlow|Win32'">%(Filename).inc</Outputs>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">%(Filename).inc</Outputs>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='Capture|Win32'">%(Filename).inc</Outputs>
     </CustomBuild>
-  </ItemGroup>
-  <ItemGroup>
-    <ClCompile Include="yo29.c">
-      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">false</ExcludedFromBuild>
-      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='ReleaseSlow|Win32'">false</ExcludedFromBuild>
-      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Capture|Win32'">false</ExcludedFromBuild>
-      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">false</ExcludedFromBuild>
-    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <CustomBuild Include="4klang.asm">
@@ -202,6 +202,25 @@
   </ItemGroup>
   <ItemGroup>
     <None Include="4klang_win32\4klang.inc" />
+    <CustomBuild Include="yo29.asm">
+      <FileType>Document</FileType>
+      <Command Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">"nasmw.exe" -f win32 -DDEBUG "%(Identity)" -o "$(ProjectDir)$(Configuration)\%(Filename).obj"</Command>
+      <Command Condition="'$(Configuration)|$(Platform)'=='ReleaseSlow|Win32'">"nasmw.exe" -f win32 -i $(ProjectDir)4klang_win32\ "%(Identity)" -o "$(ProjectDir)$(Configuration)\%(Filename).obj"</Command>
+      <Command Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">"nasmw.exe" -f win32 -i $(ProjectDir)4klang_win32\ "%(Identity)" -o "$(ProjectDir)$(Configuration)\%(Filename).obj"</Command>
+      <Command Condition="'$(Configuration)|$(Platform)'=='Capture|Win32'">"nasmw.exe" -f win32 -i $(ProjectDir)4klang_win32\ "%(Identity)" -o "$(ProjectDir)$(Configuration)\%(Filename).obj"</Command>
+      <Message Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">"nasmw.exe" -f win32 -DDEBUG "%(Identity)" -o "$(ProjectDir)$(Configuration)\%(Filename).obj"</Message>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">$(ProjectDir)$(Configuration)\%(Filename).obj</Outputs>
+      <Message Condition="'$(Configuration)|$(Platform)'=='ReleaseSlow|Win32'">"nasmw.exe" -f win32 -i $(ProjectDir)4klang_win32\ "%(Identity)" -o "$(ProjectDir)$(Configuration)\%(Filename).obj"</Message>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='ReleaseSlow|Win32'">$(ProjectDir)$(Configuration)\%(Filename).obj</Outputs>
+      <Message Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">"nasmw.exe" -f win32 -i $(ProjectDir)4klang_win32\ "%(Identity)" -o "$(ProjectDir)$(Configuration)\%(Filename).obj"</Message>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">$(ProjectDir)$(Configuration)\%(Filename).obj</Outputs>
+      <Message Condition="'$(Configuration)|$(Platform)'=='Capture|Win32'">"nasmw.exe" -f win32 -i $(ProjectDir)4klang_win32\ "%(Identity)" -o "$(ProjectDir)$(Configuration)\%(Filename).obj"</Message>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='Capture|Win32'">$(ProjectDir)$(Configuration)\%(Filename).obj</Outputs>
+      <AdditionalInputs Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">main.shader.inc</AdditionalInputs>
+      <AdditionalInputs Condition="'$(Configuration)|$(Platform)'=='ReleaseSlow|Win32'">%(ProjectDir)4klang_win32\4klang.inc;main.shader.inc</AdditionalInputs>
+      <AdditionalInputs Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">%(ProjectDir)4klang_win32\4klang.inc;main.shader.inc</AdditionalInputs>
+      <AdditionalInputs Condition="'$(Configuration)|$(Platform)'=='Capture|Win32'">%(ProjectDir)4klang_win32\4klang.inc;main.shader.inc</AdditionalInputs>
+    </CustomBuild>
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets" />

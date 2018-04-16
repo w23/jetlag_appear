@@ -27,11 +27,9 @@
     <CustomBuild Include="4klang.asm">
       <Filter>Файлы исходного кода</Filter>
     </CustomBuild>
-  </ItemGroup>
-  <ItemGroup>
-    <ClCompile Include="yo29.c">
+    <CustomBuild Include="yo29.asm">
       <Filter>Файлы исходного кода</Filter>
-    </ClCompile>
+    </CustomBuild>
   </ItemGroup>
   <ItemGroup>
     <None Include="4klang_win32\4klang.inc">
