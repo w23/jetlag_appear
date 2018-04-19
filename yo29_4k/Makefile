@@ -25,6 +25,10 @@ $(OBJDIR)/%.c.o: %.c
 	@mkdir -p $(dir $@)
 	$(COMPILE.c) -c $< -o $@
 
+$(OBJDIR)/%.asm.obj: %.asm
+	@mkdir -p $(dir $@)
+	nasm -f win32 -i4klang_win32/ $< -o $@
+
 $(OBJDIR)/%.c.o32: %.c
 	@mkdir -p $(dir $@)
 	$(COMPILE.c) -m32 -c $< -o $@
@@ -62,6 +66,9 @@ DUMP_AUDIO_EXE = $(OBJDIR)/dump_audio
 DUMP_AUDIO_SRCS = dump_audio.c
 DUMP_AUDIO_OBJS = $(DUMP_AUDIO_SRCS:%=$(OBJDIR)/%.o32)
 DUMP_AUDIO_DEPS = $(DUMP_AUDIO_OBJS:%=%.d)
+
+INTRO_WIN32_SRCS = 4klang.asm yo29.asm
+INTRO_WIN32_OBJS = $(INTRO_WIN32_SRCS:%=$(OBJDIR)/%.obj)
 
 -include $(DUMP_AUDIO_DEPS)
 
@@ -109,6 +116,29 @@ $(INTRO).dbg: intro_c.c $(OBJDIR)/4klang.o32
 	$(CC) -m32 -O0 -g -Wall -Wno-unknown-pragmas \
 		`pkg-config --cflags --libs sdl` -lGL \
 		$^ -o $@
+
+INTRO_WIN32_LIBS = opengl32.lib winmm.lib kernel32.lib user32.lib gdi32.lib
+INTRO_WIN32_CRINKLER_OPTS = /ENTRY:entrypoint /CRINKLER /UNSAFEIMPORT /NOALIGNMENT /NOINITIALIZERS /RANGE:opengl32 /PRINT:IMPORTS /PRINT:LABELS /TRANSFORM:CALLS /TINYIMPORT /NODEFAULTLIB
+
+win32-fast: $(INTRO)-fast.exe
+
+$(INTRO)-fast.exe: $(INTRO_WIN32_OBJS)
+	wine ../link.exe \
+		$(INTRO_WIN32_CRINKLER_OPTS) \
+		/COMPMODE:FAST /REPORT:report-fast.html \
+		$(INTRO_WIN32_LIBS) \
+		$(INTRO_WIN32_OBJS) \
+		/OUT:$@
+
+win32-slow: $(INTRO)-slow.exe
+
+$(INTRO)-slow.exe: $(INTRO_WIN32_OBJS)
+	wine ../link.exe \
+		$(INTRO_WIN32_CRINKLER_OPTS) \
+		/HASHTRIES:3000 /COMPMODE:SLOW /ORDERTRIES:6000 /REPORT:report-slow.html /SATURATE /HASHSIZE:900 /UNSAFEIMPORT \
+		$(INTRO_WIN32_LIBS) \
+		$(INTRO_WIN32_OBJS) \
+		/OUT:$@
 
 $(INTRO).capture: blur_reflection.h  composite.h  dof_tap.h  header.h  out.h  post.h  raymarch.h intro_c.c
 	$(CC) -O3 -Wall -Wno-unknown-pragmas \

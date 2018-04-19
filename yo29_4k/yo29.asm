@@ -81,6 +81,7 @@ GL_RGBA16F EQU 0x881a
 
 %macro WINAPI_FUNC 2
 	extern _ %+ %1 %+ @ %+ %2
+	%1 EQU _ %+ %1 %+ @ %+ %2
 %endmacro
 WINAPI_FUNCLIST
 %unmacro WINAPI_FUNC 2
