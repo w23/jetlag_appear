@@ -34,7 +34,7 @@ float noise31(vec3 v) {
 }*/
 
 float noise31(vec3 v) {
-	return mix(noise24(v.xz).x, noise24(v.xy).y, .5);// fract(v.z));
+	return mix(noise24(v.xz).x, noise24(v.yx).y, .5);// fract(v.z));
 }
 
 float fnoise(vec3 v) {
@@ -160,16 +160,44 @@ vec3 rep(vec3 p, vec3 s) { return mod(p, s) - s*.5; }
 vec2 rep(vec2 p, vec2 s) { return mod(p, s) - s*.5; }
 
 float mindex = 0.;
+
+float building(vec3 p, vec2 cell) {
+	//return 0.;
+	vec4 rnd = noise24(cell);
+	vec4 rnd2 = noise24(cell/8.);
+
+	vec3 s = vec3(
+		10. + rnd.x * 30.,
+		3. * (2. + floor(pow(rnd2.z,3.) * 100.)),
+		10. + rnd.y * 30.);
+	return box(p, s);
+}
+
 float world(vec3 p) {
-	float d = max(p.y, length(p) - 1e3);
+	float bound = length(p) - 1e4;
+
+	if (p.y > 250.) return p.y - 200.;
+
+	float d = p.y;//max(p.y, length(p) - 1e3);
 	mindex = 0.;
 
-	p.xz = rep(p.xz, vec2(50.));
+	vec2 cell = floor(p.xz / 100.);
+	p.xz = rep(p.xz, vec2(100.));
+	//float bx = box(p, vec3(40., 200., 40.));
+	//float bx = box(p, vec3(50., 200., 50.));
+	float bx = max(abs(p.x)-50., abs(p.z)-50.);
+	if (bx < -5.) {
+		d = min(min(d, -bx+5.), building(p, cell));
+	}
+	else
+		d = min(d, bx+10.);
+
+/*
 	float floors = 4.;
 	float bld = box(p, vec3(6., floors * 3., 20.));
 	float glass = bld + .2;
 	bld = max(bld, -box(rep(p+vec3(1.,0.,0.), vec3(2.)), vec3(.5)));
-	bld = min(bld, 
+	bld = min(bld,
 		max(bld-1.,
 			box(rep(p+vec3(0.,1.,0.),vec3(12., 3., 10.)), vec3(.5, .5, 1.5))));
 
@@ -182,38 +210,22 @@ float world(vec3 p) {
 		d = glass;
 		mindex = 2.;
 	}
+	*/
 
-	return d;
-}
-
-vec3 normal(vec3 p) {
-	return normalize(vec3(
-		world(p+E.yxx), world(p+E.xyx), world(p+E.xxy)) - world(p));
+	return max(d, bound);
 }
 
 float march(vec3 o, vec3 d, float l, float maxl) {
-	for (int i = 0; i < 99; ++i) {
+	for (int i = 0; i < 200; ++i) {
 		float dd = world(o + d * l);
 		l += dd;
-		if (dd < .001 * l || l > maxl) return l;
+		if (dd < .002 * l || l > maxl) return l;
 	}
 	return maxl;
 }
 
-vec3 O, D, N, P;
-float m_kd = .5;
-float m_shine = 10.;
-
-float dirlight(vec3 ld) {
-	return mix(
-		max(0., dot(N, ld)) / 3.,
-		max(0., pow(dot(N, normalize(ld - D)), m_shine) * (m_shine + 8.) / 24.),
-		m_kd);
-}
-
-
 void main() {
-	const vec2 res = vec2(640., 360.);
+	const vec2 res = vec2(640., 360.)*2.;
 	vec2 uv = gl_FragCoord.xy/res * 2. - 1.; uv.x *= res.x / res.y;
 
 	if (gl_FragCoord.y < 10.) {
@@ -222,9 +234,9 @@ void main() {
 	}
 
 	//gl_FragColor = noise24(gl_FragCoord.xy);return;
-
 	//t += noise24(gl_FragCoord.xy + t*100.*vec2(17.,39.)).x;
 
+	vec3 O, D, N, P;
 	vec3 at = vec3(0.);
 	O = vec3(mod(t*2., 10000.) - 5000., 1000. + 500. * sin(t/60.), mod(t*10., 10000.) - 5000.);
 
@@ -255,15 +267,19 @@ void main() {
 	D = mat3(x, normalize(cross(D, x)), D) * normalize(vec3(uv, -1.));
 	vec3 color = vec3(0.);
 
-	const float md = 1e4;
+	const float max_distance = 1e4;
 	vec3 color_coeff = vec3(1.);
-	for (int i = 0; i < 1; ++i) {
-		float l = march(O, D, .1, md);
+	//for (int i = 0; i < 1; ++i)
+	{
+		float l = march(O, D, .1, max_distance);
 		vec3 localcolor = vec3(0.);
 		vec3 m_emissive = vec3(0.);
-		if (l < md) {
+		float m_kd = .5;
+		float m_shine = 10.;
+		if (l < max_distance) {
 			P = O + D * l;
-			N = normal(P);
+			N = normalize(vec3(
+				world(P+E.yxx), world(P+E.xyx), world(P+E.xxy)) - world(P));
 
 			vec3 albedo = vec3(.2, .6, .1);
 			m_shine = 0.;
@@ -276,21 +292,24 @@ void main() {
 				m_shine = 10000.;
 			}
 
-			localcolor = albedo * Lin(P, sundir, escape(P, sundir, Ra)) * I * dirlight(sundir);
+			localcolor = albedo * Lin(P, sundir, escape(P, sundir, Ra)) * I
+				* mix(
+					max(0., dot(N, sundir)) / 3.,
+					max(0., pow(dot(N, normalize(sundir - D)), m_shine) * (m_shine + 8.) / 24.),
+					m_kd);
 			vec3 opposite = vec3(-sundir.x, sundir.y, -sundir.z);
 			clouds = false;
-			localcolor += albedo * scatter(P, opposite, escape(P, opposite, Ra), vec3(0.)) * dirlight(opposite);
+			localcolor += albedo * scatter(P, opposite, escape(P, opposite, Ra), vec3(0.)) * m_kd * max(0., dot(N, opposite)) / 3.;
 			clouds = true;
-			//localcolor += albedo * vec3(.07) * dirlight(normalize(vec3(1.)));
 			localcolor += m_emissive;
 			color += color_coeff * scatter(O, D, l, localcolor);
 			D = reflect(D, N);
 			O = P;
-			color_coeff *= albedo;
+			//color_coeff *= albedo;
 		} else {
 			l = escape(O, D, Ra);
 			color += color_coeff * scatter(O, D, l, localcolor);
-			break;
+	//		break;
 		}
 	}
 
