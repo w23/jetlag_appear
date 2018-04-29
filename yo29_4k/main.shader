@@ -58,12 +58,13 @@ vec2 densitiesRM(vec3 p) {
 	vec2 retRM = vec2(exp(-h/Hr), exp(-h/Hm));
 
 	if (clouds) {
+		/*
 		float r = length(p.xz);
 		if (r < 100. && p.y < 500.) {
 			retRM.y += 6e3 * smoothstep(.35, .55, fnoise(p*5e-2-vec3(0.,t*2.,0.))) * step(r, 8. + .3 * (p.y - 200.));
 		}
+		*/
 
-		/*
 		float low = 5e3, hi = 10e3, border = 1e3;
 		if (low < h && h < hi) {
 			retRM.y +=
@@ -72,7 +73,7 @@ vec2 densitiesRM(vec3 p) {
 				smoothstep(low, low + border, h) *
 				//smoothstep(hi, hi - border, h) *
 				cloud(p+vec3(0., 0.,t*30.));
-		}*/
+		}
 	}
 
 	return retRM;
@@ -153,52 +154,35 @@ vec3 scatter(vec3 o, vec3 d, float L, vec3 Lo) {
 }
 
 float saturate(float f) { return clamp(f, 0., 1.); }
+float vmax(vec3 v) { return max(v.x, max(v.y, v.z)); }
+float box(vec3 p, vec3 s) { return vmax(abs(p) - s); }
+vec3 rep(vec3 p, vec3 s) { return mod(p, s) - s*.5; }
+vec2 rep(vec2 p, vec2 s) { return mod(p, s) - s*.5; }
 
-vec4 cseed, macroseed;
-vec3 lc;
-float walls;
-float park;
+float mindex = 0.;
 float world(vec3 p) {
-	//return length(p.xz) - 10.;
-	float d = p.y - 400.;
-	//if (d > 10.)
-	//	return d + 10.;
-	float r = length(p.xz);
-	p /= 100.;
-	vec2 C = floor(p.xz), TC = C;
-	float min1 = 10., min2 = 10.;
-	for (float x = -1.; x <= 1.; x+=1.)
-	for (float y = -1.; y <= 1.; y+=1.) {
-		vec2 cn = C + vec2(x, y), c = cn + .5;
-		vec2 macrocell = floor(cn / 10.);
-		macroseed = noise24(macrocell);
-		float center_dist2 = dot(cn,cn);
-		cseed = noise24(cn);
-		c += (cseed.yz - .5) * smoothstep(100., 200., center_dist2) * macroseed.x;
-		//float dist = length(c - p.xz);
-		float dist = abs(c.x - p.x) + abs(c.y - p.z);
-		if (dist < min1) {
-			min2 = min1;
-			min1 = dist;
-			TC = cn;
-		} else if (dist < min2)
-			min2 = dist;
+	float d = max(p.y, length(p) - 1e3);
+	mindex = 0.;
+
+	p.xz = rep(p.xz, vec2(50.));
+	float floors = 4.;
+	float bld = box(p, vec3(6., floors * 3., 20.));
+	float glass = bld + .2;
+	bld = max(bld, -box(rep(p+vec3(1.,0.,0.), vec3(2.)), vec3(.5)));
+	bld = min(bld, 
+		max(bld-1.,
+			box(rep(p+vec3(0.,1.,0.),vec3(12., 3., 10.)), vec3(.5, .5, 1.5))));
+
+	if (bld < d) {
+		d = bld;
+		mindex = 1.;
 	}
 
-	float vd = min2 - min1;
+	if (glass < d) {
+		d = glass;
+		mindex = 2.;
+	}
 
-	float center_dist2 = dot(TC, TC);
-	cseed = noise24(TC);
-	macroseed = noise24((TC / 10.));
-	lc = p - vec3(TC.x, 0., TC.y);
-	park = step(.8, macroseed.w);
-	float maxh = smoothstep(10000., 1000., r) * (1. - park);
-	float height = maxh * (1. + 4. * smoothstep(.8, 1., macroseed.x));
-	walls = (.3 - vd) * .5;
-	d = min(p.y, max(p.y - cseed.x * height, walls));
-	d = 100. * max(d, length(p)-100.);
-	p *= 100.;
-	d = min(d, max(p.y - 200., length(p.xz) - 10.));
 	return d;
 }
 
@@ -208,18 +192,10 @@ vec3 normal(vec3 p) {
 }
 
 float march(vec3 o, vec3 d, float l, float maxl) {
-	float mind=10., minl = l;
-	for (int i = 0; i < 199; ++i) {
+	for (int i = 0; i < 99; ++i) {
 		float dd = world(o + d * l);
-		l += dd * .37;
+		l += dd;
 		if (dd < .001 * l || l > maxl) return l;
-
-		//if (l > maxl) break;
-
-		if (dd < mind) {
-			mind = dd; minl = l;
-		}
-
 	}
 	return maxl;
 }
@@ -274,57 +250,49 @@ void main() {
 	sundir = normalize(sundir);
 
 	D = normalize(O - at);
-	O = $(vec3 cam_pos) * 100.; D = -normalize($(vec3 cam_dir));
+	O = $(vec3 cam_pos) * 10.; D = -normalize($(vec3 cam_dir));
 	vec3 x = normalize(cross(E.xzx, D));
 	D = mat3(x, normalize(cross(D, x)), D) * normalize(vec3(uv, -1.));
 	vec3 color = vec3(0.);
 
-	const float md = 5e4;
-	float l = march(O, D, 0., md);
-	vec3 emissive = vec3(0.);
-	if (l < md) {
-		P = O + D * l;
-		N = normal(P);
+	const float md = 1e4;
+	vec3 color_coeff = vec3(1.);
+	for (int i = 0; i < 1; ++i) {
+		float l = march(O, D, .1, md);
+		vec3 localcolor = vec3(0.);
+		vec3 m_emissive = vec3(0.);
+		if (l < md) {
+			P = O + D * l;
+			N = normal(P);
 
-		vec3 albedo = vec3(.3 + .2 * cseed.w) + .03 * cseed.xyz;
-		float occlusion = 1. - .3 * saturate(.5 * ((10. - P.y) / 10. + (1. - walls) / 1.));
-		//occlusion = 1.;
-		m_shine = 200.;
-		if (park > 0.) {
-			float path = step(.1, walls);
-			albedo = .05 * mix(vec3(.4,.9,.3) - vec3(.2 * noise24(P.xz).x), .8*vec3(.6,.8,.2), path);
-			m_kd = .5 - .5 * (1. - path);
-			m_shine = 10. * (1. - path);
-			occlusion = 1.;
-		} else if (P.y < 1.) {
-			albedo = vec3(.01 + .04 * step(walls, .07)) + vec3(.7) * step(.145, walls);//mix(vec3(.05), vec3(.01), step(3., walls));
-			m_shine = 1.;
+			vec3 albedo = vec3(.2, .6, .1);
+			m_shine = 0.;
+
+			if (mindex == 1.) {
+				albedo = vec3(.2);
+			}
+			if (mindex == 2.) {
+				albedo = vec3(1.);
+				m_shine = 10000.;
+			}
+
+			localcolor = albedo * Lin(P, sundir, escape(P, sundir, Ra)) * I * dirlight(sundir);
+			vec3 opposite = vec3(-sundir.x, sundir.y, -sundir.z);
+			clouds = false;
+			localcolor += albedo * scatter(P, opposite, escape(P, opposite, Ra), vec3(0.)) * dirlight(opposite);
+			clouds = true;
+			//localcolor += albedo * vec3(.07) * dirlight(normalize(vec3(1.)));
+			localcolor += m_emissive;
+			color += color_coeff * scatter(O, D, l, localcolor);
+			D = reflect(D, N);
+			O = P;
+			color_coeff *= albedo;
 		} else {
-			//float a = atan(lc.x, lc.z);
-			//albedo *= .8 + .2 * (step(2., mod(P.y, 4.)) * step(2., mod(lc.x*100., 4.)));
+			l = escape(O, D, Ra);
+			color += color_coeff * scatter(O, D, l, localcolor);
+			break;
 		}
-
-		albedo *= occlusion;
-
-		//emissive += (1. - occlusion) * vec3(.4, .3, .1);
-
-		//vec4 rnd = noise24(vec2(floor(local_coord.y/2.), floor(atan(mp.x, mp.z) * 1000.)));
-		//	color = vec3(1., 0., 1.);
-		//color = macroseed.rgb;
-		//color = cseed.rgb;
-		color += albedo * Lin(P, sundir, escape(P, sundir, Ra)) * I * dirlight(sundir);
-		vec3 opposite = vec3(-sundir.x, sundir.y, -sundir.z);
-		m_shine = 0.;
-		clouds = false;
-		color += albedo * scatter(P, opposite, escape(P, opposite, Ra), vec3(0.)) * dirlight(opposite);
-		clouds = true;
-		//color += albedo * vec3(.07) * dirlight(normalize(vec3(1.)));
-		color += emissive;
-	} else {
-		l = escape(O, D, Ra);
 	}
-
-	color = scatter(O, D, l, color);
 
 	gl_FragColor = vec4(pow(color, vec3(1./2.2)),.5);
 }

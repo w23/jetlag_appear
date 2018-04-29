@@ -86,8 +86,8 @@ clean:
 run_tool: ../$(TOOL_EXE) audio.raw
 	../$(TOOL_EXE) -w $(WIDTH) -h $(HEIGHT) -m $(MIDIDEV)
 
-debug_tool: $(TOOL_EXE) audio.raw
-	gdb --args $(TOOL_EXE) -w $(WIDTH) -h $(HEIGHT) -m $(MIDIDEV)
+debug_tool: ../$(TOOL_EXE) audio.raw
+	gdb --args ../$(TOOL_EXE) -w $(WIDTH) -h $(HEIGHT) -m $(MIDIDEV)
 
 $(INTRO).sh: linux_header $(INTRO).gz
 	cat linux_header $(INTRO).gz > $@
