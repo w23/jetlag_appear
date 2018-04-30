@@ -161,71 +161,56 @@ vec2 rep(vec2 p, vec2 s) { return mod(p, s) - s*.5; }
 
 float mindex = 0.;
 
+float dbg = 0.;
 float building(vec3 p, vec2 cell) {
-	//return 0.;
 	vec4 rnd = noise24(cell);
 	vec4 rnd2 = noise24(cell/8.);
 
+	float floor_height = 3.;
+
 	vec3 s = vec3(
-		10. + rnd.x * 30.,
-		3. * (2. + floor(pow(rnd2.z,3.) * 100.)),
-		10. + rnd.y * 30.);
-	return box(p, s);
+		5. + rnd.x * 7.,
+		3. * (2. + floor(rnd.z * 10. + 30. * smoothstep(.8,.99, rnd.z) * smoothstep(.6, .9, rnd2.z))),
+		5. + rnd.y * 7.);
+	return min(
+		box(p, s-.2),
+		max(p.y - s.y, box(vec3(p.x, mod(p.y/*+floor_height*.25*/,floor_height) - floor_height*.5, p.z), vec3(s.x, .3, s.z)))
+	);
 }
 
 float world(vec3 p) {
 	float bound = length(p) - 1e4;
-
-	if (p.y > 250.) return p.y - 200.;
+	float highway = abs(dot(normalize(vec2(-1.,2.)),p.xz)) - 12.;
 
 	float d = p.y;//max(p.y, length(p) - 1e3);
-	mindex = 0.;
+	mindex = 1.;
 
-	vec2 cell = floor(p.xz / 100.);
-	p.xz = rep(p.xz, vec2(100.));
-	//float bx = box(p, vec3(40., 200., 40.));
-	//float bx = box(p, vec3(50., 200., 50.));
-	float bx = max(abs(p.x)-50., abs(p.z)-50.);
-	if (bx < -5.) {
-		d = min(min(d, -bx+5.), building(p, cell));
-	}
+	vec2 cell = floor(p.xz / 30.);
+	p.xz = rep(p.xz, vec2(30.));
+	float bx = max(abs(p.x)-15., abs(p.z)-15.);
+	float guard = 2.;
+	dbg = bx;
+	if (bx < -guard)
+		d = min(min(d, -bx+guard), building(p, cell));
+		//box(p,vec3(12.*sin(cell.x)))));
 	else
-		d = min(d, bx+10.);
+		d = min(d, -bx+guard);
 
-/*
-	float floors = 4.;
-	float bld = box(p, vec3(6., floors * 3., 20.));
-	float glass = bld + .2;
-	bld = max(bld, -box(rep(p+vec3(1.,0.,0.), vec3(2.)), vec3(.5)));
-	bld = min(bld,
-		max(bld-1.,
-			box(rep(p+vec3(0.,1.,0.),vec3(12., 3., 10.)), vec3(.5, .5, 1.5))));
-
-	if (bld < d) {
-		d = bld;
-		mindex = 1.;
-	}
-
-	if (glass < d) {
-		d = glass;
-		mindex = 2.;
-	}
-	*/
-
-	return max(d, bound);
+	d = max(d, -highway);
+	return max(min(d,p.y), bound);
 }
 
 float march(vec3 o, vec3 d, float l, float maxl) {
 	for (int i = 0; i < 200; ++i) {
 		float dd = world(o + d * l);
 		l += dd;
-		if (dd < .002 * l || l > maxl) return l;
+		if (dd < .001 * l || l > maxl) return l;
 	}
 	return maxl;
 }
 
 void main() {
-	const vec2 res = vec2(640., 360.)*2.;
+	const vec2 res = vec2(640., 360.);//*2.;
 	vec2 uv = gl_FragCoord.xy/res * 2. - 1.; uv.x *= res.x / res.y;
 
 	if (gl_FragCoord.y < 10.) {
@@ -257,7 +242,7 @@ void main() {
 		O = vec3(mod(k*2., 10000.) - 500., 1000. - 200. * k, mod(k*10., 10000.) - 5000.);
 		at.y = 4000. * k;
 		sundir.y = .01 + .5* k;// * k * k * k;
-		I = 10. + 200. * max(0., (t - 196.) / 16.);
+		//I = 10. + 200. * max(0., (t - 196.) / 16.);
 	}
 	sundir = normalize(sundir);
 
@@ -271,10 +256,12 @@ void main() {
 	vec3 color_coeff = vec3(1.);
 	//for (int i = 0; i < 1; ++i)
 	{
-		float l = march(O, D, .1, max_distance);
+		//float start_l = .1;// (O.y - 200.) / D.y;
+		float start_l = O.y < 200. ? .1 : (200. - O.y) / D.y;
+		float l = march(O, D, start_l, max_distance);
 		vec3 localcolor = vec3(0.);
 		vec3 m_emissive = vec3(0.);
-		float m_kd = .5;
+		float m_kd = .3;
 		float m_shine = 10.;
 		if (l < max_distance) {
 			P = O + D * l;
@@ -282,9 +269,11 @@ void main() {
 				world(P+E.yxx), world(P+E.xyx), world(P+E.xxy)) - world(P));
 
 			vec3 albedo = vec3(.2, .6, .1);
-			m_shine = 0.;
+			m_shine = 10.;
 
 			if (mindex == 1.) {
+				m_kd = .3;
+				m_shine = 80.;
 				albedo = vec3(.2);
 			}
 			if (mindex == 2.) {
@@ -292,20 +281,22 @@ void main() {
 				m_shine = 10000.;
 			}
 
+			//albedo = fract(P);
+			//color = vec3(-dbg/30.);
+			albedo = vec3(-dbg/30.);
+
 			localcolor = albedo * Lin(P, sundir, escape(P, sundir, Ra)) * I
 				* mix(
-					max(0., dot(N, sundir)) / 3.,
-					max(0., pow(dot(N, normalize(sundir - D)), m_shine) * (m_shine + 8.) / 24.),
-					m_kd);
+						max(0., dot(N, sundir)) / 3.,
+						max(0., pow(dot(N, normalize(sundir - D)), m_shine) * (m_shine + 8.) / 24.),
+						m_kd
+					);
 			vec3 opposite = vec3(-sundir.x, sundir.y, -sundir.z);
 			clouds = false;
 			localcolor += albedo * scatter(P, opposite, escape(P, opposite, Ra), vec3(0.)) * m_kd * max(0., dot(N, opposite)) / 3.;
 			clouds = true;
 			localcolor += m_emissive;
 			color += color_coeff * scatter(O, D, l, localcolor);
-			D = reflect(D, N);
-			O = P;
-			//color_coeff *= albedo;
 		} else {
 			l = escape(O, D, Ra);
 			color += color_coeff * scatter(O, D, l, localcolor);
@@ -313,5 +304,7 @@ void main() {
 		}
 	}
 
+	//color = vec3(-N.y);
+	//gl_FragColor = color.x < 0.0001 ? vec4(1.,0.,0.,1.) : vec4(pow(color, vec3(1./2.2)),.5);
 	gl_FragColor = vec4(pow(color, vec3(1./2.2)),.5);
 }
