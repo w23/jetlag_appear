@@ -7,8 +7,6 @@ vec4 noise24(vec2 v) { return texture2D(S, (v + .5)/textureSize(S,0)); }
 
 const float R0 = 6360e3;
 const float Ra = 6380e3;
-const int steps = 128;
-const int stepss = 16;
 const float g = .76;
 const float g2 = g * g;
 const float Hr = 8e3;
@@ -55,7 +53,7 @@ float cloud(vec3 p) {
 bool clouds = true;
 vec2 densitiesRM(vec3 p) {
 	float h = max(0., length(p - C) - R0);
-	vec2 retRM = vec2(exp(-h/Hr), exp(-h/Hm));
+	vec2 retRM = vec2(exp(-h/Hr), exp(-h/Hm) * 9.);
 
 	if (clouds) {
 		/*
@@ -65,7 +63,7 @@ vec2 densitiesRM(vec3 p) {
 		}
 		*/
 
-		float low = 5e3, hi = 10e3, border = 1e3;
+		float low = 5e3, hi = 7e3, border = 1e3;
 		if (low < h && h < hi) {
 			retRM.y +=
 				50. *
@@ -90,68 +88,46 @@ float escape(vec3 p, vec3 d, float R) {
 	return (t1 >= 0.) ? t1 : t2;
 }
 
-vec3 Lin(vec3 o, vec3 d, float L) {
-	float dls = L / float(stepss);
+vec2 scatterDirectImpl(vec3 o, vec3 d, float L, float steps) {
 	vec2 depthRMs = vec2(0.);
-	for (int j = 0; j < stepss; ++j) {
-		vec3 ps = o + d * float(j) * dls;
-		depthRMs += densitiesRM(ps) * dls;
-	}
+	L /= steps; d *= L;
+	for (float i = 0.; i < steps; ++i)
+		depthRMs += densitiesRM(o + d * i);
+	return depthRMs * L;
+}
+
+vec3 Lin(vec3 o, vec3 d, float L) {
+	vec2 depthRMs = scatterDirectImpl(o, d, L, 32.);
 	return exp(-(bR * depthRMs.x + bMe * depthRMs.y));
 }
 
-vec3 scatter(vec3 o, vec3 d, float L, vec3 Lo) {
-	vec2 totalDepthRM = vec2(0., 0.);
-	vec3 LiR = vec3(0.), LiM = vec3(0.);
-
-	float l = 0.;
-	for (int i = 0; i < steps; ++i) {
-		float fi = float(i + 1) / float(steps);
-		fi *= fi;
-		fi *= fi;
-		float lp = L * fi;
-		float dl = lp - l;
-		vec3 p = o + d * lp;
-		l = lp;
-		vec2 dRM = densitiesRM(p) * dl;
+void scatterImpl(vec3 o, vec3 d, float L, float steps, inout vec2 totalDepthRM, inout vec3 LiR, inout vec3 LiM) {
+	L /= steps; d *= L;
+	for (float i = 0.; i < steps; ++i) {
+		vec3 p = o + d * i;
+		vec2 dRM = densitiesRM(p) * L;
 		totalDepthRM += dRM;
 
-		float Ls = escape(p, sundir, Ra);
-#if 1
-		float dls = Ls / float(stepss);
-#else
-		float ls = 0.;
-#endif
-		vec2 depthRMs = vec2(0.);
-		for (int j = 0; j < stepss; ++j) {
-#if 0
-			float fj = float(j + 1) / float(stepss);
-			fj *= fj;
-			float lps = Ls * fj;
-			float dls = lps - ls;
-			ls = lps;
-			vec3 ps = p + sundir * lps;
-#else
-			vec3 ps = p + sundir * float(j) * dls;
-#endif
-			depthRMs += densitiesRM(ps) * dls;
-		}
-
-		vec2 depthRMsum = depthRMs + totalDepthRM;
+		vec2 depthRMsum = scatterDirectImpl(p, sundir, escape(p, sundir, Ra), 32.) + totalDepthRM;
 		vec3 A = exp(-(bR * depthRMsum.x + bMe * depthRMsum.y));
 		LiR += A * dRM.x;
 		LiM += A * dRM.y;
 	}
+}
+
+vec3 scatter(vec3 o, vec3 d, float L, vec3 Lo) {
+	vec2 totalDepthRM = vec2(0.);
+	vec3 LiR = vec3(0.), LiM = vec3(0.);
+
+	scatterImpl(o, d, L, 128., totalDepthRM, LiR, LiM);
 
 	float mu = dot(d, sundir);
-	float opmu2 = 1. + mu*mu;
-	vec2 phaseRM = vec2(
-		.0596831 * opmu2,
-		.1193662 * (1. - g2) * opmu2 / ((2. + g2) * pow(1. + g2 - 2.*g*mu, 1.5)));
-
 	return Lo * exp(-(bR * totalDepthRM.x + bMe * totalDepthRM.y))
-		+ I * (LiR * bR * phaseRM.x + LiM * bMs * phaseRM.y);
+		+ I * (1. + mu * mu) * (
+			LiR * bR * .0596831 +
+			LiM * bMs * .1193662 * (1. - g2) / ((2. + g2) * pow(1. + g2 - 2. * g * mu, 1.5)));
 }
+
 
 float saturate(float f) { return clamp(f, 0., 1.); }
 float vmax(vec3 v) { return max(v.x, max(v.y, v.z)); }
@@ -201,10 +177,10 @@ float world(vec3 p) {
 }
 
 float march(vec3 o, vec3 d, float l, float maxl) {
-	for (int i = 0; i < 200; ++i) {
+	for (int i = 0; i < 400; ++i) {
 		float dd = world(o + d * l);
 		l += dd;
-		if (dd < .001 * l || l > maxl) return l;
+		if (dd < .0003 * l  || l > maxl) return l;
 	}
 	return maxl;
 }
@@ -241,7 +217,8 @@ void main() {
 		float k = (t - 144.) / 64.;
 		O = vec3(mod(k*2., 10000.) - 500., 1000. - 200. * k, mod(k*10., 10000.) - 5000.);
 		at.y = 4000. * k;
-		sundir.y = .01 + .5* k;// * k * k * k;
+		//sundir.y = .01 + .5* k;// * k * k * k;
+		sundir.y = .01 + 2.* k;// * k * k * k;
 		//I = 10. + 200. * max(0., (t - 196.) / 16.);
 	}
 	sundir = normalize(sundir);
@@ -249,15 +226,15 @@ void main() {
 	D = normalize(O - at);
 	O = $(vec3 cam_pos) * 10.; D = -normalize($(vec3 cam_dir));
 	vec3 x = normalize(cross(E.xzx, D));
-	D = mat3(x, normalize(cross(D, x)), D) * normalize(vec3(uv, -1.));
+	D = mat3(x, normalize(cross(D, x)), D) * normalize(vec3(uv, -2.));
 	vec3 color = vec3(0.);
 
 	const float max_distance = 1e4;
 	vec3 color_coeff = vec3(1.);
 	//for (int i = 0; i < 1; ++i)
 	{
-		//float start_l = .1;// (O.y - 200.) / D.y;
-		float start_l = O.y < 200. ? .1 : (200. - O.y) / D.y;
+		float start_l = .1;// (O.y - 200.) / D.y;
+		//float start_l = O.y < 200. ? .1 : (200. - O.y) / D.y;
 		float l = march(O, D, start_l, max_distance);
 		vec3 localcolor = vec3(0.);
 		vec3 m_emissive = vec3(0.);
