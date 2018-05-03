@@ -7,6 +7,7 @@ vec4 noise24(vec2 v) { return texture2D(S, (v + .5)/textureSize(S,0)); }
 
 const float R0 = 6360e3;
 const float Ra = 6380e3;
+const float low = 2e3, hi = 4e3, border = 1e3;
 const float g = .76;
 const float g2 = g * g;
 const float Hr = 8e3;
@@ -37,16 +38,16 @@ float noise31(vec3 v) {
 
 float fnoise(vec3 v) {
 	return
-		.55 * noise31(v)
-		+ .225 * noise31(v*1.8)
+		.75 * noise31(v)
 		+ .125 * noise31(v*4.3)
-		//+ .0625 * noise31(v*8.9)
+		//+ .0625 * noise31(v*9.9)
+		//+ .0625 * noise31(v*17.8)
 		;
 }
 
 float cloud(vec3 p) {
-	float cld = fnoise(p*6e-4);
-	cld = smoothstep(.4, .6, cld-.05);
+	float cld = fnoise(p*1e-3);
+	cld = smoothstep(.49, .5, cld);
 	return cld;
 }
 
@@ -63,14 +64,13 @@ vec2 densitiesRM(vec3 p) {
 		}
 		*/
 
-		float low = 5e3, hi = 7e3, border = 1e3;
 		if (low < h && h < hi) {
 			retRM.y +=
 				50. *
 				step(length(p), 50000.) *
 				smoothstep(low, low + border, h) *
-				//smoothstep(hi, hi - border, h) *
-				cloud(p+vec3(0., 0.,t*30.));
+				smoothstep(hi, hi - border, h) *
+				cloud(p+vec3(0., 0.,t*80.));
 		}
 	}
 
@@ -91,7 +91,9 @@ float escape(vec3 p, vec3 d, float R) {
 vec2 scatterDirectImpl(vec3 o, vec3 d, float L, float steps) {
 	vec2 depthRMs = vec2(0.);
 	L /= steps; d *= L;
+	//o += d * noise24(o.xz*1e3 + vec2(t*1e4)).x;
 	for (float i = 0.; i < steps; ++i)
+		//depthRMs += densitiesRM(o + d * (i + noise24(vec2(i,i)).x));
 		depthRMs += densitiesRM(o + d * i);
 	return depthRMs * L;
 }
@@ -105,10 +107,42 @@ void scatterImpl(vec3 o, vec3 d, float L, float steps, inout vec2 totalDepthRM, 
 	L /= steps; d *= L;
 	for (float i = 0.; i < steps; ++i) {
 		vec3 p = o + d * i;
+		p += d * noise24(p.xz).w;
+		//vec3 p = o + d * i;(i + noise24(vec2(i,i)).x)
 		vec2 dRM = densitiesRM(p) * L;
 		totalDepthRM += dRM;
 
-		vec2 depthRMsum = scatterDirectImpl(p, sundir, escape(p, sundir, Ra), 32.) + totalDepthRM;
+		/*
+		//vec2 depthRMsum = scatterDirectImpl(p, sundir, escape(p, sundir, Ra), 32.) + totalDepthRM;
+		vec2 depthRMsum = totalDepthRM;
+		float l = escape(p, sundir, R0 + low);
+		if (l > 0.)
+			depthRMsum += scatterDirectImpl(p, sundir, l, 4.);
+		else l = 0.;
+		float l2 = escape(p, sundir, R0 + hi);
+		if (l2 > 0.)
+			depthRMsum += scatterDirectImpl(p + sundir * l, sundir, l2, 16.);
+		else l2 = 0.;
+		l = escape(p, sundir, Ra);
+		if (l > 0.)
+			depthRMsum += scatterDirectImpl(p + sundir * l2, sundir, l, 8.);
+		*/
+
+		vec2 depthRMsum = totalDepthRM;
+		float l = escape(p, sundir, R0 + hi);
+		if (l > 0.)
+			depthRMsum += scatterDirectImpl(p, sundir, l, 16.);
+		else l = 0.;
+		depthRMsum += scatterDirectImpl(p + sundir * l, sundir, escape(p, sundir, Ra), 4.);
+
+		//vec2 depthRMsum = totalDepthRM + scatterDirectImpl(p, sundir, escape(p, sundir, Ra), 32.);
+
+		/*
+		float lesc = escape(p, sundir, Ra);
+		vec2 depthRMsum = totalDepthRM + scatterDirectImpl(p, sundir, lesc, min(128., lesc / 100.));
+		*/
+
+
 		vec3 A = exp(-(bR * depthRMsum.x + bMe * depthRMsum.y));
 		LiR += A * dRM.x;
 		LiM += A * dRM.y;
@@ -119,7 +153,25 @@ vec3 scatter(vec3 o, vec3 d, float L, vec3 Lo) {
 	vec2 totalDepthRM = vec2(0.);
 	vec3 LiR = vec3(0.), LiM = vec3(0.);
 
-	scatterImpl(o, d, L, 128., totalDepthRM, LiR, LiM);
+	/*
+	float det_dist = 1e4;
+	float left = L - det_dist;
+	if (left > 0.) {
+		scatterImpl(o, d, det_dist, 64., totalDepthRM, LiR, LiM);
+		scatterImpl(o + d * det_dist, d, left, 32., totalDepthRM, LiR, LiM);
+	} else
+		scatterImpl(o, d, L, 32., totalDepthRM, LiR, LiM);
+		*/
+
+	float l = escape(o, d, R0 + low);//, l2 = escape(o, d, R0 + hi);
+	if (L < l)
+		scatterImpl(o, d, L, 16., totalDepthRM, LiR, LiM);
+	else {
+		float l2 = escape(o, d, R0 + hi);
+		scatterImpl(o, d, l, 32., totalDepthRM, LiR, LiM);
+		scatterImpl(o+d*l, d, l2-l, 32., totalDepthRM, LiR, LiM);
+		scatterImpl(o+d*l2, d, L-l2, 8., totalDepthRM, LiR, LiM);
+	}
 
 	float mu = dot(d, sundir);
 	return Lo * exp(-(bR * totalDepthRM.x + bMe * totalDepthRM.y))
@@ -177,7 +229,7 @@ float world(vec3 p) {
 }
 
 float march(vec3 o, vec3 d, float l, float maxl) {
-	for (int i = 0; i < 400; ++i) {
+	for (int i = 0; i < 800; ++i) {
 		float dd = world(o + d * l);
 		l += dd;
 		if (dd < .0003 * l  || l > maxl) return l;
@@ -260,7 +312,7 @@ void main() {
 
 			//albedo = fract(P);
 			//color = vec3(-dbg/30.);
-			albedo = vec3(-dbg/30.);
+			//albedo = vec3(-dbg/30.);
 
 			localcolor = albedo * Lin(P, sundir, escape(P, sundir, Ra)) * I
 				* mix(
