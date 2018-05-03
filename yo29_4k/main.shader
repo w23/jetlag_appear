@@ -54,7 +54,7 @@ float cloud(vec3 p) {
 bool clouds = true;
 vec2 densitiesRM(vec3 p) {
 	float h = max(0., length(p - C) - R0);
-	vec2 retRM = vec2(exp(-h/Hr), exp(-h/Hm) * 9.);
+	vec2 retRM = vec2(exp(-h/Hr), exp(-h/Hm) * 1.);
 
 	if (clouds) {
 		/*
@@ -107,7 +107,7 @@ void scatterImpl(vec3 o, vec3 d, float L, float steps, inout vec2 totalDepthRM, 
 	L /= steps; d *= L;
 	for (float i = 0.; i < steps; ++i) {
 		vec3 p = o + d * i;
-		p += d * noise24(p.xz).w;
+		//p += d * noise24(p.xz).w;
 		//vec3 p = o + d * i;(i + noise24(vec2(i,i)).x)
 		vec2 dRM = densitiesRM(p) * L;
 		totalDepthRM += dRM;
@@ -187,8 +187,7 @@ float box(vec3 p, vec3 s) { return vmax(abs(p) - s); }
 vec3 rep(vec3 p, vec3 s) { return mod(p, s) - s*.5; }
 vec2 rep(vec2 p, vec2 s) { return mod(p, s) - s*.5; }
 
-float mindex = 0.;
-
+float mindex = 0., mparam = 0.;
 float dbg = 0.;
 float building(vec3 p, vec2 cell) {
 	vec4 rnd = noise24(cell);
@@ -207,25 +206,30 @@ float building(vec3 p, vec2 cell) {
 }
 
 float world(vec3 p) {
-	float bound = length(p) - 1e4;
-	float highway = abs(dot(normalize(vec2(-1.,2.)),p.xz)) - 12.;
+	float bound = length(p.xz) - 2e3;
+	float highway = 12. - abs(dot(normalize(vec2(-1.,2.)),p.xz));
 
-	float d = p.y;//max(p.y, length(p) - 1e3);
-	mindex = 1.;
+	//float d = p.y;//max(p.y, length(p) - 1e3);
+	float d;
+
+	//if (bound > 0.) {
+	//	return p.y - 200. * smoothstep(0., 300., bound);// - noise24(p.xz*1e-2).y * 100.;
+	//}
+
+	mindex = 0.;
 
 	vec2 cell = floor(p.xz / 30.);
 	p.xz = rep(p.xz, vec2(30.));
-	float bx = max(abs(p.x)-15., abs(p.z)-15.);
 	float guard = 2.;
+	float bx = max(highway, max(abs(p.x)-15., abs(p.z)-15.));
 	dbg = bx;
-	if (bx < -guard)
-		d = min(min(d, -bx+guard), building(p, cell));
-		//box(p,vec3(12.*sin(cell.x)))));
-	else
-		d = min(d, -bx+guard);
+	d = guard - bx;
+	mparam = bx + guard;
+	if (mparam < 0.)
+		d = min(d, building(p, cell));
 
-	d = max(d, -highway);
-	return max(min(d,p.y), bound);
+	if (d < highway) mparam = d = highway;
+	return max(min(d, p.y), bound);
 }
 
 float march(vec3 o, vec3 d, float l, float maxl) {
@@ -297,8 +301,13 @@ void main() {
 			N = normalize(vec3(
 				world(P+E.yxx), world(P+E.xyx), world(P+E.xxy)) - world(P));
 
-			vec3 albedo = vec3(.2, .6, .1);
-			m_shine = 10.;
+			//vec3 albedo = vec3(.2, .6, .1);
+			//m_shine = 10.;
+
+			vec3 albedo = max(vec3(0.),vec3(mparam));//10.);//smoothstep(5., 5.1, mparam) * vec3(.2);
+			//vec3 albedo = vec3(.2);
+			m_kd = .3;
+			m_shine = 80.;
 
 			if (mindex == 1.) {
 				m_kd = .3;
@@ -324,7 +333,7 @@ void main() {
 			clouds = false;
 			localcolor += albedo * scatter(P, opposite, escape(P, opposite, Ra), vec3(0.)) * m_kd * max(0., dot(N, opposite)) / 3.;
 			clouds = true;
-			localcolor += m_emissive;
+			localcolor += vec3(.01);
 			color += color_coeff * scatter(O, D, l, localcolor);
 		} else {
 			l = escape(O, D, Ra);
