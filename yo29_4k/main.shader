@@ -54,7 +54,7 @@ float cloud(vec3 p) {
 bool clouds = true;
 vec2 densitiesRM(vec3 p) {
 	float h = max(0., length(p - C) - R0);
-	vec2 retRM = vec2(exp(-h/Hr), exp(-h/Hm) * 1.);
+	vec2 retRM = vec2(exp(-h/Hr), exp(-h/Hm));
 
 	if (clouds) {
 		/*
@@ -205,12 +205,23 @@ float building(vec3 p, vec2 cell) {
 	);
 }
 
+const float guard = 2.;
+float cellDist(vec4 cp, vec2 cell) {
+	vec4 rnd = noise24(cell), rnd2 = noise24(cell/8.);
+	float height = 3. * (2. + floor(rnd.w * 10. + 30. * smoothstep(.8,.99, rnd.w) * smoothstep(.6, .9, rnd2.w)));
+
+	vec3 s = 7. * rnd.xyz;
+	return min(
+		min(
+			max(vmax(cp.xyz + 7. * rnd.xyz), cp.w - height),
+			max(vmax(cp.xyz + 1. * rnd.xyz), cp.w - height + 8.)),
+		max(vmax(cp.yzx+10. * rnd.xyz), cp.w - height + 6.));
+}
+
 float world(vec3 p) {
 	float bound = length(p.xz) - 2e3;
 	float highway = 12. - abs(dot(normalize(vec2(-1.,2.)),p.xz));
-
-	//float d = p.y;//max(p.y, length(p) - 1e3);
-	float d;
+	float d = p.y;
 
 	//if (bound > 0.) {
 	//	return p.y - 200. * smoothstep(0., 300., bound);// - noise24(p.xz*1e-2).y * 100.;
@@ -220,16 +231,14 @@ float world(vec3 p) {
 
 	vec2 cell = floor(p.xz / 30.);
 	p.xz = rep(p.xz, vec2(30.));
-	float guard = 2.;
-	float bx = max(highway, max(abs(p.x)-15., abs(p.z)-15.));
-	dbg = bx;
-	d = guard - bx;
-	mparam = bx + guard;
-	if (mparam < 0.)
-		d = min(d, building(p, cell));
-
-	if (d < highway) mparam = d = highway;
-	return max(min(d, p.y), bound);
+	vec3 cell_border = vec3(abs(p.xz)-15., min(0., highway));
+	float b = vmax(cell_border);
+	float cd = cellDist(vec4(cell_border + guard, p.y), cell);
+	//dbg = (-b + guard) - 2.;
+	dbg = cd;
+	//d = min(d, -b + guard);//min(cd, b + guard));
+	d = min(d, min(-b + guard, cd));
+	return max(d, bound);
 }
 
 float march(vec3 o, vec3 d, float l, float maxl) {
@@ -293,7 +302,6 @@ void main() {
 		//float start_l = O.y < 200. ? .1 : (200. - O.y) / D.y;
 		float l = march(O, D, start_l, max_distance);
 		vec3 localcolor = vec3(0.);
-		vec3 m_emissive = vec3(0.);
 		float m_kd = .3;
 		float m_shine = 10.;
 		if (l < max_distance) {
@@ -304,8 +312,8 @@ void main() {
 			//vec3 albedo = vec3(.2, .6, .1);
 			//m_shine = 10.;
 
-			vec3 albedo = max(vec3(0.),vec3(mparam));//10.);//smoothstep(5., 5.1, mparam) * vec3(.2);
-			//vec3 albedo = vec3(.2);
+			//vec3 albedo = max(vec3(0.),vec3(mparam));//10.);//smoothstep(5., 5.1, mparam) * vec3(.2);
+			vec3 albedo = vec3(.2);
 			m_kd = .3;
 			m_shine = 80.;
 
@@ -319,10 +327,6 @@ void main() {
 				m_shine = 10000.;
 			}
 
-			//albedo = fract(P);
-			//color = vec3(-dbg/30.);
-			//albedo = vec3(-dbg/30.);
-
 			localcolor = albedo * Lin(P, sundir, escape(P, sundir, Ra)) * I
 				* mix(
 						max(0., dot(N, sundir)) / 3.,
@@ -335,6 +339,9 @@ void main() {
 			clouds = true;
 			localcolor += vec3(.01);
 			color += color_coeff * scatter(O, D, l, localcolor);
+			//color = N;
+			//color = vec3(dbg);
+			//color = sign(dbg) * vec3(dbg);//, fract(dbg/10.), fract(dbg/100.));
 		} else {
 			l = escape(O, D, Ra);
 			color += color_coeff * scatter(O, D, l, localcolor);
