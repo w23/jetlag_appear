@@ -54,7 +54,7 @@ float cloud(vec3 p) {
 bool clouds = true;
 vec2 densitiesRM(vec3 p) {
 	float h = max(0., length(p - C) - R0);
-	vec2 retRM = vec2(exp(-h/Hr), exp(-h/Hm));
+	vec2 retRM = vec2(exp(-h/Hr), exp(-h/Hm) * 4.);
 
 	if (clouds) {
 		/*
@@ -234,9 +234,7 @@ float world(vec3 p) {
 	vec3 cell_border = vec3(abs(p.xz)-15., min(0., highway));
 	float b = vmax(cell_border);
 	float cd = cellDist(vec4(cell_border + guard, p.y), cell);
-	//dbg = (-b + guard) - 2.;
 	dbg = cd;
-	//d = min(d, -b + guard);//min(cd, b + guard));
 	d = min(d, min(-b + guard, cd));
 	return max(d, bound);
 }
@@ -335,9 +333,9 @@ void main() {
 					);
 			vec3 opposite = vec3(-sundir.x, sundir.y, -sundir.z);
 			clouds = false;
-			localcolor += albedo * scatter(P, opposite, escape(P, opposite, Ra), vec3(0.)) * m_kd * max(0., dot(N, opposite)) / 3.;
+			localcolor += albedo * scatter(P, opposite, escape(P, opposite, Ra), vec3(0.)) * m_kd * max(0., dot(N, opposite));// / 3.;
 			clouds = true;
-			localcolor += vec3(.01);
+			//localcolor += vec3(.01);
 			color += color_coeff * scatter(O, D, l, localcolor);
 			//color = N;
 			//color = vec3(dbg);
