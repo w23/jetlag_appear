@@ -187,60 +187,64 @@ float box(vec3 p, vec3 s) { return vmax(abs(p) - s); }
 vec3 rep(vec3 p, vec3 s) { return mod(p, s) - s*.5; }
 vec2 rep(vec2 p, vec2 s) { return mod(p, s) - s*.5; }
 
-float mindex = 0., mparam = 0.;
+float mindex = 0.;
+vec2 mparam = vec2(0.);
 float dbg = 0.;
-float building(vec3 p, vec2 cell) {
-	vec4 rnd = noise24(cell);
-	vec4 rnd2 = noise24(cell/8.);
 
-	float floor_height = 3.;
-
-	vec3 s = vec3(
-		5. + rnd.x * 7.,
-		3. * (2. + floor(rnd.z * 10. + 30. * smoothstep(.8,.99, rnd.z) * smoothstep(.6, .9, rnd2.z))),
-		5. + rnd.y * 7.);
-	return min(
-		box(p, s-.2),
-		max(p.y - s.y, box(vec3(p.x, mod(p.y/*+floor_height*.25*/,floor_height) - floor_height*.5, p.z), vec3(s.x, .3, s.z)))
-	);
-}
-
-const float guard = 2.;
+const float guard = 4.;
 float cellDist(vec4 cp, vec2 cell) {
 	vec4 rnd = noise24(cell), rnd2 = noise24(cell/8.);
-	float height = 3. * (2. + floor(rnd.w * 10. + 30. * smoothstep(.8,.99, rnd.w) * smoothstep(.6, .9, rnd2.w)));
+	float height = 3. * (2. + floor(rnd.w * 7. + 20. * smoothstep(.8,.99, rnd.w) * smoothstep(.6, .9, rnd2.w)));
 
 	vec3 s = 7. * rnd.xyz;
 	return min(
 		min(
-			max(vmax(cp.xyz + 7. * rnd.xyz), cp.w - height),
-			max(vmax(cp.xyz + 1. * rnd.xyz), cp.w - height + 8.)),
-		max(vmax(cp.yzx+10. * rnd.xyz), cp.w - height + 6.));
+			max(vmax(cp.xyz + 2. * rnd.xyz), cp.w - height),
+			max(vmax(cp.xyz + 7. * rnd.xyz), cp.w - height - 3. * floor(rnd.z * 4.))),
+		max(vmax(cp.yzx + 10. * rnd.xyz), cp.w - height + 3. * floor(rnd.y * 2.)));
 }
 
 float world(vec3 p) {
 	float bound = length(p.xz) - 2e3;
-	float highway = 12. - abs(dot(normalize(vec2(-1.,2.)),p.xz));
+	vec2 road_normal = normalize(vec2(-1.,2.));
+	float highway = 12. - abs(dot(road_normal,p.xz)),
+		highway_length = dot(vec2(road_normal.y, -road_normal.x), p.xz);
 	float d = p.y;
 
 	//if (bound > 0.) {
 	//	return p.y - 200. * smoothstep(0., 300., bound);// - noise24(p.xz*1e-2).y * 100.;
 	//}
 
-	mindex = 0.;
+	mindex = 1.;
 
 	vec2 cell = floor(p.xz / 30.);
 	p.xz = rep(p.xz, vec2(30.));
-	vec3 cell_border = vec3(abs(p.xz)-15., min(0., highway));
-	float b = vmax(cell_border);
+	vec3 cell_border = vec3(abs(p.xz)-15., highway);
+	float b = min(max(cell_border.x, cell_border.y), -cell_border.z);
 	float cd = cellDist(vec4(cell_border + guard, p.y), cell);
-	dbg = cd;
-	d = min(d, min(-b + guard, cd));
+	mparam = 
+		mix(
+			vec2(
+				max(cell_border.x, cell_border.y)+guard,
+				min(cell_border.x, cell_border.y)),
+			vec2(
+				cell_border.z,
+				highway_length)
+		, step(0., cell_border.z));
+	float d2 = min(-b + guard, cd);
+	if (d2 < d) {
+		d = d2;
+		mindex = 0.;
+		mparam = cell_border.xy;
+	}
+	//d = min(d, min(-b + guard, cd));
 	return max(d, bound);
 }
 
+float steps = 0.;
 float march(vec3 o, vec3 d, float l, float maxl) {
 	for (int i = 0; i < 800; ++i) {
+		steps = float(i);
 		float dd = world(o + d * l);
 		l += dd;
 		if (dd < .0003 * l  || l > maxl) return l;
@@ -293,59 +297,61 @@ void main() {
 	vec3 color = vec3(0.);
 
 	const float max_distance = 1e4;
-	vec3 color_coeff = vec3(1.);
-	//for (int i = 0; i < 1; ++i)
-	{
-		float start_l = .1;// (O.y - 200.) / D.y;
-		//float start_l = O.y < 200. ? .1 : (200. - O.y) / D.y;
-		float l = march(O, D, start_l, max_distance);
-		vec3 localcolor = vec3(0.);
-		float m_kd = .3;
-		float m_shine = 10.;
-		if (l < max_distance) {
-			P = O + D * l;
-			N = normalize(vec3(
-				world(P+E.yxx), world(P+E.xyx), world(P+E.xxy)) - world(P));
+	float l = march(O, D, .1, max_distance);
+	vec3 localcolor = vec3(0.);
+	float m_kd = .3;
+	float m_shine = 10.;
+	if (l < max_distance) {
+		P = O + D * l;
+		N = normalize(vec3(
+			world(P+E.yxx), world(P+E.xyx), world(P+E.xxy)) - world(P));
 
-			//vec3 albedo = vec3(.2, .6, .1);
-			//m_shine = 10.;
+		//vec3 albedo = vec3(.2, .6, .1);
+		float fynum = floor(P.y / 3.),
+			fy = mod(P.y, 3.),
+			fx = max(-mparam.x, -mparam.y),
+			wfx = mod(fx, 2.), fxnum = floor(fx / 2.),
+			window = step(1., fy) * step(fy, 2.5) * step(.1, wfx) * step(wfx, 1.9);
+		vec3 albedo = vec3(mix(.1, .6, window));
+		m_kd = mix(.3, .7, window);
+		m_shine = mix(80., 10000., window);
 
-			//vec3 albedo = max(vec3(0.),vec3(mparam));//10.);//smoothstep(5., 5.1, mparam) * vec3(.2);
-			vec3 albedo = vec3(.2);
-			m_kd = .3;
+		if (mindex == 1.) {
+			m_kd = .2;
 			m_shine = 80.;
-
-			if (mindex == 1.) {
-				m_kd = .3;
-				m_shine = 80.;
-				albedo = vec3(.2);
-			}
-			if (mindex == 2.) {
-				albedo = vec3(1.);
-				m_shine = 10000.;
-			}
-
-			localcolor = albedo * Lin(P, sundir, escape(P, sundir, Ra)) * I
-				* mix(
-						max(0., dot(N, sundir)) / 3.,
-						max(0., pow(dot(N, normalize(sundir - D)), m_shine) * (m_shine + 8.) / 24.),
-						m_kd
-					);
-			vec3 opposite = vec3(-sundir.x, sundir.y, -sundir.z);
-			clouds = false;
-			localcolor += albedo * scatter(P, opposite, escape(P, opposite, Ra), vec3(0.)) * m_kd * max(0., dot(N, opposite));// / 3.;
-			clouds = true;
-			//localcolor += vec3(.01);
-			color += color_coeff * scatter(O, D, l, localcolor);
-			//color = N;
-			//color = vec3(dbg);
-			//color = sign(dbg) * vec3(dbg);//, fract(dbg/10.), fract(dbg/100.));
-		} else {
-			l = escape(O, D, Ra);
-			color += color_coeff * scatter(O, D, l, localcolor);
-	//		break;
+			albedo = mix(
+				vec3(.3),
+				vec3(.01 + .9
+					* step(3.9, mod(mparam.x, 4.)
+					* step(.5, fract(mparam.y/4.)))
+				),
+				step(1., mparam.x));
 		}
+		if (mindex == 2.) {
+			albedo = vec3(1.);
+			m_shine = 10000.;
+		}
+
+		localcolor = albedo * Lin(P, sundir, escape(P, sundir, Ra)) * I
+			* mix(
+					max(0., dot(N, sundir)) / 3.,
+					max(0., pow(dot(N, normalize(sundir - D)), m_shine) * (m_shine + 8.) / 24.),
+					m_kd
+				);
+		vec3 opposite = vec3(-sundir.x, sundir.y, -sundir.z);
+		clouds = false;
+		localcolor += albedo * scatter(P, opposite, escape(P, opposite, Ra), vec3(0.)) * m_kd * max(0., dot(N, opposite));// / 3.;
+		clouds = true;
+		color += scatter(O, D, l, localcolor);
+		vec4 wrnd = noise24(vec2(fxnum, fynum) + t);
+		color += window * vec3(.3 + .2 * wrnd.xyz) * smoothstep(.7, .9, wrnd.w);
+	} else {
+		l = escape(O, D, Ra);
+		color += scatter(O, D, l, localcolor);
+//		break;
 	}
+
+	//color = vec3(fract(steps/100.));
 
 	//color = vec3(-N.y);
 	//gl_FragColor = color.x < 0.0001 ? vec4(1.,0.,0.,1.) : vec4(pow(color, vec3(1./2.2)),.5);
