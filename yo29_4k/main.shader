@@ -181,11 +181,13 @@ vec3 scatter(vec3 o, vec3 d, float L, vec3 Lo) {
 }
 
 
-float saturate(float f) { return clamp(f, 0., 1.); }
-float vmax(vec3 v) { return max(v.x, max(v.y, v.z)); }
-float box(vec3 p, vec3 s) { return vmax(abs(p) - s); }
-vec3 rep(vec3 p, vec3 s) { return mod(p, s) - s*.5; }
-vec2 rep(vec2 p, vec2 s) { return mod(p, s) - s*.5; }
+//float saturate(float f) { return clamp(f, 0., 1.); }
+float vmax3(vec3 v) { return max(v.x, max(v.y, v.z)); }
+float vmax2(vec2 v) { return max(v.x, v.y); }
+float vmin2(vec2 v) { return min(v.x, v.y); }
+//float box(vec3 p, vec3 s) { return vmax(abs(p) - s); }
+//vec3 rep(vec3 p, vec3 s) { return mod(p, s) - s*.5; }
+vec2 rep2(vec2 p, vec2 s) { return mod(p, s) - s*.5; }
 
 float mindex = 0.;
 vec2 mparam = vec2(0.);
@@ -196,60 +198,53 @@ float cellDist(vec4 cp, vec2 cell) {
 	vec4 rnd = noise24(cell), rnd2 = noise24(cell/8.);
 	float height = 3. * (2. + floor(rnd.w * 7. + 20. * smoothstep(.8,.99, rnd.w) * smoothstep(.6, .9, rnd2.w)));
 
-	vec3 s = 7. * rnd.xyz;
 	return min(
 		min(
-			max(vmax(cp.xyz + 2. * rnd.xyz), cp.w - height),
-			max(vmax(cp.xyz + 7. * rnd.xyz), cp.w - height - 3. * floor(rnd.z * 4.))),
-		max(vmax(cp.yzx + 10. * rnd.xyz), cp.w - height + 3. * floor(rnd.y * 2.)));
+			max(vmax3(cp.xyz + rnd.xyz * 4.), cp.w - height),
+			max(vmax3(cp.xyz + rnd.xyz * 7.), cp.w - height - 3. * floor(rnd.z * 4.))),
+		max(vmax3(cp.yzx + 10. * rnd.xyz), cp.w - height + 3. * floor(rnd.y * 2.)));
 }
 
 float world(vec3 p) {
-	float bound = length(p.xz) - 2e3;
 	vec2 road_normal = normalize(vec2(-1.,2.));
 	float highway = 12. - abs(dot(road_normal,p.xz)),
 		highway_length = dot(vec2(road_normal.y, -road_normal.x), p.xz);
-	float d = p.y;
-
-	//if (bound > 0.) {
-	//	return p.y - 200. * smoothstep(0., 300., bound);// - noise24(p.xz*1e-2).y * 100.;
-	//}
-
-	mindex = 1.;
 
 	vec2 cell = floor(p.xz / 30.);
-	p.xz = rep(p.xz, vec2(30.));
+	p.xz = rep2(p.xz, vec2(30.));
 	vec3 cell_border = vec3(abs(p.xz)-15., highway);
-	float b = min(max(cell_border.x, cell_border.y), -cell_border.z);
+	float b = min(vmax2(cell_border.xy), -cell_border.z);
 	float cd = cellDist(vec4(cell_border + guard, p.y), cell);
-	mparam = 
+	mparam =
 		mix(
 			vec2(
-				max(cell_border.x, cell_border.y)+guard,
-				min(cell_border.x, cell_border.y)),
+				vmax2(cell_border.xy) + guard,
+				vmin2(cell_border.xy)),
 			vec2(
 				cell_border.z,
 				highway_length)
 		, step(0., cell_border.z));
-	float d2 = min(-b + guard, cd);
-	if (d2 < d) {
-		d = d2;
+
+	float d = p.y;
+	mindex = 1.;
+	if (cd < d) {
+		d = cd;
 		mindex = 0.;
 		mparam = cell_border.xy;
 	}
-	//d = min(d, min(-b + guard, cd));
-	return max(d, bound);
+	return min(d, -b + guard);
 }
 
-float steps = 0.;
-float march(vec3 o, vec3 d, float l, float maxl) {
+float L;
+vec3 O, D, P;
+void march(float maxL) {
 	for (int i = 0; i < 800; ++i) {
-		steps = float(i);
-		float dd = world(o + d * l);
-		l += dd;
-		if (dd < .0003 * l  || l > maxl) return l;
+		P = O + D * L;
+		float dd = world(P);
+		L += dd;
+		if (dd < .0003 * L  || L > maxL) return;
 	}
-	return maxl;
+	L = maxL;
 }
 
 void main() {
@@ -264,7 +259,7 @@ void main() {
 	//gl_FragColor = noise24(gl_FragCoord.xy);return;
 	//t += noise24(gl_FragCoord.xy + t*100.*vec2(17.,39.)).x;
 
-	vec3 O, D, N, P;
+	vec3 N;
 	vec3 at = vec3(0.);
 	O = vec3(mod(t*2., 10000.) - 5000., 1000. + 500. * sin(t/60.), mod(t*10., 10000.) - 5000.);
 
@@ -289,34 +284,41 @@ void main() {
 		//I = 10. + 200. * max(0., (t - 196.) / 16.);
 	}
 	sundir = normalize(sundir);
-
 	D = normalize(O - at);
+
 	O = $(vec3 cam_pos) * 10.; D = -normalize($(vec3 cam_dir));
 	vec3 x = normalize(cross(E.xzx, D));
 	D = mat3(x, normalize(cross(D, x)), D) * normalize(vec3(uv, -2.));
+
 	vec3 color = vec3(0.);
 
 	const float max_distance = 1e4;
-	float l = march(O, D, .1, max_distance);
-	vec3 localcolor = vec3(0.);
+	march(max_distance);
 	float m_kd = .3;
 	float m_shine = 10.;
-	if (l < max_distance) {
-		P = O + D * l;
+	if (L < max_distance) {
 		N = normalize(vec3(
 			world(P+E.yxx), world(P+E.xyx), world(P+E.xxy)) - world(P));
 
 		//vec3 albedo = vec3(.2, .6, .1);
-		float fynum = floor(P.y / 3.),
-			fy = mod(P.y, 3.),
+		float
 			fx = max(-mparam.x, -mparam.y),
-			wfx = mod(fx, 2.), fxnum = floor(fx / 2.),
+			fy = mod(P.y, 3.),
+			fxnum = floor(fx / 2.),
+			fynum = floor(P.y / 3.),
+			wfx = mod(fx, 2.),
 			window = step(1., fy) * step(fy, 2.5) * step(.1, wfx) * step(wfx, 1.9);
+		//vec2 wxy = vec2(vmax2(-mparam) / 2., mod(P.y, 3.));
+		//vec2 wnxy = vec2(
+		//float window = step(1., wxy.y);
 		vec3 albedo = vec3(mix(.1, .6, window));
 		m_kd = mix(.3, .7, window);
 		m_shine = mix(80., 10000., window);
 
-		if (mindex == 1.) {
+		//N += .02 * (noise24(mparam*4.).xyz - .5);
+
+		if (mindex > 0.) {
+			window = 0.;
 			m_kd = .2;
 			m_shine = 80.;
 			albedo = mix(
@@ -327,12 +329,8 @@ void main() {
 				),
 				step(1., mparam.x));
 		}
-		if (mindex == 2.) {
-			albedo = vec3(1.);
-			m_shine = 10000.;
-		}
 
-		localcolor = albedo * Lin(P, sundir, escape(P, sundir, Ra)) * I
+		color = Lin(P, sundir, escape(P, sundir, Ra)) * I
 			* mix(
 					max(0., dot(N, sundir)) / 3.,
 					max(0., pow(dot(N, normalize(sundir - D)), m_shine) * (m_shine + 8.) / 24.),
@@ -340,16 +338,14 @@ void main() {
 				);
 		vec3 opposite = vec3(-sundir.x, sundir.y, -sundir.z);
 		clouds = false;
-		localcolor += albedo * scatter(P, opposite, escape(P, opposite, Ra), vec3(0.)) * m_kd * max(0., dot(N, opposite));// / 3.;
+		color += scatter(P, opposite, escape(P, opposite, Ra), vec3(0.)) * m_kd * max(0., dot(N, opposite));// / 3.;
 		clouds = true;
-		color += scatter(O, D, l, localcolor);
-		vec4 wrnd = noise24(vec2(fxnum, fynum) + t);
-		color += window * vec3(.3 + .2 * wrnd.xyz) * smoothstep(.7, .9, wrnd.w);
-	} else {
-		l = escape(O, D, Ra);
-		color += scatter(O, D, l, localcolor);
-//		break;
-	}
+		color = scatter(O, D, L, color * albedo);
+
+		//vec4 wrnd = noise24(floor(wxy) + t);
+		//color += window * vec3(.3 + .2 * wrnd.xyz) * smoothstep(.7, .9, wrnd.w);
+	} else
+		color = scatter(O, D, escape(O, D, Ra), vec3(0.));
 
 	//color = vec3(fract(steps/100.));
 

@@ -12,7 +12,7 @@ OBJDIR ?= .obj
 MIDIDEV ?= ''
 WIDTH ?= 1280
 HEIGHT ?= 720
-SHMIN=mono shader_minifier.exe
+SHMIN=mono ../shader_minifier.exe
 INTRO=appear
 
 DEPFLAGS = -MMD -MP
@@ -25,7 +25,7 @@ $(OBJDIR)/%.c.o: %.c
 	@mkdir -p $(dir $@)
 	$(COMPILE.c) -c $< -o $@
 
-$(OBJDIR)/%.asm.obj: %.asm
+$(OBJDIR)/%.asm.obj: %.asm main.shader.inc
 	@mkdir -p $(dir $@)
 	nasm -f win32 -i4klang_win32/ $< -o $@
 
@@ -97,7 +97,10 @@ $(INTRO).gz: $(INTRO).elf
 	cat $< | 7z a dummy -tGZip -mx=9 -si -so > $@
 
 %.h: %.glsl
-	$(SHMIN) -o $@ --no-renaming-list Z,T,P,X,k,F,t,E,PI,main --preserve-externals $<
+	$(SHMIN) -o $@ --no-renaming-list S,F,main --preserve-externals $<
+
+%.inc: %.glsl
+	$(SHMIN) -o $@ --no-renaming-list S,F,main --format nasm --preserve-externals $<
 
 #.h.seq: timepack
 #	timepack $< $@
