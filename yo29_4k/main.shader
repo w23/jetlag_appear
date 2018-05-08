@@ -194,14 +194,16 @@ vec2 mparam = vec2(0.);
 float dbg = 0.;
 
 const float guard = 4.;
+vec4 rnd, rnd2;
 float cellDist(vec4 cp, vec2 cell) {
-	vec4 rnd = noise24(cell), rnd2 = noise24(cell/8.);
-	float height = 3. * (2. + floor(rnd.w * 7. + 20. * smoothstep(.8,.99, rnd.w) * smoothstep(.6, .9, rnd2.w)));
+	rnd = noise24(cell);
+	rnd2 = noise24(cell/8.);
+	float height = 3. * (2. + floor(rnd.w * 4.) + 20. * smoothstep(.8,.99, rnd.w) * smoothstep(.6, .9, rnd2.w));
 
 	return min(
 		min(
 			max(vmax3(cp.xyz + rnd.xyz * 4.), cp.w - height),
-			max(vmax3(cp.xyz + rnd.xyz * 7.), cp.w - height - 3. * floor(rnd.z * 4.))),
+			max(vmax3(cp.xyz + rnd.zxw * 7.), cp.w - height - 3. * floor(rnd.w * 4.))),
 		max(vmax3(cp.yzx + 10. * rnd.xyz), cp.w - height + 3. * floor(rnd.y * 2.)));
 }
 
@@ -236,7 +238,7 @@ float world(vec3 p) {
 }
 
 float L;
-vec3 O, D, P;
+vec3 O, D, P, N;
 void march(float maxL) {
 	for (int i = 0; i < 800; ++i) {
 		P = O + D * L;
@@ -247,19 +249,32 @@ void march(float maxL) {
 	L = maxL;
 }
 
+float m_kd = .3;
+float m_shine;
+float dirlight(vec3 dir) {
+	return mix(
+		max(0., dot(N, dir)) / 3.,
+		max(0., pow(dot(N, normalize(dir - D)), m_shine) * (m_shine + 8.) / 24.),
+		m_kd
+	);
+}
+float poslight(vec3 pos) {
+	pos -= P;
+	return dirlight(normalize(pos)) / dot(pos, pos);
+}
+
 void main() {
 	//const vec2 res = vec2(640., 360.);//*2.;
 	vec2 uv = gl_FragCoord.xy/$(vec2 resolution)* 2. - 1.; uv.x *= $(vec2 resolution).x / $(vec2 resolution).y;
 
 	if (gl_FragCoord.y < 10.) {
-		gl_FragColor = vec4(step(gl_FragCoord.x / $(vec2 resolution).x, t / 208.));
+		gl_FragColor = vec4(vec3(step(gl_FragCoord.x / $(vec2 resolution).x, t / 208.)), 1.);
 		return;
 	}
 
 	//gl_FragColor = noise24(gl_FragCoord.xy);return;
 	//t += noise24(gl_FragCoord.xy + t*100.*vec2(17.,39.)).x;
 
-	vec3 N;
 	vec3 at = vec3(0.);
 	O = vec3(mod(t*2., 10000.) - 5000., 1000. + 500. * sin(t/60.), mod(t*10., 10000.) - 5000.);
 
@@ -286,7 +301,7 @@ void main() {
 	sundir = normalize(sundir);
 	D = normalize(O - at);
 
-	O = $(vec3 cam_pos) * 10.; D = -normalize($(vec3 cam_dir));
+	O = $(vec3 cam_pos) * 3.; D = -normalize($(vec3 cam_dir));
 	vec3 x = normalize(cross(E.xzx, D));
 	D = mat3(x, normalize(cross(D, x)), D) * normalize(vec3(uv, -2.));
 
@@ -294,8 +309,6 @@ void main() {
 
 	const float max_distance = 1e4;
 	march(max_distance);
-	float m_kd = .3;
-	float m_shine = 10.;
 	if (L < max_distance) {
 		N = normalize(vec3(
 			world(P+E.yxx), world(P+E.xyx), world(P+E.xxy)) - world(P));
@@ -311,9 +324,9 @@ void main() {
 		//vec2 wxy = vec2(vmax2(-mparam) / 2., mod(P.y, 3.));
 		//vec2 wnxy = vec2(
 		//float window = step(1., wxy.y);
-		vec3 albedo = vec3(mix(.1, .6, window));
-		m_kd = mix(.3, .7, window);
-		m_shine = mix(80., 10000., window);
+		vec3 albedo = mix(vec3(.1) + .02 * rnd.yzw, vec3(.6), window) * (.1 + .9 * smoothstep(0., 24., P.y));
+		m_kd = mix(.3, .8, window);
+		m_shine = mix(18., 1e4, window);
 
 		//N += .02 * (noise24(mparam*4.).xyz - .5);
 
@@ -322,27 +335,41 @@ void main() {
 			m_kd = .2;
 			m_shine = 80.;
 			albedo = mix(
-				vec3(.3),
+				vec3(.3) * (.1 + .3 * smoothstep(-2., 1., mparam.x)),
 				vec3(.01 + .9
 					* step(3.9, mod(mparam.x, 4.)
 					* step(.5, fract(mparam.y/4.)))
 				),
 				step(1., mparam.x));
+			/*
+			color =
+				100. * vec3(.9, .1, .05)
+					* step(2.9, mod(mparam.x+1., 4.))
+					* step(.8, fract((mparam.y - t * 20.)/16.))
+				* step(1., mparam.x);
+			*/
 		}
 
-		color = Lin(P, sundir, escape(P, sundir, Ra)) * I
-			* mix(
-					max(0., dot(N, sundir)) / 3.,
-					max(0., pow(dot(N, normalize(sundir - D)), m_shine) * (m_shine + 8.) / 24.),
-					m_kd
-				);
+		color += Lin(P, sundir, escape(P, sundir, Ra)) * I * dirlight(sundir);
+
+		vec4 PP = vec4(floor(P.xz / 30.) * 30., 0., 30.);
+		color += 50. * vec3(.9, .5, .2) * (
+			poslight(vec3(PP.xy, 3.).xzy) +
+			poslight(vec3(PP.xy+PP.zw*rnd.x, 3.).xzy) +
+			poslight(vec3(PP.xy+PP.wz*rnd.y, 3.).xzy) +
+			poslight(vec3(PP.xy+PP.ww*rnd.z, 3.).xzy)
+			);
+
 		vec3 opposite = vec3(-sundir.x, sundir.y, -sundir.z);
 		clouds = false;
-		color += scatter(P, opposite, escape(P, opposite, Ra), vec3(0.)) * m_kd * max(0., dot(N, opposite));// / 3.;
+		m_kd = .5;
+		color += scatter(P, opposite, escape(P, opposite, Ra), vec3(0.)) * dirlight(opposite);// * m_kd * max(0., dot(N, opposite));// / 3.;
 		clouds = true;
 		color = scatter(O, D, L, color * albedo);
 
 		//vec4 wrnd = noise24(floor(wxy) + t);
+		//vec4 wrnd = noise24(floor(vec2(fxnum, fynum)) + t);
+		//vec4 wrnd = noise24(floor(vec2(vmax2(P.xz), P.y)));
 		//color += window * vec3(.3 + .2 * wrnd.xyz) * smoothstep(.7, .9, wrnd.w);
 	} else
 		color = scatter(O, D, escape(O, D, Ra), vec3(0.));
@@ -351,5 +378,5 @@ void main() {
 
 	//color = vec3(-N.y);
 	//gl_FragColor = color.x < 0.0001 ? vec4(1.,0.,0.,1.) : vec4(pow(color, vec3(1./2.2)),.5);
-	gl_FragColor = vec4(pow(color, vec3(1./2.2)),.5);
+	gl_FragColor = vec4(pow(color, vec3(1./2.2)),.9);
 }
