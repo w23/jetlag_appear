@@ -248,11 +248,11 @@ void march(float maxL) {
 }
 
 void main() {
-	const vec2 res = vec2(640., 360.);//*2.;
-	vec2 uv = gl_FragCoord.xy/res * 2. - 1.; uv.x *= res.x / res.y;
+	//const vec2 res = vec2(640., 360.);//*2.;
+	vec2 uv = gl_FragCoord.xy/$(vec2 resolution)* 2. - 1.; uv.x *= $(vec2 resolution).x / $(vec2 resolution).y;
 
 	if (gl_FragCoord.y < 10.) {
-		gl_FragColor = vec4(step(gl_FragCoord.x / res.x, t / 208.));
+		gl_FragColor = vec4(step(gl_FragCoord.x / $(vec2 resolution).x, t / 208.));
 		return;
 	}
 

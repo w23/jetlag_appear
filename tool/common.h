@@ -90,6 +90,7 @@ const char *varGetTypeName(VarType type);
 
 void varInit(const char *filename);
 void varFrame(float bar);
+void varSet(const VarDesc *desc, AVec4f value);
 int varGet(const VarDesc *desc, AVec4f *value);
 void varPrintOverrides();
 void varExportBegin();

@@ -305,6 +305,10 @@ static void paint(ATimeUs ts, float dt) {
 		parseProject();
 
 	const float bars = audioRawGetTimeBar();
+	static const VarDesc resolution = { "resolution", VarType_Vec2 };
+	varSet(&resolution, aVec4f(settings.width, settings.height, 0, 0));
+	static const VarDesc time_desc = { "time", VarType_Float };
+	varSet(&time_desc, aVec4ff(bars));
 	varFrame(bars);
 
 	processMidi();

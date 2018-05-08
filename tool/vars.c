@@ -195,6 +195,9 @@ static int varParse(const char *source) {
 	VarScene *scene = g.scene + scene_index;
 	scene->table.vars = 0;
 
+	for (int i = 0; i < (int)COUNTOF(g.scratch); ++i)
+		g.scratch[i].override = 0;
+
 	ParserTokenizer parser;
 	parser.ctx.line = source;
 	parser.ctx.prev_line = 0;
@@ -225,43 +228,64 @@ void varFrame(float bar) {
 		varParse(g.source->bytes);
 }
 
-int varGet(const VarDesc *desc, AVec4f *value) {
-	*value = aVec4ff(0);
-
-	if (strcmp(desc->name, "time") == 0) {
-		*value = aVec4ff(g.bar);
-		return 0;
-	}
-
+static int varFindIndex(const VarDesc *desc) {
 	VarScene *scene = g.scene + g.active_scene;
-
-	VarData *data = NULL;
-	int var_index = -1;
 	for (int i = 0; i < scene->table.vars; ++i) {
 		VarData *vd = scene->table.var + i;
 		if (strcmp(vd->desc.name, desc->name) == 0) {
 			// FIXME check type
-			var_index = i;
-			data = vd;
-			break;
+			//MSG("%s -> %d", desc->name, i);
+			return i;
 		}
 	}
 
-	if (!data) {
-		if (scene->table.vars == VAR_MAX_VARS)
-			return -1;
+	return -1;
+}
 
-		data = scene->table.var + scene->table.vars;
-		g.scratch[scene->table.vars].override = 0;
-		var_index = scene->table.vars;
-		++scene->table.vars;
-		data->desc = *desc;
-		data->points = 0;
-	} else {
-		if (g.scratch[var_index].override) {
-			*value = g.scratch[var_index].value;
-			return 0;
-		}
+static int varFindOrAllocate(const VarDesc *desc) {
+	int index = varFindIndex(desc);
+	if (index >= 0)
+		return index;
+
+	VarScene *const scene = g.scene + g.active_scene;
+	if (scene->table.vars == VAR_MAX_VARS) {
+		MSG("Too many vars");
+		return -1;
+	}
+
+	index = scene->table.vars++;
+	MSG("%s %s set to index %d", varGetTypeName(desc->type), desc->name, index);
+	VarData *const data = scene->table.var + index;
+	g.scratch[index].override = 0;
+	data->desc = *desc;
+	data->points = 0;
+
+	return index;
+}
+
+void varSet(const VarDesc *desc, AVec4f value) {
+	const int index = varFindOrAllocate(desc);
+	if (index < 0)
+		return;
+
+	g.scratch[index].override = 1;
+	g.scratch[index].value = value;
+}
+
+int varGet(const VarDesc *desc, AVec4f *value) {
+	*value = aVec4ff(0);
+
+	const int var_index = varFindOrAllocate(desc);
+	if (var_index < 0)
+		return -1;
+
+	VarScene *scene = g.scene + g.active_scene;
+	VarData *data = scene->table.var + var_index;
+
+	if (g.scratch[var_index].override) {
+		*value = g.scratch[var_index].value;
+		//MSG("%f, %s = %f %f %f %f", g.bar, data->desc.name, value->x, value->y, value->z, value->w);
+		return 0;
 	}
 
 	float bar;
