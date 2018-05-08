@@ -57,6 +57,7 @@ typedef struct {
 } RenderProgram;
 
 typedef struct {
+	int blend;
 	int program_index;
 	GLuint fb;
 	int targets;
@@ -79,10 +80,16 @@ typedef struct {
 	DECLARE_TABLE(RenderPass, pass, RENDER_MAX_PASSES);
 } RenderScene;
 
+typedef struct {
+	RenderScene *scene;
+	int blend_enabled;
+} RenderParseContext;
+
 enum {
 	RenderLine_Texture,
 	RenderLine_TextureNoise,
 	RenderLine_PassFullscreen,
+	RenderLine_Blend,
 };
 
 static void renderInitTexture(GLuint tex, int w, int h, int comp, int type, void *data, int wrap) {
@@ -102,7 +109,8 @@ char *strMakeCopy(const char *str) {
 }
 
 static int renderParseAddTexture(const ParserCallbackParams *params) {
-	RenderScene *scene = (RenderScene*)params->userdata;
+	RenderParseContext * const ctx = (RenderParseContext*)params->userdata;
+	RenderScene * const scene = ctx->scene;
 	if (scene->textures == RENDER_MAX_TEXTURES) {
 		MSG("Too many textures, limit: %d", scene->textures);
 		return -1;
@@ -207,7 +215,8 @@ static void renderProgramDtor(RenderProgram *prog) {
 }
 
 static int renderParseAddProgram(const ParserCallbackParams *params) {
-	RenderScene *scene = (RenderScene*)params->userdata;
+	RenderParseContext * const ctx = (RenderParseContext*)params->userdata;
+	RenderScene * const scene = ctx->scene;
 
 	if (scene->programs == RENDER_MAX_PROGRAMS) {
 		MSG("Too many programs, limit %d", RENDER_MAX_PROGRAMS);
@@ -260,7 +269,8 @@ static void renderPassDtor(RenderPass *pass) {
 }
 
 static int renderParseAddPass(const ParserCallbackParams *params) {
-	RenderScene *scene = (RenderScene*)params->userdata;
+	RenderParseContext * const ctx = (RenderParseContext*)params->userdata;
+	RenderScene * const scene = ctx->scene;
 
 	if (scene->passs == RENDER_MAX_PASSES) {
 		MSG("Too many passes, limit %d", RENDER_MAX_PASSES);
@@ -268,6 +278,7 @@ static int renderParseAddPass(const ParserCallbackParams *params) {
 	}
 
 	RenderPass *pass = scene->pass + scene->passs;
+	pass->blend = ctx->blend_enabled;
 	pass->program_index = renderProgramFind(scene, params->args[0].s);
 	if (pass->program_index == -1) {
 		MSG("Cannot find program %s", params->args[0].s);
@@ -300,11 +311,19 @@ static int renderParseAddPass(const ParserCallbackParams *params) {
 	return 0;
 }
 
+static int renderParseSetBlend(const ParserCallbackParams *params) {
+	RenderParseContext * const ctx = (RenderParseContext*)params->userdata;
+
+	ctx->blend_enabled = !!params->args[0].value.i;
+	return 0;
+}
+
 static const ParserLine render_line_table[] = {
 	{ "texture", RenderLine_Texture, 4, 5, {PAF_String, PAF_String, PAF_Int|PAF_Var, PAF_Int|PAF_Var, PAF_Int}, renderParseAddTexture},
 	{ "texture_noise", RenderLine_TextureNoise, 3, 3, {PAF_String, PAF_Int|PAF_Var, PAF_Int}, renderParseAddTexture},
 	{ "program", 0, 2, 4, {PAF_String, PAF_String, PAF_String, PAF_String}, renderParseAddProgram},
 	{ "pass_fs", RenderLine_PassFullscreen, 1, 4, {PAF_String, PAF_String, PAF_String, PAF_String}, renderParseAddPass},
+	{ "blend", RenderLine_Blend, 1, 1, {PAF_Int}, renderParseSetBlend},
 };
 
 static struct {
@@ -338,13 +357,17 @@ static void renderUpdateScene() {
 	scene->width = g.width;
 	scene->height = g.height;
 
+	RenderParseContext ctx;
+	ctx.scene = scene;
+	ctx.blend_enabled = 0;
+
 	ParserTokenizer parser;
 	parser.ctx.line = g.scene_source->bytes;
 	parser.ctx.prev_line = 0;
 	parser.ctx.line_number = 0;
 	parser.line_table = render_line_table;
 	parser.line_table_length = COUNTOF(render_line_table);
-	parser.userdata = scene;
+	parser.userdata = &ctx;
 
 	for (;;) {
 		const int result = parserTokenizeLine(&parser);
@@ -735,6 +758,13 @@ void videoPaint() {
 	GL(Viewport(0, 0, g.width, g.height));
 	for (int i = 0; i < g.scene->passs; ++i) {
 		RenderPass *pass = g.scene->pass + i;
+		if (pass->blend) {
+			glEnable(GL_BLEND);
+			glBlendEquation(GL_FUNC_ADD);
+			glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+		} else {
+			glDisable(GL_BLEND);
+		}
 		const RenderProgram *prog = g.scene->program + pass->program_index;
 
 		const ATimeUs time_start = aAppTime();

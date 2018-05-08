@@ -2,4 +2,5 @@ texture_noise t_noise 1024 0
 
 program p_main main.shader
 
+blend 1
 pass_fs p_main

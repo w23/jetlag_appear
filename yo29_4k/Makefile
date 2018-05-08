@@ -41,26 +41,12 @@ $(OBJDIR)/4klang.o32: 4klang.asm 4klang_linux/4klang.inc
 	nasm -f elf32 -I4klang_linux/ 4klang.asm -o $@
 
 TOOL_EXE = $(OBJDIR)/tool/tool
-TOOL_SRCS = \
-	atto/src/app_linux.c \
-	atto/src/app_x11.c \
-	tool/audio_raw.c \
-	tool/fileres.c \
-	tool/parser.c \
-	tool/tool.c \
-	tool/util.c \
-	tool/vars.c \
-	tool/video.c
 
-TOOL_OBJS = $(TOOL_SRCS:%=$(OBJDIR)/%.o)
-TOOL_DEPS = $(TOOL_OBJS:%=%.d)
+.PHONY: FORCE
+../$(TOOL_EXE): FORCE
+	$(MAKE) -C .. tool
 
--include $(TOOL_DEPS)
-
-$(TOOL_EXE): $(TOOL_OBJS)
-	$(CXX) $(LIBS) $^ -o $@
-
-tool: $(TOOL_EXE)
+tool: ../$(TOOL_EXE)
 
 DUMP_AUDIO_EXE = $(OBJDIR)/dump_audio
 DUMP_AUDIO_SRCS = dump_audio.c
