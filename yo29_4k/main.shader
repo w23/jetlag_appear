@@ -7,7 +7,7 @@ vec4 noise24(vec2 v) { return texture2D(S, (v + .5)/textureSize(S,0)); }
 
 const float R0 = 6360e3;
 const float Ra = 6380e3;
-const float low = 2e3, hi = 4e3, border = 1e3;
+const float low = 1e3, hi = 25e2, border = 5e2;
 const float g = .76;
 const float g2 = g * g;
 const float Hr = 8e3;
@@ -36,25 +36,10 @@ float noise31(vec3 v) {
 	return mix(noise24(v.xz).x, noise24(v.yx).y, .5);// fract(v.z));
 }
 
-float fnoise(vec3 v) {
-	return
-		.75 * noise31(v)
-		+ .125 * noise31(v*4.3)
-		//+ .0625 * noise31(v*9.9)
-		//+ .0625 * noise31(v*17.8)
-		;
-}
-
-float cloud(vec3 p) {
-	float cld = fnoise(p*1e-3);
-	cld = smoothstep(.49, .5, cld);
-	return cld;
-}
-
 bool clouds = true;
 vec2 densitiesRM(vec3 p) {
 	float h = max(0., length(p - C) - R0);
-	vec2 retRM = vec2(exp(-h/Hr), exp(-h/Hm) * 4.);
+	vec2 retRM = vec2(exp(-h/Hr), exp(-h/Hm) * 8.);
 
 	if (clouds) {
 		/*
@@ -65,12 +50,18 @@ vec2 densitiesRM(vec3 p) {
 		*/
 
 		if (low < h && h < hi) {
+			vec3 v = 15e-4 * (p + t * vec3(-90., 0., 80.));
 			retRM.y +=
-				50. *
+				250. *
 				step(length(p), 50000.) *
-				smoothstep(low, low + border, h) *
-				smoothstep(hi, hi - border, h) *
-				cloud(p+vec3(0., 0.,t*80.));
+				smoothstep(low, low + 1e2, h) *
+				smoothstep(hi, hi - 1e3, h) *
+				smoothstep(.5, .55,
+					.75 * noise31(v)
+					+ .125 * noise31(v*4.3)
+					+ .0625 * noise31(v*9.9)
+					+ .0625 * noise31(v*17.8)-.1
+				);
 		}
 	}
 
@@ -88,12 +79,13 @@ float escape(vec3 p, vec3 d, float R) {
 	return (t1 >= 0.) ? t1 : t2;
 }
 
+vec4 random;
+
 vec2 scatterDirectImpl(vec3 o, vec3 d, float L, float steps) {
 	vec2 depthRMs = vec2(0.);
 	L /= steps; d *= L;
 	//o += d * noise24(o.xz*1e3 + vec2(t*1e4)).x;
-	for (float i = 0.; i < steps; ++i)
-		//depthRMs += densitiesRM(o + d * (i + noise24(vec2(i,i)).x));
+	for (float i = random.w * .5; i < steps; ++i)
 		depthRMs += densitiesRM(o + d * i);
 	return depthRMs * L;
 }
@@ -103,12 +95,13 @@ vec3 Lin(vec3 o, vec3 d, float L) {
 	return exp(-(bR * depthRMs.x + bMe * depthRMs.y));
 }
 
-void scatterImpl(vec3 o, vec3 d, float L, float steps, inout vec2 totalDepthRM, inout vec3 LiR, inout vec3 LiM) {
+vec2 totalDepthRM;
+vec3 LiR, LiM;
+
+void scatterImpl(vec3 o, vec3 d, float L, float steps) {
 	L /= steps; d *= L;
-	for (float i = 0.; i < steps; ++i) {
+	for (float i = random.z; i < steps; ++i) {
 		vec3 p = o + d * i;
-		//p += d * noise24(p.xz).w;
-		//vec3 p = o + d * i;(i + noise24(vec2(i,i)).x)
 		vec2 dRM = densitiesRM(p) * L;
 		totalDepthRM += dRM;
 
@@ -150,8 +143,8 @@ void scatterImpl(vec3 o, vec3 d, float L, float steps, inout vec2 totalDepthRM, 
 }
 
 vec3 scatter(vec3 o, vec3 d, float L, vec3 Lo) {
-	vec2 totalDepthRM = vec2(0.);
-	vec3 LiR = vec3(0.), LiM = vec3(0.);
+	totalDepthRM = vec2(0.);
+	LiR = LiM = vec3(0.);
 
 	/*
 	float det_dist = 1e4;
@@ -161,16 +154,22 @@ vec3 scatter(vec3 o, vec3 d, float L, vec3 Lo) {
 		scatterImpl(o + d * det_dist, d, left, 32., totalDepthRM, LiR, LiM);
 	} else
 		scatterImpl(o, d, L, 32., totalDepthRM, LiR, LiM);
-		*/
+	*/
 
+	//float l = 10e3;//escape(o, d, R0 + low);//, l2 = escape(o, d, R0 + hi);
 	float l = escape(o, d, R0 + low);//, l2 = escape(o, d, R0 + hi);
 	if (L < l)
-		scatterImpl(o, d, L, 16., totalDepthRM, LiR, LiM);
+		scatterImpl(o, d, L, 16.);
 	else {
+		/*
+		scatterImpl(o, d, l, 32.);
+		scatterImpl(o+d*l, d, L-l, 8.);
+		*/
+
 		float l2 = escape(o, d, R0 + hi);
-		scatterImpl(o, d, l, 32., totalDepthRM, LiR, LiM);
-		scatterImpl(o+d*l, d, l2-l, 32., totalDepthRM, LiR, LiM);
-		scatterImpl(o+d*l2, d, L-l2, 8., totalDepthRM, LiR, LiM);
+		scatterImpl(o, d, l, 32.);
+		scatterImpl(o+d*l, d, l2-l, 48.);
+		scatterImpl(o+d*l2, d, L-l2, 8.);
 	}
 
 	float mu = dot(d, sundir);
@@ -264,8 +263,8 @@ float poslight(vec3 pos) {
 }
 
 void main() {
-	//const vec2 res = vec2(640., 360.);//*2.;
-	vec2 uv = (gl_FragCoord.xy + noise24(gl_FragCoord.xy + t*1e4).xy)/$(vec2 resolution)* 2. - 1.; uv.x *= $(vec2 resolution).x / $(vec2 resolution).y;
+	random = noise24(gl_FragCoord.xy + t * 1e4);
+	vec2 uv = (gl_FragCoord.xy + random.xy)/$(vec2 resolution)* 2. - 1.; uv.x *= $(vec2 resolution).x / $(vec2 resolution).y;
 
 	if (gl_FragCoord.y < 10.) {
 		gl_FragColor = vec4(vec3(step(gl_FragCoord.x / $(vec2 resolution).x, t / 208.)), 1.);
