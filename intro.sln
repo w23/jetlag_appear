@@ -22,6 +22,8 @@ Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "yo29_c", "yo29_4k\yo29_c.vc
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "yo29_asm", "yo29_4k\yo29_asm.vcxproj", "{AF95D3DD-C930-4615-A703-CBD8F08140BA}"
 EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "dump_audio_yo29", "yo29_4k\dump_audio_yo29.vcxproj", "{B4D27076-800C-44F5-8BE2-CB7A650969F6}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Capture|x64 = Capture|x64
@@ -141,6 +143,20 @@ Global
 		{AF95D3DD-C930-4615-A703-CBD8F08140BA}.ReleaseSlow|x64.ActiveCfg = ReleaseSlow|Win32
 		{AF95D3DD-C930-4615-A703-CBD8F08140BA}.ReleaseSlow|x86.ActiveCfg = ReleaseSlow|Win32
 		{AF95D3DD-C930-4615-A703-CBD8F08140BA}.ReleaseSlow|x86.Build.0 = ReleaseSlow|Win32
+		{B4D27076-800C-44F5-8BE2-CB7A650969F6}.Capture|x64.ActiveCfg = Release|Win32
+		{B4D27076-800C-44F5-8BE2-CB7A650969F6}.Capture|x64.Build.0 = Release|Win32
+		{B4D27076-800C-44F5-8BE2-CB7A650969F6}.Capture|x86.ActiveCfg = Release|Win32
+		{B4D27076-800C-44F5-8BE2-CB7A650969F6}.Capture|x86.Build.0 = Release|Win32
+		{B4D27076-800C-44F5-8BE2-CB7A650969F6}.Debug|x64.ActiveCfg = Debug|Win32
+		{B4D27076-800C-44F5-8BE2-CB7A650969F6}.Debug|x86.ActiveCfg = Debug|Win32
+		{B4D27076-800C-44F5-8BE2-CB7A650969F6}.Debug|x86.Build.0 = Debug|Win32
+		{B4D27076-800C-44F5-8BE2-CB7A650969F6}.Release|x64.ActiveCfg = Release|Win32
+		{B4D27076-800C-44F5-8BE2-CB7A650969F6}.Release|x86.ActiveCfg = Release|Win32
+		{B4D27076-800C-44F5-8BE2-CB7A650969F6}.Release|x86.Build.0 = Release|Win32
+		{B4D27076-800C-44F5-8BE2-CB7A650969F6}.ReleaseSlow|x64.ActiveCfg = Release|Win32
+		{B4D27076-800C-44F5-8BE2-CB7A650969F6}.ReleaseSlow|x64.Build.0 = Release|Win32
+		{B4D27076-800C-44F5-8BE2-CB7A650969F6}.ReleaseSlow|x86.ActiveCfg = Release|Win32
+		{B4D27076-800C-44F5-8BE2-CB7A650969F6}.ReleaseSlow|x86.Build.0 = Release|Win32
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
