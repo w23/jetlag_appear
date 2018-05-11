@@ -19,7 +19,7 @@ const vec3 bR = vec3(58e-7, 135e-7, 331e-7);
 const vec3 bMs = vec3(2e-5);
 const vec3 bMe = bMs * 1.1;
 
-vec3 sundir = vec3(1.,.001,1.);
+vec3 sundir = vec3(1.,.01,1.);
 
 /*
 float noise31(vec3 v) {
@@ -53,7 +53,10 @@ vec2 densitiesRM(vec3 p) {
 			vec3 v = 15e-4 * (p + t * vec3(-90., 0., 80.));
 			retRM.y +=
 				250. *
-				step(length(p), 50000.) *
+				//step(length(p), 50000.) *
+				//smoothstep(48., 0., t - 160.) *
+				//smoothstep(28., 23., v.z) *
+				step(v.z, 38.) *
 				smoothstep(low, low + 1e2, h) *
 				smoothstep(hi, hi - 1e3, h) *
 				smoothstep(.5, .55,
@@ -167,8 +170,8 @@ vec3 scatter(vec3 o, vec3 d, float L, vec3 Lo) {
 		*/
 
 		float l2 = escape(o, d, R0 + hi);
-		scatterImpl(o, d, l, 32.);
-		scatterImpl(o+d*l, d, l2-l, 48.);
+		scatterImpl(o, d, l, 16.);
+		scatterImpl(o+d*l, d, l2-l, 40.);
 		scatterImpl(o+d*l2, d, L-l2, 8.);
 	}
 
@@ -211,6 +214,13 @@ float world(vec3 p) {
 	float highway = 12. - abs(dot(road_normal,p.xz)),
 		highway_length = dot(vec2(road_normal.y, -road_normal.x), p.xz);
 
+	float r = length(p.xz);
+	mindex = 1.;
+	if (r > 5e3)
+		return p.y - min(1.,(r-5e3)/500.) * 400. * noise24(p.xz/300.).x;
+
+	float d = p.y;
+
 	vec2 cell = floor(p.xz / 30.);
 	p.xz = rep2(p.xz, vec2(30.));
 	vec3 cell_border = vec3(abs(p.xz)-15., highway);
@@ -226,14 +236,12 @@ float world(vec3 p) {
 				highway_length)
 		, step(0., cell_border.z));
 
-	float d = p.y;
-	mindex = 1.;
 	if (cd < d) {
 		d = cd;
 		mindex = 0.;
 		mparam = cell_border.xy;
 	}
-	return min(d, -b + guard);
+	return max(p.y-90., min(d, -b + guard));
 }
 
 float L;
@@ -269,28 +277,39 @@ void main() {
 	//if (gl_FragCoord.y < 10.) { gl_FragColor = vec4(vec3(step(gl_FragCoord.x / $(vec2 resolution).x, t / 232.)), 1.); return; }
 
 	vec3 at = vec3(0.);
-	O = vec3(mod(t*2., 1000.) - 500., 200. + 150. * sin(t/60.), mod(t*10., 1000.) - 500.);
+	O = vec3(
+		-300.,
+		200.,
+		mod(t, 64.) * 4.
+		);
+
 
 	if (t < 32.) {
-		at = vec3(1e3, 4600., -1e4);
+		at = vec3(0., 340., 200.);
 	} else if (t < 64.) {
-		O.y = 100.;
 		float k = (t - 64.) / 64.;
 		O = vec3(k * 100., 250., -36.);
-		at = O+vec3(-30., 0., -30.);
+		at = O + vec3(-30., 0., -30.);
 		at.y = 10.;
 		sundir.y += .01 * k * k * k;
+	} else if (t < 128.) {
 	} else if (t < 144.) {
-		sundir.y = .01;
+		at = vec3(O.x+9., 90., O.z+20.);
+		O.y = 100.;
+	//	sundir.y = .01;
 	} else {
 		float k = (t - 144.) / 64.;
-		O = vec3(mod(k*2., 1000.) - 900., 100. - 40. * k, mod(k*60., 1000.) - 500.);
-		at.y = 40. * k;
-		//sundir.y = .01 + .5* k;// * k * k * k;
-		sundir.y = .01 + 2.* k;// * k * k * k;
+		//-18, 70, 1
+		at = vec3(500., smoothstep(204., 232., t) * 800., 200.);
+		O = vec3(
+			-400 + k * 100.,
+			230. - k * 10.,
+			-130. - k * 140.
+			);
+		sundir.y = .01 + k * 1.5;// * k * k * k;
 	}
 
-	I = 10. + 200. * max(0., (t - 208.) / 16.);
+	//I = 10. + 200. * max(0., (t - 208.) / 16.);
 
 	sundir = normalize(sundir);
 	D = normalize(O - at);
@@ -298,7 +317,7 @@ void main() {
 	//O = $(vec3 cam_pos) * 3.; D = -normalize($(vec3 cam_dir));
 
 	vec3 x = normalize(cross(E.xzx, D));
-	D = mat3(x, normalize(cross(D, x)), D) * normalize(vec3(uv, -2)); // + noise24(uv+t*1e3).xy / $(vec2 resolution), -2.));
+	D = mat3(x, normalize(cross(D, x)), D) * normalize(vec3(uv, -2.)); // + noise24(uv+t*1e3).xy / $(vec2 resolution), -2.));
 	//D = mat3(x, normalize(cross(D, x)), D) * normalize(vec3(uv + noise24(uv+t*1e3).xy / $(vec2 resolution), -2.));
 
 	vec3 color = vec3(0.);
@@ -343,12 +362,15 @@ void main() {
 
 		color += Lin(P, sundir, escape(P, sundir, Ra)) * I * dirlight(sundir);
 
+		vec2 streetlight_cell = floor((P.xz + 15.) / 30.);
+		//color += noise24(streetlight_cell).xzy;
 		color += 250. * mix(
 				vec3(.9, .5, .2),
 				vec3(.2, .5, .9),
 				rnd.z * .5)
 			* rnd.w
-			* poslight(vec3(floor((P.xz + 15.) / 30.) * 30. + 15. * (rnd.xy - .5), 3.).xzy)
+			* poslight
+				(vec3(30. * (streetlight_cell + (noise24(streetlight_cell).xy - .5)), 3.).xzy)
 			* smoothstep(144., 140., t - rnd.w * 4. - rnd2.w * 8.)
 			;
 
@@ -375,5 +397,5 @@ void main() {
 	//color = vec3(fract(steps/100.));
 
 	//gl_FragColor = color.x < 0.0001 ? vec4(1.,0.,0.,1.) : vec4(pow(color, vec3(1./2.2)),.5);
-	gl_FragColor = smoothstep(0., 32., t) * vec4(pow(color, vec3(1./2.2)),.3);
+	gl_FragColor = vec4(pow(smoothstep(0., 32., t) * color /*+ smoothstep(0., 8., t - 208.)*/, vec3(1./2.2)),.3);
 }
