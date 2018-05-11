@@ -188,11 +188,11 @@ vec2 mparam = vec2(0.);
 const float guard = 4.;
 vec4 rnd, rnd2;
 
+const vec2 road_normal = normalize(vec2(-1.,2.)), road_tangent = mat2(0., 1., -1., 0.) * road_normal;
 
 float world(vec3 p) {
-	vec2 road_normal = normalize(vec2(-1.,2.));
 	float highway = 12. - abs(dot(road_normal,p.xz)),
-		highway_length = dot(vec2(road_normal.y, -road_normal.x), p.xz);
+		highway_length = dot(road_tangent, p.xz);
 
 	float r = length(p.xz);
 	mindex = 1.;
@@ -283,6 +283,8 @@ void main() {
 		sundir.y += .01 * k * k * k;
 	} else if (t < 128.) {
 	} else if (t < 144.) {
+		O.z -= 300.;
+		O.x += 100.;
 		at = vec3(O.x+9., 90., O.z+20.);
 		O.y = 100.;
 	//	sundir.y = .01;
@@ -321,8 +323,8 @@ void main() {
 			fxyC = floor(f / 3.);
 		float window = step(1.3, fxy.y) * step(.8, fxy.x);
 
-		vec3 albedo = mix(vec3(.1) + .02 * rnd.yzw, vec3(.2), window) * (.1 + .9 * smoothstep(0., 24., P.y));
-		m_kd = mix(.3, .9, window);
+		vec3 albedo = mix(vec3(.1) + .02 * rnd.yzw, vec3(.1), window) * (.1 + .9 * smoothstep(0., 24., P.y));
+		m_kd = mix(.3, .8, window);
 		m_shine = mix(18., 1e4, window);
 
 		//N += .01 * (noise31(P*4.) - .5);
@@ -334,18 +336,10 @@ void main() {
 			albedo = mix(
 				vec3(.3) * (.1 + .3 * smoothstep(-2., 1., mparam.x)),
 				vec3(.01 + .9
-					* step(3.9, mod(mparam.x, 4.)
-					* step(.5, fract(mparam.y/4.)))
+					* step(3.9, mod(mparam.x, 4.))
+					* step(.5, fract(mparam.y/4.))
 				),
 				step(1., mparam.x));
-			
-			/*
-			color =
-				100. * vec3(.9, .1, .05)
-					* step(2.9, mod(mparam.x+1., 4.))
-					* step(.8, fract((mparam.y - t * 20.)/16.))
-				* step(1., mparam.x);
-			*/
 		}
 
 		color += Lin(P, sundir, escape(P, sundir, Ra)) * I * dirlight(sundir);
@@ -362,21 +356,28 @@ void main() {
 			* smoothstep(144., 140., t - rnd.w * 4. - rnd2.w * 8.)
 			;
 
+		float traffic_begin = -700., traffic_length = 1000.;
+		for (float i = 0; i < 20.; ++i) {
+				vec4 r = noise24(vec2(i));
+				vec2 side = 3. * (floor(r.w * 3.) + 1.) * road_normal;
+				vec2 pos1 = side + road_tangent * (mod(-t * (9. - 2. * r.x) + traffic_length * r.y, traffic_length) + traffic_begin);
+				vec2 pos2 = -side + road_tangent * (mod(t * (9. - 2. * r.x) + traffic_length * r.y, traffic_length) + traffic_begin);
+				color += 20. * vec3(.9, .1, .0) * (poslight(vec3(pos1.xy, 1.).xzy) + poslight(vec3(pos2.xy - road_tangent * 3., 1.).xzy));
+				color += 30. * vec3(.8, .8, .9) * (poslight(vec3(pos2.xy, 1.).xzy) + poslight(vec3(pos1.xy - road_tangent * 3., 1.).xzy));
+			}
+
 		vec3 opposite = vec3(-sundir.x, sundir.y, -sundir.z);
 		clouds = false;
 		//m_kd = .5;
-		color += scatter(P, opposite, escape(P, opposite, Ra), vec3(0.)) * 6. * dirlight(opposite);// * m_kd * max(0., dot(N, opposite));// / 3.;
+		color += scatter(P, opposite, escape(P, opposite, Ra), vec3(0.)) * 6. * dirlight(opposite);
 		clouds = true;
 		color = scatter(O, D, L, color * albedo);
 
-		//vec4 wrnd = noise24(floor(wxy) + t);
 		vec4 wrnd = noise24(floor(fxyC + P.xz/3.));
-		//vec4 wrnd = noise24(floor(vec2(vmax2(P.xz/2.), P.y)));
 		color += window
-			* (vec3(.2 + .2 * wrnd.xyz)
+			* (vec3(.2, .15, .1) + .1 * wrnd.xyz)
 				//	+ .3 * noise24(fxy*3.).yzw
-				)
-			* smoothstep(.85, 1., wrnd.w + .1 * smoothstep(.34, .8, .2 * rnd.w + .8 * rnd2.w) 
+			* smoothstep(.85, 1., wrnd.w + .1 * smoothstep(.34, .8, .2 * rnd.w + .8 * rnd2.w)
 					- max(0., t - 136.)/64.)
 			;
 	} else
