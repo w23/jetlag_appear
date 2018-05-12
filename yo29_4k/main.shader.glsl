@@ -1,10 +1,7 @@
-//#version 130
-//uniform int F[1];
-//uniform
-vec3 F = vec3(vec2(0.000,0.000), F[0]);
-float t = F.z;
-
+#version 130
+uniform int F;
 uniform sampler2D S;
+float t = float(F) / 352800.;
 vec3 E = vec3(0.,.01,1.);
 vec4 noise24(vec2 v) { return texture2D(S, (v + .5)/textureSize(S,0)); }
 
@@ -231,7 +228,7 @@ void march(float maxL) {
 		P = O + D * L;
 		float dd = world(P);
 		L += dd;
-		if (dd < L / F.x  || L > maxL) return;
+		if (dd < L / 1000.  || L > maxL) return;
 	}
 	L = maxL;
 }
@@ -252,6 +249,7 @@ float poslight(vec3 pos) {
 void main() {
 	random = noise24(gl_FragCoord.xy + t * 1e4);
 
+	vec2 F = vec2(1280., 720.);
 	//if (gl_FragCoord.y < 10.) { gl_FragColor = vec4(vec3(step(gl_FragCoord.x / F.x, t / 232.)), 1.); return; }
 
 	vec3 at = vec3(0.);
