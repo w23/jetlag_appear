@@ -280,7 +280,7 @@ void main() {
 	} else {
 		float k = (t - 144.) / 64.;
 		//-18, 70, 1
-		at = vec3(500., smoothstep(204., 232., t) * 800., 200.);
+		at = vec3(500., smoothstep(207., 232., t) * 800., 200.);
 		O = vec3(
 			-400 + k * 100.,
 			230. - k * 10.,
@@ -364,6 +364,7 @@ void main() {
 
 		vec4 wrnd = noise24(floor(fxyC + P.xz/3.));
 		color += window
+			* smoothstep(800., 600., length(P.xz))
 			* (vec3(.2, .15, .1) + .1 * wrnd.xyz)
 				//	+ .3 * noise24(fxy*3.).yzw
 			* smoothstep(.85, 1., wrnd.w + .1 * smoothstep(.34, .8, .2 * rnd.w + .8 * rnd2.w)
