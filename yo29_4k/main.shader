@@ -24,17 +24,6 @@ const vec3 bMe = bMs * 1.1;
 
 vec3 sundir = vec3(1.,.01,1.);
 
-/*
-float noise31(vec3 v) {
-	vec3 p = floor(v);
-  vec3 f = fract(v);
-	f = f*f*(3.-2.*f);
-
-	vec2 uv = (p.xy+vec2(37.,197.)*p.z) + f.xy;
-	vec2 rg = textureLod(S, (uv+.5)/textureSize(S,0), 0.).yx;
-	return mix(rg.x, rg.y, f.z);
-}*/
-
 float noise31(vec3 v) {
 	return (noise24(v.xz).x + noise24(v.yx).y) * .5;
 }
@@ -277,7 +266,7 @@ void main() {
 		at = vec3(0., 340., 200.);
 	} else if (t < 64.) {
 		float k = (t - 64.) / 64.;
-		O = vec3(k * 100., 250., -36.);
+		O = vec3(400., 250., k * 100.);
 		at = O + vec3(-30., 0., -30.);
 		at.y = 10.;
 		sundir.y += .01 * k * k * k;
@@ -383,8 +372,6 @@ void main() {
 	} else
 		color = scatter(O, D, escape(O, D, Ra), vec3(0.));
 
-	//color = vec3(fract(steps/100.));
-
 	//gl_FragColor = color.x < 0.0001 ? vec4(1.,0.,0.,1.) : vec4(pow(color, vec3(1./2.2)),.5);
-	gl_FragColor = vec4(pow(smoothstep(0., 32., t) * color /*+ smoothstep(0., 8., t - 208.)*/, vec3(1./2.2)),.3);
+	gl_FragColor = vec4(pow(pow(smoothstep(0., 32., t), 1.5) * color /*+ smoothstep(0., 8., t - 208.)*/, vec3(1./2.2)),.3);
 }
