@@ -44,6 +44,9 @@ GL_RGBA EQU 0x1908
 GL_LINEAR EQU 0x2601
 GL_TEXTURE_MIN_FILTER EQU 0x2801
 GL_RGBA16F EQU 0x881a
+GL_BLEND EQU 0x0be2
+GL_SRC_ALPHA EQU 0x0302
+GL_ONE_MINUS_SRC_ALPHA EQU 0x0303
 
 %macro WINAPI_FUNCLIST 0
 %ifdef FULLSCREEN
@@ -71,6 +74,8 @@ GL_RGBA16F EQU 0x881a
 	WINAPI_FUNC glTexImage2D, 36
 	WINAPI_FUNC glTexParameteri, 12
 	WINAPI_FUNC glRects, 16
+	WINAPI_FUNC glEnable, 4
+	WINAPI_FUNC glBlendFunc, 8
 	WINAPI_FUNC glGetError, 0
 %if 0
 	WINAPI_FUNC glClearColor, 16
@@ -362,6 +367,12 @@ init_textures:
 	push eax
 	call glUseProgram
 	GLCHECK
+
+	push GL_BLEND
+	call glEnable
+	push GL_ONE_MINUS_SRC_ALPHA
+	push GL_SRC_ALPHA
+	call glBlendFunc
 
 %if 1
 	push wavehdr_size

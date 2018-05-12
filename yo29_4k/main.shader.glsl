@@ -1,4 +1,4 @@
-#version 130
+#version 330
 uniform int F;
 uniform sampler2D S;
 float t = float(F) / 352800.;
