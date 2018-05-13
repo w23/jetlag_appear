@@ -1,5 +1,5 @@
-//#version 130
-//uniform int F[1];
+//#version 330
+//uniform int F;
 //uniform
 vec3 F = vec3($(vec2 resolution), $(float time));
 float t = F.z;
@@ -8,19 +8,19 @@ uniform sampler2D S;
 vec3 E = vec3(0.,.01,1.);
 vec4 noise24(vec2 v) { return texture2D(S, (v + .5)/textureSize(S,0)); }
 
-const float R0 = 6360e3;
-const float Ra = 6380e3;
-const float low = 1e3, hi = 25e2, border = 5e2;
-const float g = .76;
-const float g2 = g * g;
-const float Hr = 8e3;
-const float Hm = 1.2e3;
+/*const*/ float R0 = 6360e3;
+/*const*/ float Ra = 6380e3;
+/*const*/ float low = 1e3, hi = 25e2, border = 5e2;
+/*const*/ float g = .76;
+/*const*/ float g2 = g * g;
+/*const*/ float Hr = 8e3;
+/*const*/ float Hm = 1.2e3;
 float I = 10.;
 
-const vec3 C = vec3(0., -R0, 0.);
-const vec3 bR = vec3(58e-7, 135e-7, 331e-7);
-const vec3 bMs = vec3(2e-5);
-const vec3 bMe = bMs * 1.1;
+/*const*/ vec3 C = vec3(0., -R0, 0.);
+/*const*/ vec3 bR = vec3(58e-7, 135e-7, 331e-7);
+/*const*/ vec3 bMs = vec3(2e-5);
+/*const*/ vec3 bMe = bMs * 1.1;
 
 vec3 sundir = vec3(1.,.01,1.);
 
@@ -28,12 +28,12 @@ float noise31(vec3 v) {
 	return (noise24(v.xz).x + noise24(v.yx).y) * .5;
 }
 
-bool clouds = true;
+//int clouds = 1;
 vec2 densitiesRM(vec3 p) {
 	float h = max(0., length(p - C) - R0);
 	vec2 retRM = vec2(exp(-h/Hr), exp(-h/Hm) * 8.);
 
-	if (clouds && low < h && h < hi) {
+	if (/*clouds > 0 && */low < h && h < hi) {
 		vec3 v = 15e-4 * (p + t * vec3(-90., 0., 80.));
 		retRM.y +=
 			250. *
@@ -145,10 +145,8 @@ vec3 scatter(vec3 o, vec3 d, float L, vec3 Lo) {
 	if (L < l)
 		scatterImpl(o, d, L, 16.);
 	else {
-		/*
-		scatterImpl(o, d, l, 32.);
-		scatterImpl(o+d*l, d, L-l, 8.);
-		*/
+		//scatterImpl(o, d, l, 32.);
+		//scatterImpl(o+d*l, d, L-l, 8.);
 
 		float l2 = escape(o, d, R0 + hi);
 		scatterImpl(o, d, l, 16.);
@@ -174,30 +172,31 @@ vec2 rep2(vec2 p, vec2 s) { return mod(p, s) - s*.5; }
 
 float mindex = 0.;
 vec2 mparam = vec2(0.);
-const float guard = 4.;
+/*const*/ float guard = 4.;
 vec4 rnd, rnd2;
 
-const vec2 road_normal = normalize(vec2(-1.,2.)), road_tangent = mat2(0., 1., -1., 0.) * road_normal;
+/*const*/ vec2 road_normal = normalize(vec2(-1.,2.)), road_tangent = vec2(road_normal.y, - road_normal.x);//mat2(0., 1., -1., 0.) * road_normal;
 
 float world(vec3 p) {
-	float highway = 12. - abs(dot(road_normal,p.xz)),
-		highway_length = dot(road_tangent, p.xz);
+	vec2 pxz = p.xz;
+	float
+		highway = 12. - abs(dot(road_normal,pxz)),
+		highway_length = dot(road_tangent, pxz);
 
-	float r = length(p.xz);
+	float r = length(pxz);
+	float d = p.y;
 	mindex = 1.;
 	if (r > 5e3)
-		return p.y - min(1.,(r-5e3)/500.) * 400. * noise24(p.xz/300.).x;
+		return d - min(1.,(r-5e3)/500.) * 400. * noise24(pxz/300.).x;
 
-	float d = p.y;
-
-	vec2 cell = floor(p.xz / 30.);
-	p.xz = rep2(p.xz, vec2(30.));
+	vec2 cell = floor(pxz / 30.);
+	pxz = rep2(pxz, vec2(30.));
 	rnd = noise24(cell);
 	rnd2 = noise24(cell/8.);
 
-	vec3 cell_border = vec3(abs(p.xz)-15., highway);
+	vec3 cell_border = vec3(abs(pxz)-15., highway);
 	vec3 cp = vec3(cell_border + guard);
-	float b = min(vmax2(cell_border.xy), -cell_border.z);
+	//float height = 3. * floor(2. + rnd.w * 4. + 20. * smoothstep(.8,.99, rnd.w) * smoothstep(.6, .9, rnd2.w));
 	float height = 3. * floor(2. + rnd.w * 4. + 20. * smoothstep(.8,.99, rnd.w) * smoothstep(.6, .9, rnd2.w));
 	float cd = min(
 		min(
@@ -220,8 +219,7 @@ float world(vec3 p) {
 		mindex = 0.;
 		mparam = cell_border.xy;
 	}
-	//return max(p.y-90., min(d, -b + guard));
-	return max(p.y-90., min(d, -b + guard));
+	return max(p.y-90., min(d, guard - min(vmax2(cell_border.xy), -cell_border.z)));
 }
 
 float L;
@@ -231,7 +229,7 @@ void march(float maxL) {
 		P = O + D * L;
 		float dd = world(P);
 		L += dd;
-		if (dd < L / F.x  || L > maxL) return;
+		if (dd < L * .0001  || L > maxL) return;
 	}
 	L = maxL;
 }
@@ -299,31 +297,31 @@ void main() {
 	vec3 x = normalize(cross(E.xzx, D));
 	D = mat3(x, normalize(cross(D, x)), D) * normalize(vec3((gl_FragCoord.xy + random.xy)/F.xy * 2. - 1., -2.) * vec3(F.x / F.y, 1., 1.));
 
-	vec3 color = vec3(0.);
+	vec3 color = E.xxx;
 
-	const float max_distance = 1e4;
+	/*const*/ float max_distance = 1e4;
 	march(max_distance);
 	if (L < max_distance) {
-		N = normalize(vec3(
-			world(P+E.yxx), world(P+E.xyx), world(P+E.xxy)) - world(P));
+		N = normalize(vec3(world(P+E.yxx), world(P+E.xyx), world(P+E.xxy)) - world(P));
 
 		vec2 f = vec2(vmax2(-mparam), P.y),
 			fxy = mod(f, vec2(3.)),
 			fxyC = floor(f / 3.);
 		float window = step(1.3, fxy.y) * step(.8, fxy.x);
 
-		vec3 albedo = mix(vec3(.1) + .02 * rnd.yzw, vec3(.1), window) * (.1 + .9 * smoothstep(0., 24., P.y));
-		m_kd = mix(.3, .8, window);
-		m_shine = mix(18., 1e4, window);
+		vec3 albedo = (vec3(.1) + .02 * rnd.yzw * window) * (.1 + .9 * smoothstep(0., 24., P.y));
+		m_kd = .3 + .5 * window;
+		m_shine = 18. + 1e4 * window;
 
 		//N += .01 * (noise31(P*4.) - .5);
 
 		if (mindex > 0.) {
-			window = 0.;
+			//window = 0.;
 			m_kd = .2;
 			m_shine = 80.;
 			albedo = mix(
-				vec3(.3) * (.1 + .3 * smoothstep(-2., 1., mparam.x)),
+				vec3(.1),// * (.1 + .3 * smoothstep(-2., 1., mparam.x)),
+				//vec3(.1 + .3 * smoothstep(-2., 1., mparam.x)),
 				vec3(.01 + .9
 					* step(3.9, mod(mparam.x, 4.))
 					* step(.5, fract(mparam.y/4.))
@@ -342,30 +340,31 @@ void main() {
 			* rnd.w
 			* poslight
 				(vec3(30. * (streetlight_cell + (noise24(streetlight_cell).xy - .5)), 3.).xzy)
-			* smoothstep(144., 140., t - rnd.w * 4. - rnd2.w * 8.)
+			/* 7 bytes */ //* smoothstep(144., 140., t - rnd.w * 4. - rnd2.w * 8.)
 			;
 
 		float traffic_begin = -700., traffic_length = 1000.;
 		for (float i = 0; i < 20.; ++i) {
 				vec4 r = noise24(vec2(i));
 				vec2 side = 3. * (floor(r.w * 3.) + 1.) * road_normal;
-				vec2 pos1 = side + road_tangent * (mod(-t * (9. - 2. * r.x) + traffic_length * r.y, traffic_length) + traffic_begin);
-				vec2 pos2 = -side + road_tangent * (mod(t * (9. - 2. * r.x) + traffic_length * r.y, traffic_length) + traffic_begin);
+				vec2 pos1 = side + (fract(-t * (.009 - .002 * r.x) + r.y) * traffic_length + traffic_begin) * road_tangent;
+				vec2 pos2 = -side + (fract(t * (.009 - .002 * r.x) + r.y) * traffic_length + traffic_begin) * road_tangent;
 				color += 20. * vec3(.9, .1, .0) * (poslight(vec3(pos1.xy, 1.).xzy) + poslight(vec3(pos2.xy - road_tangent * 3., 1.).xzy));
 				color += 30. * vec3(.8, .8, .9) * (poslight(vec3(pos2.xy, 1.).xzy) + poslight(vec3(pos1.xy - road_tangent * 3., 1.).xzy));
 			}
 
+		/*
 		vec3 opposite = vec3(-sundir.x, sundir.y, -sundir.z);
-		clouds = false;
-		//m_kd = .5;
+		clouds = 0;
 		color += scatter(P, opposite, escape(P, opposite, Ra), vec3(0.)) * 6. * dirlight(opposite);
-		clouds = true;
+		clouds = 1;
+		*/
 		color = scatter(O, D, L, color * albedo);
 
 		vec4 wrnd = noise24(floor(fxyC + P.xz/3.));
 		color += window
 			* smoothstep(800., 600., length(P.xz))
-			* (vec3(.2, .15, .1) + .1 * wrnd.xyz)
+			/* -8 bytes */ * (vec3(.2, .15, .1) + .1 * wrnd.xyz)
 				//	+ .3 * noise24(fxy*3.).yzw
 			* smoothstep(.85, 1., wrnd.w + .1 * smoothstep(.34, .8, .2 * rnd.w + .8 * rnd2.w)
 					- max(0., t - 136.)/64.)
@@ -374,5 +373,6 @@ void main() {
 		color = scatter(O, D, escape(O, D, Ra), vec3(0.));
 
 	//gl_FragColor = color.x < 0.0001 ? vec4(1.,0.,0.,1.) : vec4(pow(color, vec3(1./2.2)),.5);
-	gl_FragColor = vec4(pow(pow(smoothstep(0., 32., t), 1.5) * color /*+ smoothstep(0., 8., t - 208.)*/, vec3(1./2.2)),.3);
+	//gl_FragColor = vec4(pow(smoothstep(0., 32., t) * color, vec3(1./2.2)),.3);
+	gl_FragColor = vec4(sqrt(smoothstep(0., 32., t) * color), .3);
 }
