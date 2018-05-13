@@ -37,6 +37,7 @@ static int doExport() {
 	if (g.project->updated)
 		parseProject();
 	resourcesUpdate();
+	videoPaint();
 
 	varExportBegin();
 	videoExport();

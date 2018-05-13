@@ -653,7 +653,7 @@ static int renderSourceExport(const RenderSource *src) {
 	return 1;
 }
 
-static void renderProgramCheckUpdate(RenderProgram *prog) {
+static void renderProgramCheckUpdate(RenderProgram *prog, int recompile_program) {
 	const char *fragment[RENDER_MAX_PROGRAM_SOURCES + 2];
 
 	int updated = 0;
@@ -717,6 +717,9 @@ static void renderProgramCheckUpdate(RenderProgram *prog) {
 
 	MSG("%s", prog->header);
 
+	if (!recompile_program)
+		return;
+
 	MSG("Reloading %s", prog->name);
 
 	const char *const vertex[] = { fs_vtx_source, NULL };
@@ -742,7 +745,7 @@ void videoPaint() {
 	int can_draw = (g.output.program > 0);
 	for (int i = 0; i < g.scene->programs; ++i) {
 		RenderProgram *prog = g.scene->program + i;
-		renderProgramCheckUpdate(prog);
+		renderProgramCheckUpdate(prog, 1);
 		if (prog->program < 0)
 			can_draw = 0;
 	}
@@ -839,10 +842,21 @@ void videoPaint() {
 }
 
 void videoExport() {
-	const RenderScene *scene = g.scene;
+	if (g.scene_source->updated)
+		renderUpdateScene();
+
 	if (!g.scene) {
 		MSG("Render is not ready");
 		return;
+	}
+
+	resourcesUpdate();
+
+	const RenderScene *scene = g.scene;
+
+	for (int i = 0; i < g.scene->programs; ++i) {
+		RenderProgram *prog = g.scene->program + i;
+		renderProgramCheckUpdate(prog, 0);
 	}
 
 	for (int i = 0; i < scene->sources; ++i) {
