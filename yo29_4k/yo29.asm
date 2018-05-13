@@ -10,12 +10,12 @@ global _entrypoint
 ;%include "4klang.inc"
 %define USE_SECTIONS
 %define SAMPLE_RATE	44100
-%define MAX_INSTRUMENTS	11
+%define MAX_INSTRUMENTS	10
 %define MAX_VOICES 2
 %define HLD 1
 %define BPM 60.000000
-%define MAX_PATTERNS 58
-%define PATTERN_SIZE_SHIFT 4
+%define MAX_PATTERNS 121
+%define PATTERN_SIZE_SHIFT 3
 %define PATTERN_SIZE (1 << PATTERN_SIZE_SHIFT)
 %define	MAX_TICKS (MAX_PATTERNS*PATTERN_SIZE)
 %define	SAMPLES_PER_TICK 11025
