@@ -1,12 +1,7 @@
-//#version 330
-//uniform int F;
-//uniform
-vec3 F = vec3(vec2(0.000,0.000), F[0]);
-float t = F.z;
-
 uniform sampler2D S;
-vec3 E = vec3(0.,.01,1.);
-vec4 noise24(vec2 v) { return texture2D(S, (v + .5)/textureSize(S,0)); }
+uniform int F;
+float t = float(F) / 352800.;
+vec4 noise24(vec2 v) { return texture2D(S, (v + .5)/1024.); }
 
 /*const*/ float R0 = 6360e3;
 /*const*/ float Ra = 6380e3;
@@ -17,6 +12,7 @@ vec4 noise24(vec2 v) { return texture2D(S, (v + .5)/textureSize(S,0)); }
 /*const*/ float Hm = 1.2e3;
 float I = 10.;
 
+vec3 E = vec3(0.,.01,1.);
 /*const*/ vec3 C = vec3(0., -R0, 0.);
 /*const*/ vec3 bR = vec3(58e-7, 135e-7, 331e-7);
 /*const*/ vec3 bMs = vec3(2e-5);
@@ -248,6 +244,7 @@ float poslight(vec3 pos) {
 }
 
 void main() {
+	vec2 F = vec2(1280.,720.);
 	random = noise24(gl_FragCoord.xy + t * 1e4);
 
 	//if (gl_FragCoord.y < 10.) { gl_FragColor = vec4(vec3(step(gl_FragCoord.x / F.x, t / 232.)), 1.); return; }
@@ -292,7 +289,7 @@ void main() {
 	sundir = normalize(sundir);
 	D = normalize(O - at);
 
-	//O = vec3(0.000,0.000,0.000) * 3.; D = -normalize(vec3(0.000,0.000,0.000));
+	//O = vec3(-1.000,4.000,8.000) * 3.; D = -normalize(vec3(0.700,-0.170,0.670));
 
 	vec3 x = normalize(cross(E.xzx, D));
 	D = mat3(x, normalize(cross(D, x)), D) * normalize(vec3((gl_FragCoord.xy + random.xy)/F.xy * 2. - 1., -2.) * vec3(F.x / F.y, 1., 1.));

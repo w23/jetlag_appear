@@ -88,7 +88,7 @@ static const char *FFMPEG_CAPTURE_INPUT = "ffmpeg-3.3.3-win64-static\\bin\\ffmpe
 #pragma data_seg(".main.shader.glsl")
 #include "main.shader.h"
 
-#define NOISE_SIZE 256
+#define NOISE_SIZE 1024
 static unsigned char noise_bytes[4 * NOISE_SIZE * NOISE_SIZE];
 
 #ifdef NO_CREATESHADERPROGRAMV
@@ -105,6 +105,7 @@ FUNCLIST_DO(PFNGLLINKPROGRAMPROC, LinkProgram)
   FUNCLIST_DO(PFNGLUSEPROGRAMPROC, UseProgram) \
   FUNCLIST_DO(PFNGLGETUNIFORMLOCATIONPROC, GetUniformLocation) \
   FUNCLIST_DO(PFNGLUNIFORM1IPROC, Uniform1i) \
+  FUNCLIST_DO(PFNGLADDSWAPHINTRECTWINPROC, AddSwapHintRectWIN) \
 
   //FUNCLIST_DO(PFNGLUNIFORM1FVPROC, Uniform1fv) \
 
@@ -158,7 +159,7 @@ static struct {
 
 #pragma data_seg(".pfd")
 static const PIXELFORMATDESCRIPTOR pfd = {
-	sizeof(PIXELFORMATDESCRIPTOR), 1, PFD_DRAW_TO_WINDOW|PFD_SUPPORT_OPENGL|PFD_DOUBLEBUFFER|PFD_SWAP_COPY, PFD_TYPE_RGBA,
+	sizeof(PIXELFORMATDESCRIPTOR), 1, PFD_DRAW_TO_WINDOW|PFD_SUPPORT_OPENGL|PFD_DOUBLEBUFFER, PFD_TYPE_RGBA,
 	32, 0, 0, 0, 0, 0, 0, 8, 0, 0, 0, 0, 0, 0, 32, 0, 0, PFD_MAIN_PLANE, 0, 0, 0, 0 };
 
 #pragma data_seg(".devmode")
@@ -300,8 +301,11 @@ int itime;
 #pragma code_seg(".paint")
 static void paint(GLuint prog) {
 	oglUniform1i(oglGetUniformLocation(prog, "S"), 0);
+	//oglUniform1i(0, 0);
 	glGetError();
+	//const int loc = oglGetUniformLocation(prog, "F");
 	oglUniform1i(oglGetUniformLocation(prog, "F"), itime);
+	//oglUniform1i(1, itime);
 	glGetError();
 #if defined(CAPTURE) && defined(TILED)
 	{
@@ -324,7 +328,7 @@ static void paint(GLuint prog) {
 
 #pragma code_seg(".introInit")
 static __forceinline void introInit() {
-	unsigned seed = 0;
+	unsigned int seed = 0;
 	for (int i = 0; i < 4 * NOISE_SIZE * NOISE_SIZE; ++i) {
 		seed = 1013904223ul + seed * 1664525ul;
 		noise_bytes[i] = (seed >> 18);
@@ -436,6 +440,11 @@ void entrypoint(void) {
 	glEnable(GL_BLEND);
 	glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 
+	// does not work
+	//gl.AddSwapHintRectWIN(0, 0, XRES, YRES);
+	//glReadBuffer(GL_FRONT);
+	//glDrawBuffer(GL_BACK);
+
 	// play intro
 	do {
 #ifndef CAPTURE
@@ -456,6 +465,11 @@ void entrypoint(void) {
 
 		introPaint();
 		SwapBuffers(hDC);
+		/* ugh
+		introPaint();
+		SwapBuffers(hDC);
+		*/
+		//ridiculously slow glCopyPixels(0, 0, XRES, YRES, GL_COLOR);
 
 #ifdef CAPTURE
 		glReadPixels(0, 0, XRES, YRES, GL_RGB, GL_UNSIGNED_BYTE, backbufferData);

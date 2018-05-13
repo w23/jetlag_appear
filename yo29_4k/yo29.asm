@@ -4,7 +4,7 @@ global _entrypoint
 %define AUDIO_THREAD
 %define WIDTH 1280
 %define HEIGHT 720
-%define NOISE_SIZE 256
+%define NOISE_SIZE 1024
 %define NOISE_SIZE_BYTES (4 * NOISE_SIZE * NOISE_SIZE)
 
 ;%include "4klang.inc"
@@ -285,8 +285,8 @@ _entrypoint:
 	push devmode
 %endif
 
-;	CreateThread(0, 0, (LPTHREAD_START_ROUTINE)soundRender, sound_buffer, 0, 0);
 %ifdef AUDIO_THREAD
+;	CreateThread(0, 0, (LPTHREAD_START_ROUTINE)soundRender, sound_buffer, 0, 0);
 	push ecx
 	push ecx
 	push sound_buffer
@@ -298,19 +298,6 @@ _entrypoint:
 	push sound_buffer
 	call __4klang_render@4
 %endif
-
-generate_noise:
-	; expects ecx zero
-	xor edx, edx
-noise_loop:
-	IMUL ECX, ECX, 0x19660D
-	ADD ECX, 0x3C6EF35F
-	MOV EAX, ECX
-	SHR EAX, 0x12
-	MOV [EDX+noise], AL
-	INC EDX
-	CMP EDX, NOISE_SIZE_BYTES
-	JL noise_loop
 
 window_init:
 %ifdef FULLSCREEN
@@ -336,6 +323,10 @@ window_init:
 	call wglMakeCurrent
 	GLCHECK
 
+alloc_resources:
+	call glGenTextures
+	GLCHECK
+
 gl_proc_loader:
 	mov esi, gl_proc_names
 	mov ebx, gl_procs
@@ -353,9 +344,19 @@ gl_proc_skip_until_zero:
 	jnz gl_proc_loader_loop
 	GLCHECK
 
-alloc_resources:
-	call glGenTextures
-	GLCHECK
+generate_noise:
+	;; ecx is not zero after CreateThread; expects ecx zero
+	xor edx, edx
+	xor ecx, ecx
+noise_loop:
+	IMUL ECX, ECX, 0x19660D
+	ADD ECX, 0x3C6EF35F
+	MOV EAX, ECX
+	SHR EAX, 0x12
+	MOV [EDX+noise], AL
+	INC EDX
+	CMP EDX, NOISE_SIZE_BYTES
+	JL noise_loop
 
 init_textures:
 	initTexture tex_noise, NOISE_SIZE, NOISE_SIZE, GL_RGBA, GL_UNSIGNED_BYTE, noise
@@ -382,7 +383,7 @@ init_textures:
 	;CHECK(waveOutWrite(hWaveOut, &WaveHDR, sizeof(WaveHDR)));
 %endif
 
-	; ????
+	; grow stack for waveOutGetPosition mmtime struct
 	push ebp
 	push ebp
 	push ebp
