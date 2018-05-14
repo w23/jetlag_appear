@@ -218,18 +218,9 @@ float world(vec3 p) {
 	return max(p.y-90., min(d, guard - min(vmax2(cell_border.xy), -cell_border.z)));
 }
 
-float L;
 vec3 O, D, P, N;
-void march(float maxL) {
-	for (int i = 0; i < 800; ++i) {
-		P = O + D * L;
-		float dd = world(P);
-		L += dd;
-		if (dd < L * .0001  || L > maxL) return;
-	}
-	L = maxL;
-}
 
+float L = 0.;
 float m_kd, m_shine;
 float dirlight(vec3 dir) {
 	return mix(
@@ -296,9 +287,14 @@ void main() {
 
 	vec3 color = E.xxx;
 
-	/*const*/ float max_distance = 1e4;
-	march(max_distance);
-	if (L < max_distance) {
+	/*const*/ float maxL = 1e4;
+	for (float i = 0; i < 800.; ++i) {
+		P = O + D * L;
+		float dd = world(P);
+		L += dd;
+		if (dd < L*.0001 || L > maxL) break;
+	}
+	if (L < maxL) {
 		N = normalize(vec3(world(P+E.yxx), world(P+E.xyx), world(P+E.xxy)) - world(P));
 
 		vec2 f = vec2(vmax2(-mparam), P.y),
@@ -340,15 +336,15 @@ void main() {
 			/* 7 bytes */ //* smoothstep(144., 140., t - rnd.w * 4. - rnd2.w * 8.)
 			;
 
-		float traffic_begin = -700., traffic_length = 1000.;
+		// 103 bytes
 		for (float i = 0; i < 20.; ++i) {
-				vec4 r = noise24(vec2(i));
-				vec2 side = 3. * (floor(r.w * 3.) + 1.) * road_normal;
-				vec2 pos1 = side + (fract(-t * (.009 - .002 * r.x) + r.y) * traffic_length + traffic_begin) * road_tangent;
-				vec2 pos2 = -side + (fract(t * (.009 - .002 * r.x) + r.y) * traffic_length + traffic_begin) * road_tangent;
-				color += 20. * vec3(.9, .1, .0) * (poslight(vec3(pos1.xy, 1.).xzy) + poslight(vec3(pos2.xy - road_tangent * 3., 1.).xzy));
-				color += 30. * vec3(.8, .8, .9) * (poslight(vec3(pos2.xy, 1.).xzy) + poslight(vec3(pos1.xy - road_tangent * 3., 1.).xzy));
-			}
+			vec4 r = noise24(vec2(i));
+			vec2 side = 3. * (floor(r.w * 3.) + 1.) * road_normal;
+			vec2 pos1 = (fract(-t * (.009 - .002 * r.x) + r.y) * 1000. - 600.) * road_tangent + side;
+			vec2 pos2 = (fract(t * (.009 - .002 * r.x) + r.y) * 1000. - 600.) * road_tangent - side;
+			color += (poslight(vec3(pos1, 1.).xzy) + poslight(vec3(pos2 - road_tangent * 3., 1.).xzy)) * vec3(30., 0., 0.);// 30. * vec3(.9, .1, .0);
+			color += (poslight(vec3(pos2, 1.).xzy) + poslight(vec3(pos1 - road_tangent * 3., 1.).xzy)) * vec3(30.);//30. * vec3(.8, .8, .9);
+		}
 
 		/*
 		vec3 opposite = vec3(-sundir.x, sundir.y, -sundir.z);
@@ -363,8 +359,8 @@ void main() {
 			* smoothstep(800., 600., length(P.xz))
 			/* -8 bytes */ * (vec3(.2, .15, .1) + .1 * wrnd.xyz)
 				//	+ .3 * noise24(fxy*3.).yzw
-			* smoothstep(.85, 1., wrnd.w + .1 * smoothstep(.34, .8, .2 * rnd.w + .8 * rnd2.w)
-					- max(0., t - 136.)/64.)
+			* step(.4, wrnd.w*wrnd.z - max(0., t - 136.)/64.)
+			//* smoothstep(.85, 1., wrnd.w + .1 * smoothstep(.34, .8, .2 * rnd.w + .8 * rnd2.w) - max(0., t - 136.)/64.)
 			;
 	} else
 		color = scatter(O, D, escape(O, D, Ra), vec3(0.));
