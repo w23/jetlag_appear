@@ -178,7 +178,7 @@ section .bsndbuf bss
 sound_buffer: resd MAX_SAMPLES * 2
 
 section .bnoise bss
-dev_null: resd 1
+dev_null:
 noise: resb NOISE_SIZE_BYTES
 
 section .dsptrs data
@@ -193,141 +193,172 @@ tex_noise EQU 1
 prog_main EQU 1
 
 %macro initTexture 6
-	push %1
-	push GL_TEXTURE_2D
-	call glBindTexture
-
-	push %6
-	push %5
-	push GL_RGBA
-	push 0
-	push %3
-	push %2
-	push %4
-	push 0
-	push GL_TEXTURE_2D
-	call glTexImage2D
-
-	push GL_LINEAR
-	push GL_TEXTURE_MIN_FILTER
-	push GL_TEXTURE_2D
-	call glTexParameteri
+	FNCALL glBindTexture, GL_TEXTURE_2D, %1
+	FNCALL glTexImage2D, GL_TEXTURE_2D, 0, %4, %2, %3, 0, GL_RGBA, %5, %6
+	FNCALL glTexParameteri, GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR
 %endmacro
 
-%macro initTextureStack 6
-	push GL_LINEAR
-	push GL_TEXTURE_MIN_FILTER
-	push GL_TEXTURE_2D
-	;call glTexParameteri
+%ifdef DEBUG
+	WNDCLASS EQU static
+%else
+	%define WNDCLASS SZ_WORD 0xc018
+%endif
 
-	push %6
-	push %5
-	push GL_RGBA
-	push 0
-	push %3
-	push %2
-	push %4
-	push 0
-	push GL_TEXTURE_2D
-	;call glTexImage2D
-
-	push %1
-	push GL_TEXTURE_2D
-	;call glBindTexture
-%endmacro
-
+%define SZ_WORD
+%define SZ_BYTE
 
 section .centry text align=1
 _entrypoint:
-	xor ecx, ecx
+;%define ZERO 0
+%define ZERO ecx
+ xor ZERO, ZERO
 
-	; glGenTextures
-	push dev_null
-	push 1
-	; SetPixelFormat
-	push pfd
-	; ChoosePixelFormat
-	push pfd
-	push ecx
-	push ecx
-	push ecx
-	push ecx
-	push HEIGHT
-	push WIDTH
-	push ecx
-	push ecx
-	push 0x90000000
-	push ecx
-%ifdef DEBUG
-	push static
-%else
-	push 0xc018
-%endif
-	push ecx
-	push ecx
+pushonly:
+%macro FNCALL_ARGSONLY 1-*
+	%rep %0-1
+		%rotate -1
+		push %1
+	%endrep
+%endmacro
 
-%if 1
-	;CHECK(waveOutOpen(&hWaveOut, WAVE_MAPPER, &WaveFMT, NULL, 0, CALLBACK_NULL));
-	push ecx
-	push ecx
-	push ecx
-	push wavefmt
-	push -1
-	push noise
+%define FNCALL FNCALL_ARGSONLY
 
-	;CHECK(waveOutPrepareHeader(hWaveOut, &WaveHDR, sizeof(WaveHDR)));
-	;push wavehdr_size
-	;push wavehdr
-%endif
+	FNCALL_ARGSONLY waveOutWrite, wavehdr, SZ_BYTE wavehdr_size
+	FNCALL glBlendFunc, SZ_WORD GL_SRC_ALPHA, SZ_WORD GL_ONE_MINUS_SRC_ALPHA
+	FNCALL glEnable, SZ_WORD GL_BLEND
+	FNCALL glCreateShaderProgramv, GL_FRAGMENT_SHADER, 1, src_main
+	FNCALL glTexParameteri, SZ_WORD GL_TEXTURE_2D, SZ_WORD GL_TEXTURE_MIN_FILTER, SZ_WORD GL_LINEAR
+	FNCALL glTexImage2D, SZ_WORD GL_TEXTURE_2D, ZERO, SZ_WORD GL_RGBA, SZ_WORD NOISE_SIZE, SZ_WORD NOISE_SIZE, ZERO, SZ_WORD GL_RGBA, SZ_WORD GL_UNSIGNED_BYTE, noise
+	FNCALL glBindTexture, SZ_WORD GL_TEXTURE_2D, tex_noise
+	FNCALL glGenTextures, SZ_BYTE 1, dev_null
+	FNCALL_ARGSONLY SetPixelFormat, pfd
+	FNCALL_ARGSONLY ChoosePixelFormat, pfd
+	FNCALL CreateWindowExA, ZERO, WNDCLASS, ZERO, 0x90000000, ZERO, ZERO, SZ_WORD WIDTH, SZ_WORD HEIGHT, ZERO, ZERO, ZERO, ZERO
+	FNCALL ShowCursor, ZERO
+	FNCALL waveOutOpen, noise, SZ_BYTE -1, wavefmt, ZERO, ZERO, ZERO
 
+;window_init:
 %ifdef FULLSCREEN
-	push 4
-	push devmode
+	FNCALL ChangeDisplaySettingsA, devmode, SZ_BYTE 4
 %endif
 
+%ifndef DEBUG ; crashes :(
 %ifdef AUDIO_THREAD
 ;	CreateThread(0, 0, (LPTHREAD_START_ROUTINE)soundRender, sound_buffer, 0, 0);
-	push ecx
-	push ecx
-	push sound_buffer
-	push __4klang_render@4
-	push ecx
-	push ecx
-	call CreateThread
+	FNCALL CreateThread, ZERO, ZERO, __4klang_render@4, sound_buffer, ZERO, ZERO
 %else
-	push sound_buffer
-	call __4klang_render@4
+	FNCALL __4klang_render@4, sound_buffer
+%endif
 %endif
 
-window_init:
+	; grow stack for waveOutGetPosition mmtime struct
+%if 0
+	push ebp
+	push ebp
+	push ebp
+	push ebp
+%endif
+
+%undef ZERO
+%define ZERO 0
+
+%macro DO_INIT 0
+%ifndef DEBUG
+%ifdef AUDIO_THREAD
+;	CreateThread(0, 0, (LPTHREAD_START_ROUTINE)soundRender, sound_buffer, 0, 0);
+	FNCALL CreateThread, ZERO, ZERO, __4klang_render@4, sound_buffer, ZERO, ZERO
+%else
+	FNCALL __4klang_render@4, sound_buffer
+%endif
+%endif
+
+;window_init:
 %ifdef FULLSCREEN
-	call ChangeDisplaySettingsA
+	FNCALL ChangeDisplaySettingsA, devmode, 4
 %endif
 
-	call waveOutOpen
-	mov ebp, dword [noise]
-	call ShowCursor
-	call CreateWindowExA
-	push eax
-	call GetDC
-	push eax
-	mov edi, eax ; edi is hdc from now on
-	call ChoosePixelFormat
-	push eax
-	push edi
-	call SetPixelFormat
-	push edi
-	call wglCreateContext
-	push eax
-	push edi
-	call wglMakeCurrent
+	;CHECK(waveOutOpen(&hWaveOut, WAVE_MAPPER, &WaveFMT, NULL, 0, CALLBACK_NULL));
+	FNCALL waveOutOpen, noise, SZ_BYTE -1, wavefmt, ZERO, ZERO, ZERO
+	DO_INST mov, ebp, dword [noise]
+
+	FNCALL ShowCursor, ZERO
+	FNCALL CreateWindowExA, ZERO, WNDCLASS, ZERO, 0x90000000, ZERO, ZERO, WIDTH, HEIGHT, ZERO, ZERO, ZERO, ZERO
+	DO_INST push, eax
+	DO_INST call, GetDC
+	FNCALL_ARGSONLY ChoosePixelFormat, pfd
+	DO_INST push, eax
+	DO_INST mov, edi, eax ; edi is hdc from now on
+	DO_INST call, ChoosePixelFormat
+	FNCALL_ARGSONLY SetPixelFormat, pfd
+	DO_INST push, eax
+	DO_INST push, edi
+	DO_INST call, SetPixelFormat
+	DO_INST push, edi
+	DO_INST call, wglCreateContext
+	DO_INST push, eax
+	DO_INST push, edi
+	DO_INST call, wglMakeCurrent
 	GLCHECK
 
-alloc_resources:
-	call glGenTextures
+	DO_GL_PROC
+	DO_GENERATE_NOISE
+
+;alloc_resources:
+	FNCALL glGenTextures, 1, dev_null
 	GLCHECK
 
-gl_proc_loader:
+;init_textures:
+	initTexture tex_noise, NOISE_SIZE, NOISE_SIZE, GL_RGBA, GL_UNSIGNED_BYTE, noise
+
+	FNCALL glCreateShaderProgramv, GL_FRAGMENT_SHADER, 1, src_main
+	DO_INST push, eax
+	DO_INST call, glUseProgram
+	GLCHECK
+
+	FNCALL glEnable, GL_BLEND
+	FNCALL glBlendFunc, GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA
+
+	;CHECK(waveOutWrite(hWaveOut, &WaveHDR, sizeof(WaveHDR)));
+	FNCALL_ARGSONLY waveOutWrite, wavehdr, wavehdr_size
+	DO_INST push, ebp
+	DO_INST call, waveOutWrite
+
+	; grow stack for waveOutGetPosition mmtime struct
+%if 0
+	push ebp
+	push ebp
+	push ebp
+	push ebp
+%endif
+%endmacro ; DO_INIT
+
+
+	;DO_INIT
+%undef FNCALL_ARGSONLY
+%undef FNCALL
+%undef DO_GL_PROC
+%undef DO_INST
+
+%macro FNCALL_ARGSONLY 1-*
+%endmacro
+
+%macro FNCALL 1-*
+	call %1
+%endmacro
+
+%if 0
+%macro FNCALL 1-*
+	%rep %0-1
+		%rotate -1
+		push %1
+	%endrep
+	%rotate -1
+	call %1
+%endmacro
+%endif
+
+%macro DO_GL_PROC 0
+;gl_proc_loader:
 	mov esi, gl_proc_names
 	mov ebx, gl_procs
 gl_proc_loader_loop:
@@ -343,8 +374,10 @@ gl_proc_skip_until_zero:
 	cmp [esi], al
 	jnz gl_proc_loader_loop
 	GLCHECK
+%endmacro
 
-generate_noise:
+%macro DO_GENERATE_NOISE 0
+;generate_noise:
 	;; ecx is not zero after CreateThread; expects ecx zero
 	xor edx, edx
 	xor ecx, ecx
@@ -357,37 +390,19 @@ noise_loop:
 	INC EDX
 	CMP EDX, NOISE_SIZE_BYTES
 	JL noise_loop
+%endmacro
 
-init_textures:
-	initTexture tex_noise, NOISE_SIZE, NOISE_SIZE, GL_RGBA, GL_UNSIGNED_BYTE, noise
+%macro DO_INST 3
+	%1 %2, %3
+%endmacro
 
-	push src_main
-	push 1
-	push GL_FRAGMENT_SHADER
-	call glCreateShaderProgramv
-	push eax
-	call glUseProgram
-	GLCHECK
+%macro DO_INST 2
+	%1 %2
+%endmacro
 
-	push GL_BLEND
-	call glEnable
-	push GL_ONE_MINUS_SRC_ALPHA
-	push GL_SRC_ALPHA
-	call glBlendFunc
+do_only:
+	DO_INIT
 
-%if 1
-	push wavehdr_size
-	push wavehdr
-	push ebp
-	call waveOutWrite
-	;CHECK(waveOutWrite(hWaveOut, &WaveHDR, sizeof(WaveHDR)));
-%endif
-
-	; grow stack for waveOutGetPosition mmtime struct
-	push ebp
-	push ebp
-	push ebp
-	push ebp
 mainloop:
 	mov ebx, esp
 	mov dword [ebx], 4
@@ -400,29 +415,6 @@ mainloop:
 	cmp eax, MAX_SAMPLES * 8
 	jge exit
 
-	push eax
-	push F
-	push prog_main
-	call glGetUniformLocation
-	push eax
-	call glUniform1i
-
-	push 0
-	push S
-	push prog_main
-	call glGetUniformLocation
-	push eax
-	call glUniform1i
-
-	push 1
-	push 1
-	push byte -1
-	push byte -1
-	call glRects
-
-	push edi
-	call SwapBuffers
-
 	push 01bH ;GetAsyncKeyState
 
 	push 1
@@ -430,6 +422,31 @@ mainloop:
 	push 0
 	push 0
 	push 0
+
+	push edi
+
+	push 1
+	push 1
+	push SZ_BYTE -1
+	push SZ_BYTE -1
+
+	push 0
+	push S
+	push prog_main
+
+	push eax
+	push F
+	push prog_main
+	call glGetUniformLocation
+	push eax
+	call glUniform1i
+
+	call glGetUniformLocation
+	push eax
+	call glUniform1i
+
+	call glRects
+	call SwapBuffers
 	call PeekMessageA
 	call GetAsyncKeyState
 	jz mainloop
