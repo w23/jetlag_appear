@@ -6,10 +6,7 @@ vec4 noise24(vec2 v) { return texture2D(S, (v + .5)/1024.); }
 /*const*/ float R0 = 6360e3;
 /*const*/ float Ra = 6380e3;
 /*const*/ float low = 1e3, hi = 25e2, border = 5e2;
-/*const*/ float g = .76;
-/*const*/ float g2 = g * g;
-/*const*/ float Hr = 8e3;
-/*const*/ float Hm = 1.2e3;
+///*const*/ float Hr = 8e3, Hm = 12e2;
 float I = 10.;
 
 vec3 E = vec3(0.,.01,1.);
@@ -27,7 +24,8 @@ float noise31(vec3 v) {
 //int clouds = 1;
 vec2 densitiesRM(vec3 p) {
 	float h = max(0., length(p - C) - R0);
-	vec2 retRM = vec2(exp(-h/Hr), exp(-h/Hm) * 8.);
+	vec2 retRM = vec2(exp(-h/8e3), exp(-h/12e2) * 8.);
+	//vec2 retRM = vec2(exp(-h/Hr), exp(-h/Hm) * 8.);
 
 	if (/*clouds > 0 && */low < h && h < hi) {
 		vec3 v = 15e-4 * (p + t * vec3(-90., 0., 80.));
@@ -41,9 +39,9 @@ vec2 densitiesRM(vec3 p) {
 			smoothstep(hi, hi - 1e3, h) *
 			smoothstep(.5, .55,
 				.75 * noise31(v)
-				+ .125 * noise31(v*4.3 + max(t, 144.))
-				+ .0625 * noise31(v*9.9)
-				+ .0625 * noise31(v*17.8)-.1
+				+ .125 * noise31(v*4. + t)//max(144.,t))
+				+ .0625 * noise31(v*9.)
+				+ .0625 * noise31(v*17.)-.1
 			);
 	}
 
@@ -54,9 +52,9 @@ float escape(vec3 p, vec3 d, float R) {
 	vec3 v = p - C;
 	float b = dot(v, d);
 	float c = dot(v, v) - R*R;
-	float det2 = b * b - c;
-	if (det2 < 0.) return -1.;
-	float det = sqrt(det2);
+	float det = b * b - c;
+	if (det < 0.) return -1.;
+	det = sqrt(det);
 	float t1 = -b - det, t2 = -b + det;
 	return (t1 >= 0.) ? t1 : t2;
 }
@@ -152,10 +150,11 @@ vec3 scatter(vec3 o, vec3 d, float L, vec3 Lo) {
 	}
 
 	float mu = dot(d, sundir);
+
 	return Lo * exp(-bR * totalDepthRM.x - bMe * totalDepthRM.y)
 		+ I * (1. + mu * mu) * (
-			LiR * bR * .0596831 +
-			LiM * bMs * .1193662 * (1. - g2) / ((2. + g2) * pow(1. + g2 - 2. * g * mu, 1.5)));
+			LiR * bR * .0597 +
+			LiM * bMs * .0196 / pow(1.58 - 1.52 * mu, 1.5));
 }
 
 
