@@ -209,9 +209,12 @@ prog_main EQU 1
 
 section .centry text align=1
 _entrypoint:
-;%define ZERO 0
-%define ZERO ecx
- xor ZERO, ZERO
+%if 1
+	%define ZERO 0
+%else
+	%define ZERO ecx
+	xor ZERO, ZERO
+%endif
 
 pushonly:
 %macro FNCALL_ARGSONLY 1-*
@@ -224,18 +227,18 @@ pushonly:
 %define FNCALL FNCALL_ARGSONLY
 
 	FNCALL_ARGSONLY waveOutWrite, wavehdr, SZ_BYTE wavehdr_size
-	FNCALL glBlendFunc, SZ_WORD GL_SRC_ALPHA, SZ_WORD GL_ONE_MINUS_SRC_ALPHA
-	FNCALL glEnable, SZ_WORD GL_BLEND
 	FNCALL glCreateShaderProgramv, GL_FRAGMENT_SHADER, 1, src_main
 	FNCALL glTexParameteri, SZ_WORD GL_TEXTURE_2D, SZ_WORD GL_TEXTURE_MIN_FILTER, SZ_WORD GL_LINEAR
 	FNCALL glTexImage2D, SZ_WORD GL_TEXTURE_2D, ZERO, SZ_WORD GL_RGBA, SZ_WORD NOISE_SIZE, SZ_WORD NOISE_SIZE, ZERO, SZ_WORD GL_RGBA, SZ_WORD GL_UNSIGNED_BYTE, noise
 	FNCALL glBindTexture, SZ_WORD GL_TEXTURE_2D, tex_noise
 	FNCALL glGenTextures, SZ_BYTE 1, dev_null
+	FNCALL glBlendFunc, SZ_WORD GL_SRC_ALPHA, SZ_WORD GL_ONE_MINUS_SRC_ALPHA
+	FNCALL glEnable, SZ_WORD GL_BLEND
 	FNCALL_ARGSONLY SetPixelFormat, pfd
 	FNCALL_ARGSONLY ChoosePixelFormat, pfd
 	FNCALL CreateWindowExA, ZERO, WNDCLASS, ZERO, 0x90000000, ZERO, ZERO, SZ_WORD WIDTH, SZ_WORD HEIGHT, ZERO, ZERO, ZERO, ZERO
 	FNCALL ShowCursor, ZERO
-	FNCALL waveOutOpen, noise, SZ_BYTE -1, wavefmt, ZERO, ZERO, ZERO
+	FNCALL waveOutOpen, noise, byte -1, wavefmt, ZERO, ZERO, ZERO
 
 ;window_init:
 %ifdef FULLSCREEN
@@ -278,7 +281,7 @@ pushonly:
 %endif
 
 	;CHECK(waveOutOpen(&hWaveOut, WAVE_MAPPER, &WaveFMT, NULL, 0, CALLBACK_NULL));
-	FNCALL waveOutOpen, noise, SZ_BYTE -1, wavefmt, ZERO, ZERO, ZERO
+	FNCALL waveOutOpen, noise, byte -1, wavefmt, ZERO, ZERO, ZERO
 	DO_INST mov, ebp, dword [noise]
 
 	FNCALL ShowCursor, ZERO
@@ -303,6 +306,9 @@ pushonly:
 	DO_GL_PROC
 	DO_GENERATE_NOISE
 
+	FNCALL glEnable, GL_BLEND
+	FNCALL glBlendFunc, GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA
+
 ;alloc_resources:
 	FNCALL glGenTextures, 1, dev_null
 	GLCHECK
@@ -314,9 +320,6 @@ pushonly:
 	DO_INST push, eax
 	DO_INST call, glUseProgram
 	GLCHECK
-
-	FNCALL glEnable, GL_BLEND
-	FNCALL glBlendFunc, GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA
 
 	;CHECK(waveOutWrite(hWaveOut, &WaveHDR, sizeof(WaveHDR)));
 	FNCALL_ARGSONLY waveOutWrite, wavehdr, wavehdr_size
@@ -427,8 +430,8 @@ mainloop:
 
 	push 1
 	push 1
-	push SZ_BYTE -1
-	push SZ_BYTE -1
+	push byte -1
+	push byte -1
 
 	push 0
 	push S
