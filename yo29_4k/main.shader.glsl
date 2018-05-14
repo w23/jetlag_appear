@@ -61,12 +61,13 @@ float escape(vec3 p, vec3 d, float R) {
 	return (t1 >= 0.) ? t1 : t2;
 }
 
-vec4 random;
+vec4 pixel_random;
+vec4 kuruma_random;
 
 vec2 scatterDirectImpl(vec3 o, vec3 d, float L, float steps) {
 	vec2 depthRMs = vec2(0.);
 	L /= steps; d *= L;
-	for (float i = random.w * .5; i < steps; ++i)
+	for (float i = pixel_random.w * .5; i < steps; ++i)
 		depthRMs += densitiesRM(o + d * i);
 	return depthRMs * L;
 }
@@ -81,7 +82,7 @@ vec3 LiR, LiM;
 
 void scatterImpl(vec3 o, vec3 d, float L, float steps) {
 	L /= steps; d *= L;
-	for (float i = random.z; i < steps; ++i) {
+	for (float i = pixel_random.z; i < steps; ++i) {
 		vec3 p = o + d * i;
 		vec2 dRM = densitiesRM(p) * L;
 		totalDepthRM += dRM;
@@ -234,16 +235,16 @@ float poslight(vec3 pos) {
 	return dirlight(normalize(pos)) / dot(pos, pos);
 }
 
-vec3 kuruma(vec4 r, float t, float offset) {
+vec3 kuruma(float t, float offset) {
 	return vec3(
-		(fract(t * (.009 - .002 * r.x) + r.y) * 1000. - 600. + offset) * road_tangent
-			+ sign(t) * 3. * (floor(r.z * 3.) + 1.) * road_normal
+		(fract(t * (.009 - .002 * kuruma_random.x) + kuruma_random.y) * 1000. - 600. + offset) * road_tangent
+			+ sign(t) * 3. * (floor(kuruma_random.z * 3.) + 1.) * road_normal
 		, 1.).xzy;
 }
 
 void main() {
 	vec2 F = vec2(1280.,720.);
-	random = noise24(gl_FragCoord.xy + t * 1e4);
+	pixel_random = noise24(gl_FragCoord.xy + t * 1e4);
 
 	//if (gl_FragCoord.y < 10.) { gl_FragColor = vec4(vec3(step(gl_FragCoord.x / F.x, t / 232.)), 1.); return; }
 
@@ -290,7 +291,7 @@ void main() {
 	//O = vec3(-1.000,4.000,8.000) * 3.; D = -normalize(vec3(0.700,-0.170,0.670));
 
 	vec3 x = normalize(cross(E.xzx, D));
-	D = mat3(x, normalize(cross(D, x)), D) * normalize(vec3((gl_FragCoord.xy + random.xy)/F.xy * 2. - 1., -2.) * vec3(F.x / F.y, 1., 1.));
+	D = mat3(x, normalize(cross(D, x)), D) * normalize(vec3((gl_FragCoord.xy + pixel_random.xy)/F.xy * 2. - 1., -2.) * vec3(F.x / F.y, 1., 1.));
 
 	vec3 color = E.xxx;
 
@@ -345,16 +346,17 @@ void main() {
 
 		// 103 bytes
 		for (float i = 0; i < 20.; ++i) {
-			vec4 r = noise24(vec2(i));
 			/*
+			vec4 r = noise24(vec2(i));
 			vec2 side = 3. * (floor(r.w * 3.) + 1.) * road_normal;
 			vec2 pos1 = (fract(-t * (.009 - .002 * r.x) + r.y) * 1000. - 600.) * road_tangent + side;
 			vec2 pos2 = (fract(t * (.009 - .002 * r.x) + r.y) * 1000. - 600.) * road_tangent - side;
 			color += (poslight(vec3(pos1, 1.).xzy) + poslight(vec3(pos2 - road_tangent * 3., 1.).xzy)) * vec3(30., 0., 0.);// 30. * vec3(.9, .1, .0);
 			color += (poslight(vec3(pos2, 1.).xzy) + poslight(vec3(pos1 - road_tangent * 3., 1.).xzy)) * vec3(30.);//30. * vec3(.8, .8, .9);
 			*/
-			color += (poslight(kuruma(r, t, 0.)) + poslight(kuruma(r, -t, 3.))) * vec3(30.,0.,0.);
-			color += (poslight(kuruma(r, -t, 0.)) + poslight(kuruma(r, t, 3.))) * vec3(30.);
+			kuruma_random = noise24(vec2(i));
+			color += (poslight(kuruma(-t, 0.)) + poslight(kuruma(t, 3.))) * vec3(30.)
+				+ (poslight(kuruma(t, 0.)) + poslight(kuruma(-t, 3.))) * vec3(30.,0.,0.);
 		}
 
 		/*
