@@ -134,10 +134,7 @@ $(INTRO).capture: main.shader.h yo29.c
 		-DCAPTURE `pkg-config --cflags --libs sdl` -lGL \
 		yo29.c -o $@
 
-capture: $(INTRO)_$(WIDTH)_$(HEIGHT).mp4
-
-$(INTRO)_$(WIDTH)_$(HEIGHT).mp4: $(INTRO).capture audio.raw
-	./$(INTRO).capture | ffmpeg \
+FFMPEG_ARGS = \
 	-y -f rawvideo -vcodec rawvideo \
 	-s $(WIDTH)x$(HEIGHT) -pix_fmt rgb24 \
 	-framerate 60 \
@@ -147,8 +144,23 @@ $(INTRO)_$(WIDTH)_$(HEIGHT).mp4: $(INTRO).capture audio.raw
 	-c:a aac -b:a 160k \
 	-c:v libx264 -vf vflip \
 	-movflags +faststart \
-	-level 4.1 -preset placebo -crf 21.0 \
-	-x264-params keyint=600:bframes=3:scenecut=60:ref=3:qpmin=10:qpstep=8:vbv-bufsize=24000:vbv-maxrate=24000:merange=32 \
+	-level 4.1 -preset veryslow -crf 14.0 \
+	-tune film
+
+#	-x264-params keyint=600:bframes=3:scenecut=60:ref=3:qpmin=10:qpstep=8:vbv-bufsize=24000:vbv-maxrate=24000:merange=32 \
+
+capture: $(INTRO)_$(WIDTH)_$(HEIGHT).mp4
+test-capture: test_$(INTRO)_$(WIDTH)_$(HEIGHT).mp4
+
+$(INTRO)_$(WIDTH)_$(HEIGHT).mp4: $(INTRO).capture audio.raw
+	./$(INTRO).capture | ffmpeg \
+	$(FFMPEG_ARGS) \
+	$@
+
+test_$(INTRO)_$(WIDTH)_$(HEIGHT).mp4: $(INTRO).capture audio.raw
+	./$(INTRO).capture | ffmpeg \
+	-t 48 \
+	$(FFMPEG_ARGS) \
 	$@
 
 	# "//-crf 18 -preset slow -vf vflip  \
