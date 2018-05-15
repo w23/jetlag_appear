@@ -95,14 +95,14 @@ $(INTRO).gz: $(INTRO).elf
 #	$(CC) -std=c99 -Wall -Werror -Wextra -pedantic -lm timepack.c -o timepack
 
 # '-nostartfiles -DCOMPACT' result in a libSDL crash on my machine (making older 1k/4k also crash) :(
-$(INTRO).elf: $(OBJDIR)/4klang.o32 intro_c.c
+$(INTRO).elf: $(OBJDIR)/4klang.o32 yo29.c
 	$(CC) -m32 -Os -Wall -Wno-unknown-pragmas \
 		-DFULLSCREEN `pkg-config --cflags --libs sdl` -lGL \
 		$^ -o $@
 	sstrip $@
 
-$(INTRO).dbg: intro_c.c $(OBJDIR)/4klang.o32
-	$(CC) -m32 -O0 -g -Wall -Wno-unknown-pragmas \
+$(INTRO).dbg: $(OBJDIR)/4klang.o32 yo29.c
+	$(CC) -m32 -O0 -g  -D_DEBUG -Wall -Wno-unknown-pragmas \
 		`pkg-config --cflags --libs sdl` -lGL \
 		$^ -o $@
 
@@ -129,14 +129,14 @@ $(INTRO)-slow.exe: $(INTRO_WIN32_OBJS)
 		$(INTRO_WIN32_OBJS) \
 		/OUT:$@
 
-$(INTRO).capture: blur_reflection.h  composite.h  dof_tap.h  header.h  out.h  post.h  raymarch.h intro_c.c
+$(INTRO).capture: main.shader.h yo29.c
 	$(CC) -O3 -Wall -Wno-unknown-pragmas \
 		-DCAPTURE `pkg-config --cflags --libs sdl` -lGL \
-		$^ -o $@
+		yo29.c -o $@
 
 capture: $(INTRO)_$(WIDTH)_$(HEIGHT).mp4
 
-$(INTRO)_$(WIDTH)_$(HEIGHT).mp4: $(INTRO).capture sound.raw
+$(INTRO)_$(WIDTH)_$(HEIGHT).mp4: $(INTRO).capture audio.raw
 	./$(INTRO).capture | ffmpeg \
 	-y -f rawvideo -vcodec rawvideo \
 	-s $(WIDTH)x$(HEIGHT) -pix_fmt rgb24 \

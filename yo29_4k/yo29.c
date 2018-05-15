@@ -55,7 +55,7 @@ int _fltused = 1;
 #define oglCreateShaderProgramv glCreateShaderProgramv
 #define oglUseProgram glUseProgram
 #define oglGetUniformLocation glGetUniformLocation
-#define oglUniform1iv glUniform1iv
+#define oglUniform1i glUniform1i
 #endif
 
 #include "glext.h"
@@ -230,11 +230,24 @@ static const char *a__GlPrintError(int error) {
 static void GLCHECK() {
 	const int glerror = glGetError();
 	if (glerror != GL_NO_ERROR) {
+#ifdef _WIN32
 		MessageBox(NULL, a__GlPrintError(glerror), "GLCHECK", 0);
 		ExitProcess(0);
+#else
+		printf("%s\n", a__GlPrintError(glerror));
+		abort();
+#endif
 	};
 }
 #endif /* ATTO_GL_DEBUG */
+
+#ifdef _WIN32
+#define oglGetObjectParameteriv ((PFNGLGETOBJECTPARAMETERIVARBPROC) wglGetProcAddress("glGetObjectParameterivARB"))
+#define oglGetInfoLog ((PFNGLGETINFOLOGARBPROC) wglGetProcAddress("glGetInfoLogARB"))
+#else
+#define oglGetObjectParameteriv glGetObjectParameterivARB
+#define oglGetInfoLog glGetInfoLogARB
+#endif
 
 #pragma code_seg(".compileProgram")
 static __forceinline GLuint compileProgram(const char *fragment) {
@@ -248,14 +261,17 @@ static __forceinline GLuint compileProgram(const char *fragment) {
 #ifdef SHADER_DEBUG
 	int result;
 	char info[2048];
-#define oglGetObjectParameteriv ((PFNGLGETOBJECTPARAMETERIVARBPROC) wglGetProcAddress("glGetObjectParameterivARB"))
-#define oglGetInfoLog ((PFNGLGETINFOLOGARBPROC) wglGetProcAddress("glGetInfoLogARB"))
 	oglGetObjectParameteriv(fsId, GL_OBJECT_COMPILE_STATUS_ARB, &result);
 	oglGetInfoLog(fsId, 2047, NULL, (char*)info);
 	if (!result)
 	{
+#ifdef _WIN32
 		MessageBox(NULL, info, "COMPILE", 0x00000000L);
 		ExitProcess(0);
+#else
+		printf("%s\n", info);
+		abort();
+#endif
 	}
 #endif
 
@@ -270,14 +286,17 @@ static __forceinline GLuint compileProgram(const char *fragment) {
 	{
 		int result;
 		char info[2048];
-#define oglGetObjectParameteriv ((PFNGLGETOBJECTPARAMETERIVARBPROC) wglGetProcAddress("glGetObjectParameterivARB"))
-#define oglGetInfoLog ((PFNGLGETINFOLOGARBPROC) wglGetProcAddress("glGetInfoLogARB"))
 		oglGetObjectParameteriv(pid, GL_OBJECT_LINK_STATUS_ARB, &result);
 		oglGetInfoLog(pid, 2047, NULL, (char*)info);
 		if (!result)
 		{
-			MessageBox(NULL, info, "LINK", 0x00000000L);
+#ifdef _WIN32
+			MessageBox(NULL, info, "COMPILE", 0x00000000L);
 			ExitProcess(0);
+#else
+			printf("%s\n", info);
+			abort();
+#endif
 		}
 	}
 #endif
@@ -341,6 +360,9 @@ static __forceinline void introInit() {
 
 	program[Pass_Main] = compileProgram(main_shader_glsl);
 	oglUseProgram(program[Pass_Main]);
+
+	glEnable(GL_BLEND);
+	glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 }
 
 #pragma code_seg(".introPaint")
@@ -437,9 +459,6 @@ void entrypoint(void) {
 	const int start = timeGetTime();
 #endif
 
-	glEnable(GL_BLEND);
-	glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-
 	// does not work
 	//gl.AddSwapHintRectWIN(0, 0, XRES, YRES);
 	//glReadBuffer(GL_FRONT);
@@ -506,7 +525,7 @@ void entrypoint(void) {
 #endif
 
 #ifndef NO_AUDIO
-void __4klang_render(void*);
+//void __4klang_render(void*);
 
 static int audio_cursor = 0;
 
@@ -536,13 +555,16 @@ void _start() {
 	SDL_Init(SDL_INIT_VIDEO | SDL_INIT_AUDIO);
 #ifdef FULLSCREEN
 #undef FULLSCREEN
-#define FULLSCREEN SDL_FULLSCREEN
+//#define FULLSCREEN SDL_FULLSCREEN
 	SDL_ShowCursor(0);
 #else
 #define FULLSCREEN 0
 #endif
 	SDL_SetVideoMode(XRES, YRES, 32, SDL_OPENGL | FULLSCREEN);
 	glViewport(0, 0, XRES, YRES);
+	glClearColor(0,0,0,0);
+	glClear(GL_COLOR_BUFFER_BIT);
+
 	introInit();
 
 #ifndef CAPTURE
@@ -553,6 +575,7 @@ void _start() {
 	const uint32_t start = SDL_GetTicks();
 	for(;;) {
 		const uint32_t now = SDL_GetTicks() - start;
+		itime = (int)((double)now * SAMPLE_RATE * sizeof(SAMPLE_TYPE) * 2 / 1000.);
 #else
 	const uint32_t total_frames = CAPTURE_FRAMERATE * MAX_SAMPLES / SAMPLE_RATE;
 	const uint32_t global_start = SDL_GetTicks();
@@ -560,7 +583,7 @@ void _start() {
 	int frame = 0;
 	for (;;) {
 		//const int frames = MAX_SAMPLES * CAPTURE_FRAMERATE / SAMPLE_RATE;
-		itime = sizeof(SAMPLE_TYPE) * 2 * SAMPLE_RATE * frame++ / CAPTURE_FRAMERATE;
+		itime = (double)sizeof(SAMPLE_TYPE) * 2 * SAMPLE_RATE * frame++ / CAPTURE_FRAMERATE;
 #endif
 		SDL_Event e;
 		SDL_PollEvent(&e);
@@ -582,7 +605,9 @@ void _start() {
 		frame_start = frame_end;
 #endif
 
+#ifndef CAPTURE
 		SDL_GL_SwapBuffers();
+#endif
 	}
 
 #ifdef COMPACT
