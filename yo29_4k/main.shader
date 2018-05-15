@@ -356,7 +356,7 @@ void main() {
 				vec3(.9, .5, .2),
 				vec3(.2, .5, .9),
 				rnd.z * .5)
-			* rnd.w
+			* rnd.y
 			* poslight
 				(vec3(30. * (streetlight_cell + (noise24(streetlight_cell).xy - .5)), 3.).xzy)
 			/* 7 bytes */ //* smoothstep(144., 140., t - rnd.w * 4. - rnd2.w * 8.)
@@ -401,5 +401,5 @@ void main() {
 	//gl_FragColor = color.x < 0.0001 ? vec4(1.,0.,0.,1.) : vec4(pow(color, vec3(1./2.2)),.5);
 	//gl_FragColor = vec4(pow(smoothstep(0., 32., t) * color, vec3(1./2.2)),.3);
 	//gl_FragColor = vec4(sqrt(smoothstep(0., 32., t) * color), .3);
-	gl_FragColor = vec4(sqrt(smoothstep(0., 1024., t*t) * color), .2);
+	gl_FragColor = vec4(sqrt(smoothstep(0., 1024., t*t) * color), .3);
 }
