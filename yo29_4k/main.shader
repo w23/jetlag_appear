@@ -78,7 +78,7 @@ vec4 kuruma_random;
 vec2 scatterDirectImpl(vec3 o, vec3 d, float L, float steps) {
 	vec2 depthRMs = vec2(0.);
 	L /= steps; d *= L;
-	for (float i = pixel_random.w * .5; i < steps; ++i)
+	for (float i = pixel_random.z; i < steps; ++i)
 		depthRMs += densitiesRM(o + d * i);
 	return depthRMs * L;
 }
@@ -93,7 +93,7 @@ vec3 LiR, LiM;
 
 void scatterImpl(vec3 o, vec3 d, float L, float steps) {
 	L /= steps; d *= L;
-	for (float i = pixel_random.z; i < steps; ++i) {
+	for (float i = pixel_random.w; i < steps; ++i) {
 		vec3 p = o + d * i;
 		vec2 dRM = densitiesRM(p) * L;
 		totalDepthRM += dRM;
@@ -258,7 +258,7 @@ vec3 kuruma(float t, float offset) {
 
 void main() {
 	//vec2 F = vec2(1280.,720.);
-	pixel_random = noise24(gl_FragCoord.xy + t * 1e4);
+	pixel_random = noise24(gl_FragCoord.xy + t * 1e5);
 
 	//if (gl_FragCoord.y < 10.) { gl_FragColor = vec4(vec3(step(gl_FragCoord.x / F.x, t / 232.)), 1.); return; }
 
@@ -267,30 +267,37 @@ void main() {
 	if (t < 32.) {
 		at = vec3(0., 340., 200.);
 	} else if (t < 64.) {
-		O = vec3(400., 250., 100. * (t - 64.) / 64.);
-		at = O - vec3(30., 0., 30.);
-		at.y = 10.;
+		//O = vec3(400., 250., 1.6 * (t - 70.));
+		//O.y = 500.;
+		O.z -= 500.;
+		at = O - vec3(30., 190., 30.);
+		//at.y = 10.;
 		//sundir.y += .01 * k * k * k;
 	} else if (t < 96.) {
 	} else if (t < 128.) {
 		//float k = (t - 128.) / 64.;
 		O = vec3(90., 68., t*2. - 200.);
 	} else if (t < 144.) {
-		O.z -= 300.;
-		O.x += 100.;
+		//O = vec3(-200.,	100.,	mod(t, 64.) * 4. - 300.);
+		O += vec3(100., -100., -300.);
+		//O.z -= 300.;
+		//O.x += 100.;
 		at = vec3(O.x+9., 90., O.z+20.);
-		O.y = 100.;
+		//O.y = 100.;
 	//	sundir.y = .01;
 	} else {
 		float k = (t - 144.) / 64.;
 		//-18, 70, 1
-		at = vec3(500., smoothstep(207., 232., t) * 800., 200.);
+		at = vec3(500., max(0.,t-207.) * 50., 200.);
+		/*
 		O = vec3(
 			-400 + k * 100.,
 			200. - k * 10.,
 			-130. - k * 140.
-			);
-		sundir.y = .01 + k * 1.5;// * k * k * k;
+			);*/
+		O = vec3(-400., 200., -130.) + k * vec3(100., -10., -140.);
+
+		sundir.y += k * 1.5;// * k * k * k;
 	}
 
 	//I = 10. + 200. * max(0., (t - 208.) / 16.);
@@ -327,16 +334,16 @@ void main() {
 		float wet = smoothstep(.6, .7, noise24(P.xz*.4).x);
 		if (mindex > 0.) {
 			//window = 0.;
-			m_kd = mix(.2, .8, wet);
-			m_shine = mix(80., 2000., wet);
-			albedo = mix(
-				vec3(.1),// * (.1 + .3 * smoothstep(-2., 1., mparam.x)),
+			m_kd = .2 + .6 * wet;
+			m_shine = 80. + 2000. * wet;
+			albedo = //mix(
+				vec3(.1)// * (.1 + .3 * smoothstep(-2., 1., mparam.x)),
 				//vec3(.1 + .3 * smoothstep(-2., 1., mparam.x)),
-				vec3(.01 + .9
+				+ vec3(-.09 + .9
 					* step(3.9, mod(mparam.x, 4.))
 					* step(.5, fract(mparam.y/4.))
-				),
-				step(1., mparam.x));
+				)
+				* step(1., mparam.x);
 		}
 
 		N = normalize(N + .4 * (noise31(P*4.) - .5));
@@ -382,7 +389,7 @@ void main() {
 		color += window
 			* smoothstep(800., 600., length(P.xz))
 			/* -8 bytes */ * (vec3(.2, .15, .1) + .1 * wrnd.xyz
-					+ .3 * noise24(fxy*3.-D.zy*3.).x
+					+ .3 * noise24(f*3.).x
 			)
 				//	+ .3 * noise24(fxy*3.).yzw
 			* step(.8, .5 * rnd.w + wrnd.w*wrnd.z - max(0., t - 136.)/64.)
@@ -394,5 +401,5 @@ void main() {
 	//gl_FragColor = color.x < 0.0001 ? vec4(1.,0.,0.,1.) : vec4(pow(color, vec3(1./2.2)),.5);
 	//gl_FragColor = vec4(pow(smoothstep(0., 32., t) * color, vec3(1./2.2)),.3);
 	//gl_FragColor = vec4(sqrt(smoothstep(0., 32., t) * color), .3);
-	gl_FragColor = vec4(sqrt(smoothstep(0., 1024., t*t) * color), .3);
+	gl_FragColor = vec4(sqrt(smoothstep(0., 1024., t*t) * color), .2);
 }
