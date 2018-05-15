@@ -148,18 +148,20 @@ vec3 scatter(vec3 o, vec3 d, float L, vec3 Lo) {
 		scatterImpl(o, d, L, 32., totalDepthRM, LiR, LiM);
 	*/
 
-	//float l = 10e3;//escape(o, d, R0 + low);//, l2 = escape(o, d, R0 + hi);
-	float l = escape(o, d, R0 + low);//, l2 = escape(o, d, R0 + hi);
+	float l = 10e3;//escape(o, d, R0 + low);//, l2 = escape(o, d, R0 + hi);
+	//float l = escape(o, d, R0 + low);//, l2 = escape(o, d, R0 + hi);
 	if (L < l)
 		scatterImpl(o, d, L, 16.);
 	else {
-		//scatterImpl(o, d, l, 32.);
-		//scatterImpl(o+d*l, d, L-l, 8.);
+		scatterImpl(o, d, l, 32.);
+		scatterImpl(o+d*l, d, L-l, 8.);
 
+/*
 		float l2 = escape(o, d, R0 + hi);
 		scatterImpl(o, d, l, 16.);
 		scatterImpl(o+d*l, d, l2-l, 40.);
 		scatterImpl(o+d*l2, d, L-l2, 8.);
+*/
 	}
 
 	float mu = dot(d, sundir);
