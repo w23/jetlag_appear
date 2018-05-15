@@ -424,10 +424,12 @@ section .data align=1
 %endif
 go4k_patterns
 	db	0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 
-	db	39, HLD, HLD, HLD, HLD, HLD, HLD, HLD, HLD, HLD, HLD, HLD, HLD, HLD, HLD, HLD, 
+	db	27, HLD, HLD, HLD, HLD, HLD, HLD, HLD, HLD, HLD, HLD, HLD, HLD, HLD, HLD, HLD, 
 	db	HLD, HLD, HLD, HLD, HLD, HLD, HLD, HLD, HLD, HLD, HLD, HLD, HLD, HLD, HLD, HLD, 
 	db	44, HLD, HLD, HLD, HLD, HLD, HLD, HLD, HLD, HLD, HLD, HLD, HLD, HLD, HLD, HLD, 
+	db	39, HLD, HLD, HLD, HLD, HLD, HLD, HLD, HLD, HLD, HLD, HLD, HLD, HLD, HLD, HLD, 
 	db	45, HLD, HLD, HLD, HLD, HLD, HLD, HLD, HLD, HLD, HLD, HLD, HLD, HLD, HLD, HLD, 
+	db	51, HLD, HLD, HLD, HLD, HLD, HLD, HLD, HLD, HLD, HLD, HLD, HLD, HLD, HLD, HLD, 
 	db	66, HLD, HLD, HLD, HLD, HLD, HLD, HLD, HLD, HLD, HLD, HLD, HLD, HLD, HLD, HLD, 
 	db	72, HLD, HLD, HLD, HLD, HLD, HLD, HLD, HLD, HLD, HLD, HLD, HLD, HLD, HLD, HLD, 
 	db	64, HLD, HLD, HLD, HLD, HLD, HLD, HLD, HLD, HLD, HLD, HLD, HLD, HLD, HLD, HLD, 
@@ -470,16 +472,16 @@ section .g4kmuc2 data align=1
 section .data
 %endif
 go4k_pattern_lists
-Instrument0List		db	1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 3, 2, 2, 2, 1, 2, 2, 2, 2, 2, 2, 2, 4, 2, 2, 2, 2, 2, 2, 2, 3, 2, 2, 2, 2, 2, 2, 2, 3, 2, 2, 2, 2, 2, 2, 2, 0, 0, 0, 0, 0, 
-Instrument1List		db	0, 0, 0, 0, 5, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 6, 2, 2, 2, 5, 2, 2, 2, 2, 2, 2, 2, 7, 2, 2, 2, 2, 2, 2, 2, 8, 2, 2, 2, 2, 2, 2, 2, 8, 2, 2, 2, 2, 2, 2, 2, 0, 0, 0, 0, 0, 
-Instrument2List		db	0, 0, 0, 0, 0, 0, 0, 0, 9, 2, 2, 2, 6, 2, 2, 2, 10, 2, 11, 2, 9, 2, 2, 2, 6, 2, 2, 2, 9, 2, 2, 2, 2, 2, 2, 2, 10, 2, 2, 2, 12, 2, 2, 2, 10, 2, 2, 2, 12, 2, 2, 2, 2, 2, 2, 2, 0, 
-Instrument4List		db	0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 13, 0, 13, 0, 14, 14, 14, 14, 13, 13, 13, 13, 13, 13, 13, 13, 15, 15, 15, 15, 16, 16, 16, 16, 14, 14, 14, 14, 14, 14, 14, 14, 14, 14, 14, 14, 14, 14, 14, 14, 0, 0, 0, 0, 0, 
-Instrument6List		db	0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 17, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 17, 17, 17, 17, 17, 18, 17, 18, 17, 18, 17, 18, 17, 18, 17, 18, 17, 18, 17, 18, 0, 0, 0, 0, 0, 
-Instrument9List		db	0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 19, 20, 21, 0, 19, 20, 21, 0, 19, 20, 21, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 
-Instrument10List		db	0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 22, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 6, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 23, 2, 0, 0, 0, 
-Instrument11List		db	0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 6, 24, 25, 24, 26, 2, 27, 28, 11, 2, 29, 30, 9, 31, 32, 33, 26, 34, 9, 0, 35, 24, 29, 0, 10, 2, 11, 0, 0, 0, 0, 0, 6, 36, 37, 38, 0, 0, 0, 0, 0, 
-Instrument12List		db	0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 39, 39, 39, 39, 39, 39, 39, 39, 0, 0, 0, 0, 0, 
-Instrument14List		db	0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 6, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 
+Instrument0List		db	1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 3, 2, 2, 2, 4, 2, 2, 2, 2, 2, 2, 2, 5, 2, 2, 2, 2, 2, 2, 2, 3, 2, 2, 2, 2, 2, 2, 2, 3, 2, 2, 2, 2, 2, 2, 2, 0, 0, 0, 0, 0, 
+Instrument1List		db	0, 0, 0, 0, 6, 2, 2, 2, 7, 2, 2, 2, 2, 2, 2, 2, 8, 2, 2, 2, 7, 2, 2, 2, 2, 2, 2, 2, 9, 2, 2, 2, 2, 2, 2, 2, 10, 2, 2, 2, 2, 2, 2, 2, 10, 2, 2, 2, 2, 2, 2, 2, 0, 0, 0, 0, 0, 
+Instrument2List		db	0, 0, 0, 0, 4, 2, 2, 2, 11, 2, 2, 2, 8, 2, 2, 2, 12, 2, 13, 2, 11, 2, 2, 2, 8, 2, 2, 2, 11, 2, 2, 2, 2, 2, 2, 2, 12, 2, 2, 2, 14, 2, 2, 2, 12, 2, 2, 2, 14, 2, 2, 2, 0, 0, 0, 0, 0, 
+Instrument4List		db	0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 15, 0, 15, 0, 16, 16, 16, 16, 15, 15, 15, 15, 15, 15, 15, 15, 17, 17, 17, 17, 18, 18, 18, 18, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 0, 0, 0, 0, 0, 
+Instrument6List		db	0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 19, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 19, 19, 19, 19, 19, 20, 19, 20, 19, 20, 19, 20, 19, 20, 19, 20, 19, 20, 19, 20, 0, 0, 0, 0, 0, 
+Instrument9List		db	0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 21, 22, 23, 0, 21, 22, 23, 0, 21, 22, 23, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 
+Instrument10List		db	0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 24, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 8, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 25, 2, 0, 0, 0, 
+Instrument11List		db	0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 8, 26, 27, 26, 28, 2, 29, 30, 13, 2, 31, 32, 11, 33, 34, 35, 28, 36, 11, 0, 37, 26, 31, 0, 12, 2, 13, 0, 0, 0, 0, 0, 8, 38, 39, 40, 0, 0, 0, 0, 0, 
+Instrument12List		db	0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 41, 41, 41, 41, 41, 41, 41, 41, 0, 0, 0, 0, 0, 
+Instrument14List		db	0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 8, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 
 go4k_pattern_lists_end
 %ifdef USE_SECTIONS
 section .g4kmuc3 data align=1
@@ -781,7 +783,7 @@ GO4K_BEGIN_PARAMDEF(Instrument9)
 	GO4K_DLL	PREGAIN(64),DRY(64),FEEDBACK(64),DAMP(64),FREQUENCY(0),DEPTH(0),DELAY(20),COUNT(1)
 	GO4K_FOP	OP(FOP_XCH)
 	GO4K_DLL	PREGAIN(64),DRY(128),FEEDBACK(108),DAMP(64),FREQUENCY(37),DEPTH(8),DELAY(9),COUNT(8)
-	GO4K_OUT	GAIN(64), AUXSEND(104)
+	GO4K_OUT	GAIN(32), AUXSEND(104)
 GO4K_END_PARAMDEF
 GO4K_BEGIN_PARAMDEF(Instrument10)
 	GO4K_ENV	ATTAC(78),DECAY(94),SUSTAIN(0),RELEASE(64),GAIN(37)
@@ -857,7 +859,7 @@ GO4K_BEGIN_PARAMDEF(Instrument14)
 	GO4K_ENV	ATTAC(0),DECAY(96),SUSTAIN(0),RELEASE(128),GAIN(128)
 	GO4K_FST	AMOUNT(96),DEST(19*MAX_UNIT_SLOTS+0+FST_SET+FST_POP)
 	GO4K_PAN	PANNING(32)
-	GO4K_OUT	GAIN(16), AUXSEND(112)
+	GO4K_OUT	GAIN(32), AUXSEND(112)
 GO4K_END_PARAMDEF
 GO4K_BEGIN_PARAMDEF(Global)
 	GO4K_ACC	ACCTYPE(AUX)
