@@ -274,7 +274,7 @@ void main() {
 		at = vec3(500., smoothstep(207., 232., t) * 800., 200.);
 		O = vec3(
 			-400 + k * 100.,
-			230. - k * 10.,
+			200. - k * 10.,
 			-130. - k * 140.
 			);
 		sundir.y = .01 + k * 1.5;// * k * k * k;
@@ -311,12 +311,11 @@ void main() {
 		m_kd = .3 + .5 * window;
 		m_shine = 18. + 1e4 * window;
 
-		//N += .01 * (noise31(P*4.) - .5);
-
+		float wet = smoothstep(.6, .7, noise24(P.xz*.4).x);
 		if (mindex > 0.) {
 			//window = 0.;
-			m_kd = .2;
-			m_shine = 80.;
+			m_kd = mix(.2, .8, wet);
+			m_shine = mix(80., 2000., wet);
 			albedo = mix(
 				vec3(.1),// * (.1 + .3 * smoothstep(-2., 1., mparam.x)),
 				//vec3(.1 + .3 * smoothstep(-2., 1., mparam.x)),
@@ -326,6 +325,8 @@ void main() {
 				),
 				step(1., mparam.x));
 		}
+
+		N = normalize(N + .4 * (noise31(P*4.) - .5));
 
 		color += Lin(P, sundir, escape(P, sundir, Ra)) * I * dirlight(sundir);
 
@@ -358,18 +359,20 @@ void main() {
 
 		/*
 		vec3 opposite = vec3(-sundir.x, sundir.y, -sundir.z);
-		clouds = 0;
+		//clouds = 0;
 		color += scatter(P, opposite, escape(P, opposite, Ra), vec3(0.)) * 6. * dirlight(opposite);
-		clouds = 1;
+		//clouds = 1;
 		*/
 		color = scatter(O, D, L, color * albedo);
 
 		vec4 wrnd = noise24(floor(fxyC + P.xz/3.));
 		color += window
 			* smoothstep(800., 600., length(P.xz))
-			/* -8 bytes */ * (vec3(.2, .15, .1) + .1 * wrnd.xyz)
+			/* -8 bytes */ * (vec3(.2, .15, .1) + .1 * wrnd.xyz
+					+ .3 * noise24(fxy*3.-D.zy*3.).x
+			)
 				//	+ .3 * noise24(fxy*3.).yzw
-			* step(.4, wrnd.w*wrnd.z - max(0., t - 136.)/64.)
+			* step(.8, .5 * rnd.w + wrnd.w*wrnd.z - max(0., t - 136.)/64.)
 			//* smoothstep(.85, 1., wrnd.w + .1 * smoothstep(.34, .8, .2 * rnd.w + .8 * rnd2.w) - max(0., t - 136.)/64.)
 			;
 	} else
