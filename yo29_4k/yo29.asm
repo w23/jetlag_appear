@@ -130,11 +130,19 @@ section .dsmain data
 
 section .dpfd data
 pfd:
+%if 0
 	DW	028H, 01H
 	DD	025H
 	DB	00H, 020H, 00H, 00H, 00H, 00H, 00H, 00H, 08H, 00H, 00H, 00H, 00H, 00H
 	DB	00H, 020H, 00H, 00H, 00H, 00H
 	DD	00H, 00H, 00H
+%else
+	DW	00H, 00H
+	DD	21H ;025H
+	DB	00H, 00H, 00H, 00H, 00H, 00H, 00H, 00H, 00H, 00H, 00H, 00H, 00H, 00H
+	DB	00H, 00H, 00H, 00H, 00H, 00H
+	DD	00H, 00H, 00H
+%endif
 
 %ifdef FULLSCREEN
 section .ddevmod data
