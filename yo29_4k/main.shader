@@ -261,22 +261,18 @@ void main() {
 	//if (gl_FragCoord.y < 10.) { gl_FragColor = vec4(vec3(step(gl_FragCoord.x / F.x, t / 232.)), 1.); return; }
 
 	vec3 at = vec3(0.);
-	O = vec3(
-		-300.,
-		200.,
-		mod(t, 64.) * 4.
-		);
-
-
+	O = vec3(-300.,	200.,	mod(t, 64.) * 4.);
 	if (t < 32.) {
 		at = vec3(0., 340., 200.);
 	} else if (t < 64.) {
-		float k = (t - 64.) / 64.;
-		O = vec3(400., 250., k * 100.);
-		at = O + vec3(-30., 0., -30.);
+		O = vec3(400., 250., 100. * (t - 64.) / 64.);
+		at = O - vec3(30., 0., 30.);
 		at.y = 10.;
-		sundir.y += .01 * k * k * k;
+		//sundir.y += .01 * k * k * k;
+	} else if (t < 96.) {
 	} else if (t < 128.) {
+		//float k = (t - 128.) / 64.;
+		O = vec3(90., 68., t*2. - 200.);
 	} else if (t < 144.) {
 		O.z -= 300.;
 		O.x += 100.;
@@ -392,5 +388,6 @@ void main() {
 
 	//gl_FragColor = color.x < 0.0001 ? vec4(1.,0.,0.,1.) : vec4(pow(color, vec3(1./2.2)),.5);
 	//gl_FragColor = vec4(pow(smoothstep(0., 32., t) * color, vec3(1./2.2)),.3);
-	gl_FragColor = vec4(sqrt(smoothstep(0., 32., t) * color), .3);
+	//gl_FragColor = vec4(sqrt(smoothstep(0., 32., t) * color), .3);
+	gl_FragColor = vec4(sqrt(smoothstep(0., 1024., t*t) * color), .3);
 }
