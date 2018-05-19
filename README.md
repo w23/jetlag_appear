@@ -1,9 +1,56 @@
-# nikak by s.k.o.y.p & yolp
+# appear by jetlag
 
-A 4096 bytes intro for Evoke 2017
+4k intro
 
-Tied for 5/6th place.
+FINAL VERSION
 
-Pouet: [https://www.pouet.net/prod.php?which=71568](https://www.pouet.net/prod.php?which=71568)
+party version took 12th place at Revision 2018
 
-Video capture: [https://www.youtube.com/watch?v=mloyFK3wymw](https://www.youtube.com/watch?v=mloyFK3wymw)
+![Screenshot](https://yolp.omgwtf.ru/jetlag_appear_final.jpg)
+
+Pouet: [https://www.pouet.net/prod.php?which=75750](https://www.pouet.net/prod.php?which=75750)
+
+Video capture: [https://youtu.be/3af_z8LQOe4](https://youtu.be/3af_z8LQOe4)
+
+music, direction: keen
+
+code, shaders, direction: provod
+
+Requires beefy GPU. Expect 10-30fps on NVidia GTX Titan (~2013) or 20-60fps on AMD Radeon Fury X
+
+Uses 4klang, Crinkler, GLSL, raymarching and atmospheric scattering
+
+greetings
+- alcatraz
+-	consciousness
+-	conspiracy
+-	ctrl-alt-test
+-	darklite
+-	elix
+-	fairlight
+-	farbrausch
+-	fl1ne
+-	fms_cat
+-	frag
+-	kalium cyanide group
+-	logicoma
+-	mercury
+-	nonoil
+-	orange
+-	orbitaldecay
+-	proxium
+-	prismbeings
+-	quite
+-	sands
+-	sensenstahl
+-	still
+-	systemk
+-	t-rex
+-	the nephelims
+-	throb
+-	titan
+-	tomohiro
+-	vaahtera
+-	virtual illusions
+-	youth uprising
+-	future crew :)
