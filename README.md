@@ -14,6 +14,7 @@ party version took 12th place at [Revision 2018](https://2018.revision-party.net
 
 ## Credits
 music, direction: keen
+
 code, shaders: provod
 
 ### Third-party tools and libraries used
