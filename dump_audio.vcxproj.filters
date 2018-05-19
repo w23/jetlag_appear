@@ -20,7 +20,7 @@
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
-    <CustomBuild Include="4klang.asm">
+    <CustomBuild Include="yo29_4k\4klang.asm">
       <Filter>Файлы исходного кода</Filter>
     </CustomBuild>
   </ItemGroup>

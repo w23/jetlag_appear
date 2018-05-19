@@ -14,12 +14,12 @@
     <ClCompile Include="dump_audio.c" />
   </ItemGroup>
   <ItemGroup>
-    <CustomBuild Include="4klang.asm">
+    <CustomBuild Include="yo29_4k\4klang.asm">
       <FileType>Document</FileType>
-      <Command Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">"C:\Program Files\NASM\nasm.exe" -f win32 -i4klang_win32\ "%(Identity)" -o "$(Configuration)\%(Filename).obj"</Command>
-      <Command Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">"C:\Program Files\NASM\nasm.exe" -f win32 -i4klang_win32\ "%(Identity)" -o "$(Configuration)\%(Filename).obj"</Command>
-      <Message Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">"C:\Program Files\NASM\nasm.exe" -f win32 -i4klang_win32\ "%(Identity)" -o "$(Configuration)\%(Filename).obj"</Message>
-      <Message Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">"C:\Program Files\NASM\nasm.exe" -f win32 -i4klang_win32\ "%(Identity)" -o "$(Configuration)\%(Filename).obj"</Message>
+      <Command Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">"C:\Program Files\NASM\nasm.exe" -f win32 -iyo29_4k\4klang_win32\ "%(Identity)" -o "$(Configuration)\%(Filename).obj"</Command>
+      <Command Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">"C:\Program Files\NASM\nasm.exe" -f win32 -iyo29_4k\4klang_win32\ "%(Identity)" -o "$(Configuration)\%(Filename).obj"</Command>
+      <Message Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">"C:\Program Files\NASM\nasm.exe" -f win32 -iyo29_4k\4klang_win32\ "%(Identity)" -o "$(Configuration)\%(Filename).obj"</Message>
+      <Message Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">"C:\Program Files\NASM\nasm.exe" -f win32 -iyo29_4k\4klang_win32\ "%(Identity)" -o "$(Configuration)\%(Filename).obj"</Message>
       <Outputs Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">$(Configuration)\%(Filename).obj</Outputs>
       <Outputs Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">$(Configuration)\%(Filename).obj</Outputs>
     </CustomBuild>
@@ -75,6 +75,7 @@
       <WarningLevel>Level3</WarningLevel>
       <Optimization>Disabled</Optimization>
       <PreprocessorDefinitions>WIN32;_DEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>yo29_4k;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
@@ -90,6 +91,7 @@
       <FunctionLevelLinking>true</FunctionLevelLinking>
       <IntrinsicFunctions>true</IntrinsicFunctions>
       <PreprocessorDefinitions>WIN32;NDEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>yo29_4k;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
