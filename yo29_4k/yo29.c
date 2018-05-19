@@ -58,6 +58,10 @@ int _fltused = 1;
 #define oglUniform1i glUniform1i
 #endif
 
+#ifndef COUNTOF
+#define COUNTOF(a) (sizeof(a) / sizeof(*(a)))
+#endif
+
 #include "glext.h"
 
 #include "4klang.h"
@@ -251,11 +255,15 @@ static void GLCHECK() {
 
 #pragma code_seg(".compileProgram")
 static __forceinline GLuint compileProgram(const char *fragment) {
+#ifdef _WIN32
 	const char* sources[1] = { fragment };
+#else
+	const char* sources[2] = { "#version 130\n", fragment };
+#endif
 #ifdef NO_CREATESHADERPROGRAMV
 	const int pid = oglCreateProgram();
 	const int fsId = oglCreateShader(GL_FRAGMENT_SHADER);
-	oglShaderSource(fsId, 2, sources, 0);
+	oglShaderSource(fsId, COUNTOF(sources), sources, 0);
 	oglCompileShader(fsId);
 
 #ifdef SHADER_DEBUG
@@ -279,7 +287,7 @@ static __forceinline GLuint compileProgram(const char *fragment) {
 	oglLinkProgram(pid);
 
 #else
-	const GLuint pid = oglCreateShaderProgramv(GL_FRAGMENT_SHADER, 1, sources);
+	const GLuint pid = oglCreateShaderProgramv(GL_FRAGMENT_SHADER, COUNTOF(sources), sources);
 #endif
 
 #ifdef SHADER_DEBUG
@@ -555,7 +563,7 @@ void _start() {
 	SDL_Init(SDL_INIT_VIDEO | SDL_INIT_AUDIO);
 #ifdef FULLSCREEN
 #undef FULLSCREEN
-//#define FULLSCREEN SDL_FULLSCREEN
+#define FULLSCREEN SDL_FULLSCREEN
 	SDL_ShowCursor(0);
 #else
 #define FULLSCREEN 0

@@ -1,3 +1,3 @@
-audio_raw audio.raw 44100 2 60
+audio_raw ../audio.raw 44100 2 60
 variables yo29.vars
 scene 0:0 yo29.scene

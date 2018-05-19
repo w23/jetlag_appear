@@ -5,7 +5,7 @@ MAKEFLAGS += -r --no-print-directory -j $(shell nproc)
 
 CC ?= cc
 CXX ?= c++
-CFLAGS += -Wall -Wextra -Werror -pedantic -Iatto -O0 -g
+CFLAGS += -Wall -Wextra -Werror -pedantic -Iatto -Iyo29_4k -O0 -g
 CXXFLAGS += -std=c++11 $(CFLAGS)
 LIBS = -lX11 -lXfixes -lGL -lasound -lm -pthread
 OBJDIR ?= .obj
@@ -13,7 +13,7 @@ MIDIDEV ?= ''
 WIDTH ?= 1280
 HEIGHT ?= 720
 SHMIN=mono shader_minifier.exe
-INTRO=wip
+INTRO=appear
 
 DEPFLAGS = -MMD -MP
 COMPILE.c = $(CC) -std=gnu99 $(CFLAGS) $(DEPFLAGS) -MT $@ -MF $@.d
@@ -25,6 +25,10 @@ $(OBJDIR)/%.c.o: %.c
 	@mkdir -p $(dir $@)
 	$(COMPILE.c) -c $< -o $@
 
+$(OBJDIR)/%.asm.obj: %.asm yo29_4k/main.shader.inc
+	@mkdir -p $(dir $@)
+	nasm -f win32 -iyo29_4k/4klang_win32/ -iyo29_4k/ $< -o $@
+
 $(OBJDIR)/%.c.o32: %.c
 	@mkdir -p $(dir $@)
 	$(COMPILE.c) -m32 -c $< -o $@
@@ -33,8 +37,8 @@ $(OBJDIR)/%.cc.o: %.cc
 	@mkdir -p $(dir $@)
 	$(COMPILE.cc) -c $< -o $@
 
-$(OBJDIR)/4klang.o32: 4klang.asm 4klang_linux/4klang.inc
-	nasm -f elf32 -I4klang_linux/ 4klang.asm -o $@
+$(OBJDIR)/4klang.o32: yo29_4k/4klang.asm yo29_4k/4klang_linux/4klang.inc
+	nasm -f elf32 -Iyo29_4k/4klang_linux/ yo29_4k/4klang.asm -o $@
 
 TOOL_EXE = $(OBJDIR)/tool/tool
 TOOL_SRCS = \
@@ -63,6 +67,9 @@ DUMP_AUDIO_SRCS = dump_audio.c
 DUMP_AUDIO_OBJS = $(DUMP_AUDIO_SRCS:%=$(OBJDIR)/%.o32)
 DUMP_AUDIO_DEPS = $(DUMP_AUDIO_OBJS:%=%.d)
 
+INTRO_WIN32_SRCS = yo29_4k/4klang.asm yo29_4k/yo29.asm
+INTRO_WIN32_OBJS = $(INTRO_WIN32_SRCS:%=$(OBJDIR)/%.obj)
+
 -include $(DUMP_AUDIO_DEPS)
 
 $(DUMP_AUDIO_EXE): $(DUMP_AUDIO_OBJS) $(OBJDIR)/4klang.o32
@@ -77,7 +84,8 @@ clean:
 	rm -f $(INTRO).sh $(INTRO).gz $(INTRO).elf $(INTRO) $(INTRO).dbg
 
 run_tool: $(TOOL_EXE) audio.raw
-	$(TOOL_EXE) -w $(WIDTH) -h $(HEIGHT) -m $(MIDIDEV)
+	cd yo29_4k; \
+	../$(TOOL_EXE) -w $(WIDTH) -h $(HEIGHT) -m $(MIDIDEV)
 
 debug_tool: $(TOOL_EXE) audio.raw
 	gdb --args $(TOOL_EXE) -w $(WIDTH) -h $(HEIGHT) -m $(MIDIDEV)
@@ -90,7 +98,10 @@ $(INTRO).gz: $(INTRO).elf
 	cat $< | 7z a dummy -tGZip -mx=9 -si -so > $@
 
 %.h: %.glsl
-	$(SHMIN) -o $@ --no-renaming-list Z,T,P,X,k,F,t,E,PI,main --preserve-externals $<
+	$(SHMIN) -o $@ --no-renaming-list S,F,main --preserve-externals $<
+
+%.inc: %.glsl
+	$(SHMIN) -o $@ --no-renaming-list S,F,main --format nasm --preserve-externals $<
 
 #.h.seq: timepack
 #	timepack $< $@
@@ -99,26 +110,47 @@ $(INTRO).gz: $(INTRO).elf
 #	$(CC) -std=c99 -Wall -Werror -Wextra -pedantic -lm timepack.c -o timepack
 
 # '-nostartfiles -DCOMPACT' result in a libSDL crash on my machine (making older 1k/4k also crash) :(
-$(INTRO).elf: $(OBJDIR)/4klang.o32 intro_c.c
-	$(CC) -m32 -Os -Wall -Wno-unknown-pragmas \
+$(INTRO).elf: $(OBJDIR)/4klang.o32 yo29_4k/yo29.c
+	$(CC) -m32 -Os -Wall -Wno-unknown-pragmas -I. \
 		-DFULLSCREEN `pkg-config --cflags --libs sdl` -lGL \
 		$^ -o $@
 	sstrip $@
 
-$(INTRO).dbg: intro_c.c $(OBJDIR)/4klang.o32
-	$(CC) -m32 -O0 -g -Wall -Wno-unknown-pragmas \
+$(INTRO).dbg: $(OBJDIR)/4klang.o32 yo29_4k/yo29.c
+	$(CC) -m32 -O0 -g  -D_DEBUG -Wall -Wno-unknown-pragmas -I. \
 		`pkg-config --cflags --libs sdl` -lGL \
 		$^ -o $@
 
-$(INTRO).capture: blur_reflection.h  composite.h  dof_tap.h  header.h  out.h  post.h  raymarch.h intro_c.c
-	$(CC) -O3 -Wall -Wno-unknown-pragmas \
+CRINKLER=wine link.exe
+INTRO_WIN32_LIBS = /LIBPATH:yo29_4k opengl32.lib winmm.lib kernel32.lib user32.lib gdi32.lib
+INTRO_WIN32_CRINKLER_OPTS = /ENTRY:entrypoint /CRINKLER /UNSAFEIMPORT /NOALIGNMENT /NOINITIALIZERS /RANGE:opengl32 /PRINT:IMPORTS /PRINT:LABELS /TRANSFORM:CALLS /TINYIMPORT /NODEFAULTLIB /SUBSYSTEM:WINDOWS
+
+win32-fast: $(INTRO)-fast.exe
+
+$(INTRO)-fast.exe: $(INTRO_WIN32_OBJS)
+	$(CRINKLER) \
+		$(INTRO_WIN32_CRINKLER_OPTS) \
+		/COMPMODE:FAST /REPORT:report-fast.html \
+		$(INTRO_WIN32_LIBS) \
+		$(INTRO_WIN32_OBJS) \
+		/OUT:$@
+
+win32-slow: $(INTRO)-slow.exe
+
+$(INTRO)-slow.exe: $(INTRO_WIN32_OBJS)
+	$(CRINKLER) \
+		$(INTRO_WIN32_CRINKLER_OPTS) \
+		/HASHTRIES:3000 /COMPMODE:SLOW /ORDERTRIES:6000 /REPORT:report-slow.html /SATURATE /HASHSIZE:900 /UNSAFEIMPORT \
+		$(INTRO_WIN32_LIBS) \
+		$(INTRO_WIN32_OBJS) \
+		/OUT:$@
+
+$(INTRO).capture: yo29_4k/main.shader.h yo29_4k/yo29.c
+	$(CC) -O3 -Wall -Wno-unknown-pragmas -I. -Iyo29_4k/ \
 		-DCAPTURE `pkg-config --cflags --libs sdl` -lGL \
 		$^ -o $@
 
-capture: $(INTRO)_$(WIDTH)_$(HEIGHT).mp4
-
-$(INTRO)_$(WIDTH)_$(HEIGHT).mp4: $(INTRO).capture sound.raw
-	./$(INTRO).capture | ffmpeg \
+FFMPEG_ARGS = \
 	-y -f rawvideo -vcodec rawvideo \
 	-s $(WIDTH)x$(HEIGHT) -pix_fmt rgb24 \
 	-framerate 60 \
@@ -128,8 +160,23 @@ $(INTRO)_$(WIDTH)_$(HEIGHT).mp4: $(INTRO).capture sound.raw
 	-c:a aac -b:a 160k \
 	-c:v libx264 -vf vflip \
 	-movflags +faststart \
-	-level 4.1 -preset placebo -crf 21.0 \
-	-x264-params keyint=600:bframes=3:scenecut=60:ref=3:qpmin=10:qpstep=8:vbv-bufsize=24000:vbv-maxrate=24000:merange=32 \
+	-level 4.1 -preset veryslow -crf 14.0 \
+	-tune film
+
+#	-x264-params keyint=600:bframes=3:scenecut=60:ref=3:qpmin=10:qpstep=8:vbv-bufsize=24000:vbv-maxrate=24000:merange=32 \
+
+capture: $(INTRO)_$(WIDTH)_$(HEIGHT).mp4
+test-capture: test_$(INTRO)_$(WIDTH)_$(HEIGHT).mp4
+
+$(INTRO)_$(WIDTH)_$(HEIGHT).mp4: $(INTRO).capture audio.raw
+	./$(INTRO).capture | ffmpeg \
+	$(FFMPEG_ARGS) \
+	$@
+
+test_$(INTRO)_$(WIDTH)_$(HEIGHT).mp4: $(INTRO).capture audio.raw
+	./$(INTRO).capture | ffmpeg \
+	-t 48 \
+	$(FFMPEG_ARGS) \
 	$@
 
 	# "//-crf 18 -preset slow -vf vflip  \
