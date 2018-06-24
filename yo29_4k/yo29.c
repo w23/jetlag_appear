@@ -14,7 +14,17 @@
 #endif
 #define DEBUG_FUNCLOAD
 #define SHADER_DEBUG
+#define DISABLE_MUSIC
+#define DEBUG_GL
 #endif
+
+//#undef FULLSCREEN
+//#define DEBUG_FUNCLOAD
+//#define DEBUG_GL
+//#define SHADER_DEBUG
+//#define DISABLE_MUSIC
+//#define SHADER_VERSION
+//#define DISABLE_BLEND
 
 #ifdef _WIN32
 #define WIN32_LEAN_AND_MEAN
@@ -46,6 +56,8 @@ int _fltused = 1;
 //#define oglUniform1fv gl.Uniform1fv
 
 #elif defined(__linux__)
+#define SHADER_VERSION
+
 #define GL_GLEXT_PROTOTYPES
 #include <GL/gl.h>
 
@@ -207,8 +219,8 @@ static WAVEHDR WaveHDR =
 #endif // SOUND
 #endif /* _WIN32 */
 
-#ifndef _DEBUG
-#define GLCHECK()
+#ifndef DEBUG_GL
+#define GL(f) f
 #define glGetError()
 #else
 static const char *a__GlPrintError(int error) {
@@ -231,11 +243,16 @@ static const char *a__GlPrintError(int error) {
 	};
 	return errstr;
 }
-static void GLCHECK() {
+#define GL(f) \
+	do { \
+		f;\
+		GLCHECK(#f); \
+	} while(0)
+static void GLCHECK(const char *func) {
 	const int glerror = glGetError();
 	if (glerror != GL_NO_ERROR) {
 #ifdef _WIN32
-		MessageBox(NULL, a__GlPrintError(glerror), "GLCHECK", 0);
+		MessageBox(NULL, a__GlPrintError(glerror), func, 0);
 		ExitProcess(0);
 #else
 		printf("%s\n", a__GlPrintError(glerror));
@@ -255,7 +272,7 @@ static void GLCHECK() {
 
 #pragma code_seg(".compileProgram")
 static __forceinline GLuint compileProgram(const char *fragment) {
-#ifdef _WIN32
+#ifndef SHADER_VERSION
 	const char* sources[1] = { fragment };
 #else
 	const char* sources[2] = { "#version 130\n", fragment };
@@ -313,11 +330,9 @@ static __forceinline GLuint compileProgram(const char *fragment) {
 
 #pragma code_seg(".initTexture")
 static /*__forceinline*/ void initTexture(GLuint tex, int w, int h, int comp, int type, void *data) {
-	glBindTexture(GL_TEXTURE_2D, tex);
-	GLCHECK();
-	glTexImage2D(GL_TEXTURE_2D, 0, comp, w, h, 0, GL_RGBA, type, data);
-	GLCHECK();
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+	GL(glBindTexture(GL_TEXTURE_2D, tex));
+	GL(glTexImage2D(GL_TEXTURE_2D, 0, comp, w, h, 0, GL_RGBA, type, data));
+	GL(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR));
 	//glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
 	//glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
 	//glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
@@ -348,9 +363,8 @@ static void paint(GLuint prog) {
 			}
 	}
 #else
-	glRects(-1, -1, 1, 1);
+	GL(glRects(-1, -1, 1, 1));
 #endif
-	GLCHECK();
 }
 
 #pragma code_seg(".introInit")
@@ -361,16 +375,17 @@ static __forceinline void introInit() {
 		noise_bytes[i] = (seed >> 18);
 	}
 
-	glGenTextures(Tex_COUNT, texture);
-	GLCHECK();
+	GL(glGenTextures(Tex_COUNT, texture));
 
 	initTexture(texture[Tex_Random], NOISE_SIZE, NOISE_SIZE, GL_RGBA, GL_UNSIGNED_BYTE, noise_bytes);
 
 	program[Pass_Main] = compileProgram(main_shader_glsl);
-	oglUseProgram(program[Pass_Main]);
+	GL(oglUseProgram(program[Pass_Main]));
 
-	glEnable(GL_BLEND);
-	glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+#ifndef DISABLE_BLEND
+	GL(glEnable(GL_BLEND));
+	GL(glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA));
+#endif
 }
 
 #pragma code_seg(".introPaint")
@@ -445,7 +460,7 @@ void entrypoint(void) {
 #ifndef CAPTURE
 	// initialize sound
 	HWAVEOUT hWaveOut;
-#ifndef _DEBUG
+#ifndef DISABLE_MUSIC
 	// 4klang crashes in debug with this music
 	CreateThread(0, 0, (LPTHREAD_START_ROUTINE)_4klang_render, sound_buffer, 0, 0);
 #endif
