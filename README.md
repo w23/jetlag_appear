@@ -11,6 +11,9 @@ party version took 12th place at [Revision 2018](https://2018.revision-party.net
 ## Links
 - Pouet: [https://www.pouet.net/prod.php?which=75750](https://www.pouet.net/prod.php?which=75750)
 - Video capture: [https://youtu.be/3af_z8LQOe4](https://youtu.be/3af_z8LQOe4)
+- Scattering model explained: [https://provod.gl/blog/2018-06-11-scattering/](https://provod.gl/blog/2018-06-11-scattering/)
+  - На русском: [https://habr.com/post/414173/](https://habr.com/post/414173/)
+- "Making of" stream records playlist (mostly in Russian): [https://www.youtube.com/playlist?list=PLP0z1CQXyu5AQALvAGyH0jxNsTyxlsl7F](https://www.youtube.com/playlist?list=PLP0z1CQXyu5AQALvAGyH0jxNsTyxlsl7F)
 
 ## Credits
 music, direction: keen
